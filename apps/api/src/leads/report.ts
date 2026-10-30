@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   MAX_REPORT_CHARS,
+  MAX_REPORT_ROWS,
   ReportLeadSchema,
   type IntakeBatchKind,
   type ReportLead,
@@ -22,12 +23,6 @@ export type ReportCtx = Pick<WorkerCtx, "prisma" | "llm" | "queue" | "clock" | "
 
 const PREVIEW_KIND = "paste_report";
 const BATCH_KIND: IntakeBatchKind = "paste_report";
-
-/**
- * The most rows one report can yield. The model's answer is untrusted, and a report that fits the
- * 50,000-character cap does not describe more postings than this.
- */
-export const MAX_REPORT_ROWS = 200;
 
 // --- cleaning what the model returned -----------------------------------------------------------
 
@@ -71,15 +66,24 @@ function validDate(value: string | null): string | null {
 /**
  * Bounds the model's answer before it is stored or shown: text fields are one line of at most a
  * fixed length without control or format characters, links must be http(s), a domain must look
- * like one, a date must parse, and a row with no company or no title is dropped. At most
- * `MAX_REPORT_ROWS` rows are kept, in order.
+ * like one, a date must parse, and a row with no company or no title is not a posting and is left
+ * out. At most `MAX_REPORT_ROWS` rows are kept, in order; `dropped` counts the postings after
+ * them, so the page can say they were not read.
  */
-export function cleanReportLeads(leads: readonly ReportLead[]): ReportLead[] {
+export function cleanReportLeads(leads: readonly ReportLead[]): {
+  leads: ReportLead[];
+  dropped: number;
+} {
   const cleaned: ReportLead[] = [];
+  let dropped = 0;
   for (const lead of leads) {
     const company = field(lead.company, LIMITS.company);
     const title = field(lead.title, LIMITS.title);
     if (company === null || title === null) continue;
+    if (cleaned.length === MAX_REPORT_ROWS) {
+      dropped += 1;
+      continue;
+    }
     cleaned.push({
       company,
       companyDomain: domain(lead.companyDomain),
@@ -92,9 +96,8 @@ export function cleanReportLeads(leads: readonly ReportLead[]): ReportLead[] {
       postedAt: validDate(lead.postedAt),
       seniority: lead.seniority,
     });
-    if (cleaned.length === MAX_REPORT_ROWS) break;
   }
-  return cleaned;
+  return { leads: cleaned, dropped };
 }
 
 // --- rows → intake ------------------------------------------------------------------------------
@@ -169,7 +172,7 @@ export async function previewReport(ctx: ReportCtx, text: string): Promise<Repor
     ctx.log.warn(failureFields(error), "report parsing failed");
     throw new ApiError(502, "upstream_error", "The report could not be read. Try again.");
   }
-  const leads = cleanReportLeads(parsed);
+  const { leads, dropped } = cleanReportLeads(parsed);
 
   const now = ctx.clock();
   const settings = await getSettings(ctx.prisma);
@@ -178,7 +181,9 @@ export async function previewReport(ctx: ReportCtx, text: string): Promise<Repor
   leads.forEach((lead, index) => {
     const decision = decisions[index];
     const annotation = decision === undefined ? null : annotate(decision);
-    if (annotation !== null) rows.push({ rowId: randomUUID(), annotation, lead });
+    if (annotation !== null) {
+      rows.push({ rowId: randomUUID(), annotation, defaultKeep: annotation === "new", lead });
+    }
   });
 
   // Expired previews are of no use to anyone; clearing them here keeps the table small.
@@ -190,7 +195,7 @@ export async function previewReport(ctx: ReportCtx, text: string): Promise<Repor
   const stored = await ctx.prisma.importPreview.create({
     data: { kind: PREVIEW_KIND, payload, createdAt: now, expiresAt },
   });
-  return { previewId: stored.id, expiresAt: expiresAt.toISOString(), rows };
+  return { previewId: stored.id, expiresAt: expiresAt.toISOString(), rows, droppedRows: dropped };
 }
 
 // --- commit -------------------------------------------------------------------------------------

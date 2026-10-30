@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ApiErrorBodySchema,
   MAX_REPORT_CHARS,
+  MAX_REPORT_ROWS,
   ReportCommitResultSchema,
   ReportPreviewSchema,
   type ReportLead,
@@ -148,6 +149,16 @@ describe("POST /leads/import/preview", () => {
       ["Twice Ltd", "new"],
       ["Twice Ltd", "duplicate"],
     ]);
+    // Only `new` rows start checked.
+    expect(preview.rows.map((r) => r.defaultKeep)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+    expect(preview.droppedRows).toBe(0);
     expect(new Set(preview.rows.map((r) => r.rowId)).size).toBe(6);
     expect(preview.expiresAt).toBe(new Date(NOW.getTime() + 60 * 60 * 1000).toISOString());
   });
@@ -205,6 +216,18 @@ describe("POST /leads/import/preview", () => {
       jobUrl: "http://jobs.good.example/a",
       postedAt: "2026-09-30",
     });
+  });
+
+  it("rows beyond 200 are counted in droppedRows, not read", async () => {
+    const leads = Array.from({ length: MAX_REPORT_ROWS + 3 }, (_, i) =>
+      lead({ company: `Company ${i}`, jobUrl: `https://jobs.example/${i}` }),
+    );
+    // A row that is not a posting does not count as dropped.
+    leads.splice(5, 0, lead({ company: " ", title: "No company" }));
+    const preview = await previewOf(leads);
+    expect(preview.rows).toHaveLength(MAX_REPORT_ROWS);
+    expect(preview.droppedRows).toBe(3);
+    expect(preview.rows[MAX_REPORT_ROWS - 1]?.lead.company).toBe(`Company ${MAX_REPORT_ROWS - 1}`);
   });
 
   it("a model failure → 502 upstream_error, and nothing from the text reaches the logs", async () => {

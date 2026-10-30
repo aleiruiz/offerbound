@@ -23,6 +23,7 @@ import {
   ReportPreviewBodySchema,
   ReportPreviewSchema,
   MAX_REPORT_CHARS,
+  MAX_REPORT_ROWS,
   SheetCommitBodySchema,
   TodaySchema,
   TimelineEventSchema,
@@ -287,8 +288,10 @@ describe("onboarding request and response shapes", () => {
         previewId: "p1",
         expiresAt: "2026-10-01T13:00:00.000Z",
         rows: [],
+        droppedRows: 0,
       }).success,
     ).toBe(true);
+    expect(MAX_REPORT_ROWS).toBe(200);
   });
 
   it("POST /cv answers 201 with a bare profile, or 202 with profileStatus failed and no profile", () => {

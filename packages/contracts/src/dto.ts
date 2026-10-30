@@ -523,13 +523,24 @@ export const ReportRowAnnotationSchema = z.enum([
 ]);
 export type ReportRowAnnotation = z.infer<typeof ReportRowAnnotationSchema>;
 
+/** The most rows one report yields; the rest are counted in `ReportPreview.droppedRows`. */
+export const MAX_REPORT_ROWS = 200;
+
 /** `POST /leads/import/preview` (TECHNICAL_SPEC §7.6). */
 export const ReportPreviewSchema = z.object({
   previewId: id,
   expiresAt: iso,
   rows: z.array(
-    z.object({ rowId: id, annotation: ReportRowAnnotationSchema, lead: ReportLeadSchema }),
+    z.object({
+      rowId: id,
+      annotation: ReportRowAnnotationSchema,
+      /** True only for `new`: the page starts with duplicates and already-seen rows unchecked. */
+      defaultKeep: z.boolean(),
+      lead: ReportLeadSchema,
+    }),
   ),
+  /** Postings the model read beyond `MAX_REPORT_ROWS`, which are not in `rows`. */
+  droppedRows: count,
 });
 export type ReportPreview = z.infer<typeof ReportPreviewSchema>;
 
