@@ -7,6 +7,7 @@ import { registerCsrf } from "./http/csrf.js";
 import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
 import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
+import { registerApplicationRoutes } from "./routes/applications.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
@@ -107,6 +108,7 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerApplicationRoutes(guarded, deps);
         registerInterviewRoutes(guarded, deps);
         registerTodayRoutes(guarded, deps);
         registerDailyActivityRoutes(guarded, deps);
