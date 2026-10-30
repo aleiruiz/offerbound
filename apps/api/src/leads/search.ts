@@ -16,6 +16,7 @@ import { QUEUES, type JobQueue } from "../jobs/queues.js";
 import { LlmError } from "../llm/provider.js";
 import { getSettings } from "../settings/service.js";
 import { getActiveProfile } from "./cv.js";
+import { cleanName, loadSeenCompanies } from "./exclusions.js";
 import { bumpBatchCounts, ingestLeads } from "./intake.js";
 import { runFinalize } from "./finalize.js";
 import { checkLink, type LinkCheckResult } from "./link-check.js";
@@ -161,27 +162,8 @@ export async function registerSearchSchedule(
 
 type ExclusionGroup = { names: string[] };
 
-/** Longest company name sent in the exclusion list. */
-export const EXCLUSION_NAME_MAX_CHARS = 120;
 /** Most names sent in the exclusion list, over all groups. */
 export const EXCLUSION_MAX_NAMES = 2000;
-
-/**
- * A name that is safe to put in the prompt: control and format characters removed (zero-width
- * and bidirectional marks, line and paragraph separators), trimmed, at most 120 characters and never ending on half a surrogate
- * pair. Company names come from stored records and from model output, which is untrusted
- * (SECURITY §9). Returns null when nothing is left.
- */
-function cleanName(name: string): string | null {
-  let clean = name.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, "").trim();
-  if (clean.length > EXCLUSION_NAME_MAX_CHARS) {
-    clean = clean.slice(0, EXCLUSION_NAME_MAX_CHARS);
-    const last = clean.charCodeAt(clean.length - 1);
-    if (last >= 0xd800 && last <= 0xdbff) clean = clean.slice(0, -1);
-    clean = clean.trim();
-  }
-  return clean === "" ? null : clean;
-}
 
 /**
  * Every company the owner has already seen: any company with a lead or application, plus the other
@@ -198,21 +180,12 @@ async function buildExclusions(
   prisma: PrismaClient,
   extra: readonly string[],
 ): Promise<ExclusionGroup[]> {
-  const [withLead, withApp, companies] = await Promise.all([
-    prisma.lead.findMany({ distinct: ["companyId"], select: { companyId: true } }),
-    prisma.application.findMany({ distinct: ["companyId"], select: { companyId: true } }),
-    prisma.company.findMany({
-      select: { id: true, name: true, aliases: true, groupId: true, createdAt: true },
-    }),
-  ]);
-  const seen = new Set([...withLead, ...withApp].map((row) => row.companyId));
+  const companies = await loadSeenCompanies(prisma);
   const rootOf = (c: { id: string; groupId: string | null }): string => c.groupId ?? c.id;
-  const seenRoots = new Set(companies.filter((c) => seen.has(c.id)).map(rootOf));
 
   const byRoot = new Map<string, { names: string[]; newest: number }>();
   for (const company of companies) {
     const root = rootOf(company);
-    if (!seenRoots.has(root)) continue;
     const entry = byRoot.get(root) ?? { names: [], newest: 0 };
     entry.names.push(company.name, ...company.aliases);
     entry.newest = Math.max(entry.newest, company.createdAt.getTime());

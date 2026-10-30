@@ -9,6 +9,8 @@ import {
 import { QUEUES, type JobQueue } from "../jobs/queues.js";
 
 type Tx = Prisma.TransactionClient;
+/** Either client: a read-only dry run needs no transaction. */
+type Db = PrismaClient | Tx;
 /** The transaction client the lead jobs and `ingestLeads` write through. */
 export type LeadsTx = Tx;
 
@@ -121,7 +123,7 @@ export function rankingColumns(ranking: Ranking, trackKeys: readonly string[]): 
   };
 }
 
-async function loadCompanyIndex(tx: Tx): Promise<CompanyIndex> {
+async function loadCompanyIndex(tx: Db): Promise<CompanyIndex> {
   const companies = await tx.company.findMany({
     select: {
       id: true,
@@ -137,7 +139,7 @@ async function loadCompanyIndex(tx: Tx): Promise<CompanyIndex> {
   return { companies, contacts: [] };
 }
 
-async function loadExistingJobKeys(tx: Tx): Promise<Set<string>> {
+async function loadExistingJobKeys(tx: Db): Promise<Set<string>> {
   const keys = new Set<string>();
   const leads = await tx.lead.findMany({
     where: { jobKey: { not: null } },
@@ -152,7 +154,7 @@ async function loadExistingJobKeys(tx: Tx): Promise<Set<string>> {
 }
 
 /** Every company with a lead or application: all of them were created before this batch. */
-async function loadSeenCompanyIds(tx: Tx): Promise<Set<string>> {
+async function loadSeenCompanyIds(tx: Db): Promise<Set<string>> {
   const leads = await tx.lead.findMany({ distinct: ["companyId"], select: { companyId: true } });
   const apps = await tx.application.findMany({
     distinct: ["companyId"],
@@ -166,6 +168,26 @@ function createdSource(lead: IncomingLead): string {
 }
 
 type Stored = Extract<IntakeDecision, { action: "store" }>;
+
+/**
+ * What synchronous intake would decide for `incoming` right now, without writing anything: the
+ * same `planIntake` call `ingestLeads` makes, over the records as they are. A preview uses it
+ * (TECHNICAL_SPEC §7.6); the real decision is made again at commit, under the lock.
+ */
+export async function dryRunIntake(
+  db: Db,
+  batchKind: IntakeBatchKind,
+  incoming: IncomingLead[],
+  settings: Settings,
+): Promise<IntakeDecision[]> {
+  return planIntake(incoming, {
+    batchKind,
+    existingJobKeys: await loadExistingJobKeys(db),
+    companyIndex: await loadCompanyIndex(db),
+    seenCompanyIds: await loadSeenCompanyIds(db),
+    excludedSeniorities: settings.search.excludedSeniorities,
+  });
+}
 
 /**
  * Synchronous intake for one batch (TECHNICAL_SPEC §7.1, rules 1-8), inside the caller's
@@ -183,13 +205,7 @@ export async function ingestLeads(
   incoming: IncomingLead[],
   ctx: { settings: Settings; now: Date },
 ): Promise<IngestResult> {
-  const decisions = planIntake(incoming, {
-    batchKind: batch.kind,
-    existingJobKeys: await loadExistingJobKeys(tx),
-    companyIndex: await loadCompanyIndex(tx),
-    seenCompanyIds: await loadSeenCompanyIds(tx),
-    excludedSeniorities: ctx.settings.search.excludedSeniorities,
-  });
+  const decisions = await dryRunIntake(tx, batch.kind, incoming, ctx.settings);
 
   const counts: IntakeCounts = {
     received: incoming.length,

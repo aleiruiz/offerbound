@@ -18,6 +18,12 @@ import {
   ParsedMessageSchema,
   ReviewResolveSchema,
   SearchRunsSchema,
+  ReportCommitBodySchema,
+  ReportCommitResultSchema,
+  ReportPreviewBodySchema,
+  ReportPreviewSchema,
+  MAX_REPORT_CHARS,
+  MAX_REPORT_ROWS,
   SheetCommitBodySchema,
   TodaySchema,
   TimelineEventSchema,
@@ -260,6 +266,32 @@ describe("onboarding request and response shapes", () => {
   it("POST /import/sheet/commit takes only the preview id", () => {
     expect(SheetCommitBodySchema.parse({ previewId: "p1" })).toEqual({ previewId: "p1" });
     expect(SheetCommitBodySchema.safeParse({}).success).toBe(false);
+  });
+
+  it("the report import takes text, then a preview id with at least one kept row", () => {
+    expect(MAX_REPORT_CHARS).toBe(50_000);
+    // A text over the cap is the route's 413, so the schema itself accepts it.
+    expect(
+      ReportPreviewBodySchema.safeParse({ text: "x".repeat(MAX_REPORT_CHARS + 1) }).success,
+    ).toBe(true);
+    expect(ReportPreviewBodySchema.safeParse({}).success).toBe(false);
+    expect(ReportCommitBodySchema.parse({ previewId: "p1", keepRowIds: ["r1"] })).toEqual({
+      previewId: "p1",
+      keepRowIds: ["r1"],
+    });
+    expect(ReportCommitBodySchema.safeParse({ previewId: "p1", keepRowIds: [] }).success).toBe(
+      false,
+    );
+    expect(ReportCommitResultSchema.parse({ batchId: "b1" })).toEqual({ batchId: "b1" });
+    expect(
+      ReportPreviewSchema.safeParse({
+        previewId: "p1",
+        expiresAt: "2026-10-01T13:00:00.000Z",
+        rows: [],
+        droppedRows: 0,
+      }).success,
+    ).toBe(true);
+    expect(MAX_REPORT_ROWS).toBe(200);
   });
 
   it("POST /cv answers 201 with a bare profile, or 202 with profileStatus failed and no profile", () => {
