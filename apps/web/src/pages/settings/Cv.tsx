@@ -67,15 +67,17 @@ export function Cv() {
         severity="warning"
         role="alert"
         action={
-          <Button
-            color="warning"
-            variant="outlined"
-            size="small"
-            disabled={retry.isPending}
-            onClick={() => retry.mutate()}
-          >
-            Retry profile
-          </Button>
+          <DemoLock reason="profile">
+            <Button
+              color="warning"
+              variant="outlined"
+              size="small"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate()}
+            >
+              Retry profile
+            </Button>
+          </DemoLock>
         }
       >
         <Box component="span" sx={{ fontWeight: 700 }}>

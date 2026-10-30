@@ -23,6 +23,8 @@ export const DEMO_REASON = {
   upload: "Uploading files is turned off in the demo.",
   import: "Importing is turned off in the demo.",
   settings: "Saving settings is turned off in the demo.",
+  gmail: "The demo has no Gmail connected, so this is turned off.",
+  profile: "Rebuilding the CV profile is turned off in the demo.",
   delete: "Deleting data is turned off in the demo.",
 } as const;
 

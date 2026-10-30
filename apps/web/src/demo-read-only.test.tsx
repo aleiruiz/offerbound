@@ -1,5 +1,5 @@
 import type { InterviewWithApplication, Page, ReviewItem } from "@offerbound/contracts";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -13,10 +13,12 @@ import {
   makeNavCounts,
   makeReviewItem,
   makeSettings,
+  makeSyncStatus,
   makeToday,
 } from "../test/factories";
 import { apiError, mockApi, type MockHandler } from "../test/mock-api";
 import { renderWithProviders } from "../test/render";
+import { queryKeys } from "./api/hooks";
 import { DEMO_READ_ONLY_MESSAGE, DEMO_REASON, type DemoReason } from "./lib/demo";
 import { ApplicationDetailPage } from "./pages/ApplicationDetailPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
@@ -31,6 +33,9 @@ import { Import } from "./pages/settings/Import";
 import { Search } from "./pages/settings/Search";
 import { Targets } from "./pages/settings/Targets";
 import { Timers } from "./pages/settings/Timers";
+import { Gmail } from "./pages/settings/Gmail";
+import { SyncStatus } from "./shell/SyncStatus";
+import { ReconnectBanner } from "./shell/ReconnectBanner";
 import { UndoSnackbar } from "./components/UndoSnackbar";
 import { setDemoReadOnlyHandler, apiFetch } from "./api/client";
 import { App } from "./App";
@@ -67,6 +72,7 @@ const COMMON: Record<string, MockHandler> = {
     makeApplicationDetail({ id: "a1", version: 2, notes: "Ask about on-call.", interviews: [] }),
   "GET /api/v1/interviews": () => page([KESTREL_INTERVIEW]),
   "GET /api/v1/leads": () => page([]),
+  "GET /api/v1/gmail/status": () => makeSyncStatus({ connection: "active" }),
 };
 
 function show(ui: React.ReactElement, { demo = true, route = "/" } = {}) {
@@ -307,6 +313,65 @@ describe("the public demo's read-only controls", () => {
       expect(screen.getByRole("textbox", { name: "Type DELETE to confirm" })).toBeEnabled();
       expect(screen.queryByLabelText(DEMO_REASON.delete)).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("Gmail and the CV profile in the demo", () => {
+  const status = (connection: "active" | "needs_reauth" | "not_connected") => ({
+    ...COMMON,
+    "GET /api/v1/gmail/status": () => makeSyncStatus({ connection }),
+  });
+
+  it("Settings, Gmail: Sync now and Disconnect Gmail are disabled with a tooltip", async () => {
+    mockApi(status("active"));
+    renderWithProviders(<Gmail />, { me: DEMO_ME });
+    expect(await screen.findByRole("button", { name: "Sync now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect Gmail" })).toBeDisabled();
+    expect(screen.getAllByLabelText(DEMO_REASON.gmail)).toHaveLength(2);
+  });
+
+  it("Settings, Gmail: Connect Gmail is a disabled button, not a link to the sign-in route", async () => {
+    mockApi(status("not_connected"));
+    renderWithProviders(<Gmail />, { me: DEMO_ME });
+    expect(await screen.findByRole("button", { name: "Connect Gmail" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Connect Gmail" })).not.toBeInTheDocument();
+  });
+
+  it("Settings, Gmail: unchanged for the owner", async () => {
+    mockApi(status("active"));
+    renderWithProviders(<Gmail />, { me: OWNER_ME });
+    expect(await screen.findByRole("button", { name: "Sync now" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Disconnect Gmail" })).toBeEnabled();
+  });
+
+  it.each([1280, 700, 390])("the sync status's Sync now is disabled at %ipx", async (width) => {
+    mockApi(status("active"));
+    renderWithProviders(
+      <SyncStatus layout={width >= 1000 ? "footer" : width >= 600 ? "rail" : "bar"} />,
+      {
+        me: DEMO_ME,
+        width,
+      },
+    );
+    expect(await screen.findByRole("button", { name: "Sync now" })).toBeDisabled();
+  });
+
+  it("CV: Retry profile is disabled", async () => {
+    mockApi({ ...COMMON, "GET /api/v1/cv": () => null });
+    const { queryClient } = renderWithProviders(<Cv />, { me: DEMO_ME });
+    await screen.findByRole("region", { name: "CV" });
+    act(() => {
+      queryClient.setQueryData(queryKeys.cvProfileFailed, true);
+    });
+    expect(await screen.findByRole("button", { name: "Retry profile" })).toBeDisabled();
+    expect(screen.getByLabelText(DEMO_REASON.profile)).toBeInTheDocument();
+  });
+
+  it("the reconnect banner's button is disabled", async () => {
+    mockApi(status("needs_reauth"));
+    renderWithProviders(<ReconnectBanner />, { me: DEMO_ME });
+    expect(await screen.findByRole("button", { name: "Reconnect Gmail" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: "Reconnect Gmail" })).not.toBeInTheDocument();
   });
 });
 
