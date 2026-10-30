@@ -16,6 +16,7 @@ import {
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
+import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
 
@@ -114,13 +115,24 @@ const gmailBackfill: JobHandler = async (ctx, job) => {
 };
 
 /**
- * `email.triage`, from the 1-minute sweep and after sync inserts. Messages already `job_related`
+ * `email.triage`, from the 1-minute sweep and after sync inserts. The sweep also sends
+ * `leads.check` for leads whose first send was lost (`sendPendingChecks`). Messages already `job_related`
  * are sent to extraction again first (a send lost after a commit is not repeated by a retry). A
  * full batch sends the next one at once, so a large backfill does not wait a minute per 25
  * messages. Gmail's `Retry-After` defers the job instead of failing it; lost authorization ends
  * the job and stops the sync schedule.
  */
 const emailTriage: JobHandler = async (ctx, job) => {
+  // The one 1-minute sweep that runs in every mode: it also sends `leads.check` for leads whose
+  // first send was lost. A failure here must not hold up triage.
+  try {
+    await sendPendingChecks(ctx);
+  } catch (error) {
+    ctx.log.error(
+      { errorName: error instanceof Error ? error.name : undefined },
+      "pending lead checks sweep failed",
+    );
+  }
   if (await shouldSkipWhileDelayed(ctx, QUEUES.emailTriage, job)) return;
   try {
     await resendPendingExtractions(ctx);

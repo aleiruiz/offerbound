@@ -308,15 +308,82 @@ export async function ingestLeads(
   return { batchId: created.id, leadIds, checkIds, createdCompanyIds, refs, counts };
 }
 
-/** Sends `leads.check` for every stored lead that waits for one. Call it after the commit. */
+/** A lead in `checking` this long without an update has lost its `leads.check` job. */
+export const PENDING_CHECK_AFTER_MS = 10 * 60 * 1000;
+
+/** How many stranded leads one sweep sends; the next sweep takes the rest. */
+const PENDING_CHECK_LIMIT = 200;
+
+type ErrorLog = { error: (obj: Record<string, unknown>, msg: string) => void };
+
+function logSendFailure(log: ErrorLog | undefined, leadId: string, error: unknown): void {
+  log?.error(
+    { errorName: error instanceof Error ? error.name : undefined, leadId },
+    "could not queue leads.check; the pending-checks sweep will send it later",
+  );
+}
+
+/**
+ * Sends `leads.check` for every stored lead that waits for one. Call it after the commit. Each
+ * send stands alone: one that fails is logged (ids and error name only) and the rest still go.
+ * Returns how many failed; `sendPendingChecks` picks those leads up later.
+ */
 export async function enqueueLeadChecks(
   queue: Pick<JobQueue, "send">,
   result: Pick<IngestResult, "checkIds" | "batchId">,
-): Promise<void> {
+  log?: ErrorLog,
+): Promise<number> {
+  let failed = 0;
   // The batch id lets a redelivered job find its batch even after its lead is gone (a dead lead).
   for (const leadId of result.checkIds) {
-    await queue.send(QUEUES.leadsCheck, { leadId, batchId: result.batchId });
+    try {
+      await queue.send(QUEUES.leadsCheck, { leadId, batchId: result.batchId });
+    } catch (error) {
+      failed += 1;
+      logSendFailure(log, leadId, error);
+    }
   }
+  return failed;
+}
+
+/**
+ * Sends `leads.check` for every lead still in `checking` that has not changed for
+ * `PENDING_CHECK_AFTER_MS`: its first send was lost after the commit. The job skips a lead that is
+ * no longer `checking`, so a repeated send is harmless, but each one fetches the link again. The
+ * `leads.check` queue has no unique key per lead, so the sweep claims its leads first: in one
+ * statement it sets `updated_at` to now on every lead it will send, and a lead is sent again only
+ * after another `PENDING_CHECK_AFTER_MS` (the claim also keeps two sweeps from taking the same
+ * lead). A send that fails is therefore retried after that wait, not on the next sweep. The age
+ * keeps the sweep from racing the send that follows a commit. Returns the number of leads sent.
+ */
+export async function sendPendingChecks(ctx: {
+  prisma: PrismaClient;
+  queue: Pick<JobQueue, "send">;
+  clock: () => Date;
+  log?: ErrorLog;
+}): Promise<number> {
+  const now = ctx.clock();
+  const cutoff = new Date(now.getTime() - PENDING_CHECK_AFTER_MS);
+  const claimed = await ctx.prisma.$queryRaw<{ id: string; batchId: string }[]>`
+    update lead set updated_at = ${now}
+    where id in (
+      select id from lead
+      where pipeline_state = 'checking' and updated_at < ${cutoff}
+      order by updated_at asc, id asc
+      limit ${PENDING_CHECK_LIMIT}
+      for update skip locked
+    )
+    returning id, intake_batch_id as "batchId"`;
+  let sent = 0;
+  for (const { id, batchId } of claimed) {
+    try {
+      await ctx.queue.send(QUEUES.leadsCheck, { leadId: id, batchId });
+      sent += 1;
+    } catch (error) {
+      logSendFailure(ctx.log, id, error);
+    }
+  }
+  return sent;
 }
 
 /**
