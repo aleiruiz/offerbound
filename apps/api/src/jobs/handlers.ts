@@ -17,6 +17,8 @@ import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
+import { runBackup } from "../ops/backup.js";
+import { runMaintenance } from "../ops/maintenance.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
@@ -242,6 +244,16 @@ const emailApply: JobHandler = async (ctx) => {
   await applyEligibleMessages(ctx);
 };
 
+/** `backup.nightly`: a failed dump throws, so pg-boss retries it (twice, §9). */
+const backupNightly: JobHandler = async (ctx) => {
+  await runBackup(ctx, ctx.clock());
+};
+
+/** `maintenance.daily`: expired sessions and previews, old `llm_call` rows. */
+const maintenanceDaily: JobHandler = async (ctx) => {
+  await runMaintenance(ctx, ctx.clock());
+};
+
 /**
  * The handlers registered so far, by queue. Later tasks add theirs here (apply, leads,
  * timers, maintenance). A queue without a handler is created but not consumed.
@@ -255,6 +267,8 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
+  [QUEUES.backupNightly]: backupNightly,
+  [QUEUES.maintenanceDaily]: maintenanceDaily,
 };
 
 /**
