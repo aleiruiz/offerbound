@@ -23,6 +23,8 @@ One JSON file per email, named `<id>.json`, validated by `EmailFixtureSchema` (`
 - `ics` is the text of the `text/calendar` part, with CRLF line endings.
 - `expected.interviewStart` is UTC (`...Z`). `llm.extraction` times carry the offset the email states.
 - `llm.triage` is `null` whenever a triage rule decides. `llm.extraction` is `null` for emails that never reach extraction (decoys and skipped messages). Every `llm.extraction` is exactly what `ExtractionSchema` accepts and equals the outcome the fake provider should reproduce.
+- Copperline Software's emails state "EST", a fixed UTC−5 offset, even though New York is on UTC−4 in October. The fixtures keep the email's literal instant (`-05:00`) and use the IANA fixed zone `EST` as `timezone`, so the hint matches the offset. The extraction does not guess a daylight-saving zone.
+- `outreach-quarry-ai-research` expects `leads: 0` because it attaches to Quarry AI's open application instead of creating a lead.
 - `expected.jobKey` is `jobKey()` of the extraction's `jobUrl`, and is present only when there is one.
 
 ## How `expected.triage` was decided
@@ -57,7 +59,7 @@ The pipeline never creates a second application for a company, so the two ambigu
 | Decoys                    | 8     | Bank, careers newsletter, course marketing, family, receipt, social notification, personal LinkedIn message, unrelated calendar invite                                               |
 | Skipped                   | 2     | A spam-labelled message and one dated before the backfill start (rule R1)                                                                                                            |
 
-Sixteen or more fixtures carry `demo: true`, spread across categories.
+Twenty fixtures carry `demo: true`, spread across categories. The demo subset is self-contained: replaying only those fixtures through the triage rules gives the same decisions as the full set (a test checks it), so every thread link a demo fixture relies on comes from another demo fixture.
 
 ## Threads
 

@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import { EmailFixtureSchema, type EmailFixture } from "@offerbound/contracts";
+import { repoRoot } from "./root.js";
 
 /** The fictional owner address every fixture is sent to (or from, when outbound). Also in the README. */
 export const FIXTURE_OWNER_EMAIL = "mateo.salgado@owner.example";
@@ -43,17 +43,6 @@ export const FIXTURE_SEED_APPLICATIONS: readonly FixtureSeedApplication[] = [
   },
 ];
 
-/** Walks up from this file to the directory that holds pnpm-workspace.yaml. */
-function repoRoot(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) throw new Error("Could not find the repository root (pnpm-workspace.yaml)");
-    dir = parent;
-  }
-}
-
 /**
  * Reads every `*.json` file directly inside `dir` (a relative `dir` is resolved from the
  * repository root), validates each against {@link EmailFixtureSchema} and returns them sorted by
@@ -67,7 +56,13 @@ export function loadEmailFixtures(dir = "fixtures/emails"): EmailFixture[] {
     .sort();
 
   const fixtures = files.map((name): EmailFixture => {
-    const raw: unknown = JSON.parse(readFileSync(join(absolute, name), "utf8"));
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(join(absolute, name), "utf8"));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Invalid email fixture ${name}: not valid JSON (${reason})`);
+    }
     const parsed = EmailFixtureSchema.safeParse(raw);
     if (!parsed.success) {
       throw new Error(`Invalid email fixture ${name}: ${parsed.error.message}`);

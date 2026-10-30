@@ -11,7 +11,7 @@
   },
   "snippet": "Hello Mateo, thank you for applying to the Platform Engineer position at Tidewater Labs. We have received your application.",
   "bodyText": "Hello Mateo,\n\nThank you for applying to the Platform Engineer position at Tidewater Labs. We have received your application and a member of the team will review it.\n\nRole: https://tidewater-labs.example/careers/platform-engineer\n\nTidewater Labs Careers",
-  "demo": false,
+  "demo": true,
   "expected": {
     "triage": "job_related",
     "category": "application_confirmation",
