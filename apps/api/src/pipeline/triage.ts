@@ -411,7 +411,8 @@ export async function resendPendingExtractions(ctx: WorkerCtx): Promise<number> 
       await markExtractionFailed(ctx, id, "extract_resend_limit");
       continue;
     }
-    // Counted before the send, so a crash between the two cannot make the loop endless.
+    // Counted before the send, so a crash between the two cannot make the loop endless. This and
+    // the restore below are deliberately outside the intake lock (see the note in handlers.ts).
     const { count } = await prisma.gmailMessage.updateMany({
       where: { id, state: "job_related" },
       data: { attempts: { increment: 1 }, processedAt: now },
@@ -420,11 +421,20 @@ export async function resendPendingExtractions(ctx: WorkerCtx): Promise<number> 
     try {
       await queue.send(QUEUES.emailExtract, { messageId: id }, { singletonKey: id });
     } catch (error) {
-      // Nothing was sent, so nothing was resent: give the count and the wait back.
-      await prisma.gmailMessage.updateMany({
-        where: { id, state: "job_related" },
-        data: { attempts: { decrement: 1 }, processedAt },
-      });
+      // Nothing was sent, so nothing was resent: give the count and the wait back. If that write
+      // fails too, the send error is still the one to report; the row then waits out its
+      // ten minutes with one resend counted, which only makes the cap a little stricter.
+      try {
+        await prisma.gmailMessage.updateMany({
+          where: { id, state: "job_related" },
+          data: { attempts: { decrement: 1 }, processedAt },
+        });
+      } catch (restoreError) {
+        ctx.log.warn(
+          { errorName: restoreError instanceof Error ? restoreError.name : "unknown" },
+          "could not give a failed resend back",
+        );
+      }
       throw error;
     }
     sent += 1;

@@ -323,13 +323,26 @@ describe("email.triage handler", () => {
     await expect(triage(ctxFor(failingMetadata(error)), job())).rejects.toBe(error);
   });
 
-  it("unschedules gmail.sync when the authorization is already marked lost", async () => {
+  it("does nothing while the authorization is already marked lost: no Gmail call, no attempt counted", async () => {
     await seedStartedConnection(prisma, { status: "needs_reauth", backfillState: "done" });
     await discover(["a"]);
-    const ctx = failing(new GmailAuthError("invalid_grant"));
+    let calls = 0;
+    const ctx = testWorkerCtx({
+      gmail: () => {
+        calls += 1;
+        return Promise.reject(new GmailAuthError("invalid_grant"));
+      },
+    });
     await triage(ctx, job());
-    expect(ctx.queue.unscheduled).toEqual(["gmail.sync"]);
+    await triage(ctx, job());
+    expect(calls).toBe(0);
+    expect(ctx.queue.unscheduled).toEqual([]);
     expect((await connectionRow()).status).toBe("needs_reauth");
+    expect(await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "a" } })).toMatchObject({
+      state: "discovered",
+      attempts: 0,
+      lastError: null,
+    });
   });
 
   it("marks the connection and unschedules gmail.sync when a triage-first invalid_grant arrives", async () => {
@@ -491,7 +504,7 @@ describe("email.extract handler", () => {
     const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000);
     const sweepAt = (at: Date) => testWorkerCtx({ clock: () => at });
 
-    it("a Retry-After deferral moves the wait to the deferred job's due time and forgets earlier resends", async () => {
+    it("a Retry-After deferral moves only the wait to the deferred job's due time; the resend count stays", async () => {
       await prisma.gmailMessage.update({
         where: { id: "x1" },
         data: { attempts: MAX_EXTRACT_RESENDS - 1, processedAt: minutes(-30) },
@@ -501,7 +514,7 @@ describe("email.extract handler", () => {
       expect(ctx.queue.sent[0]?.opts.startAfterSeconds).toBe(3600);
       expect(await stored()).toMatchObject({
         state: "job_related",
-        attempts: 0,
+        attempts: MAX_EXTRACT_RESENDS - 1,
         processedAt: minutes(60),
       });
 
@@ -512,13 +525,17 @@ describe("email.extract handler", () => {
         expect(await resendPendingExtractions(sweep)).toBe(0);
         expect(sweep.queue.sent).toEqual([]);
       }
-      expect(await stored()).toMatchObject({ state: "job_related", attempts: 0 });
+      expect(await stored()).toMatchObject({
+        state: "job_related",
+        attempts: MAX_EXTRACT_RESENDS - 1,
+      });
       expect(await prisma.reviewItem.count()).toBe(0);
 
-      // Only once the job is overdue by the full wait is it treated as lost.
+      // Only once the job is overdue by the full wait is it treated as lost, and that resend
+      // counts on top of the ones before the deferral.
       const late = sweepAt(minutes(71));
       expect(await resendPendingExtractions(late)).toBe(1);
-      expect((await stored()).attempts).toBe(1);
+      expect((await stored()).attempts).toBe(MAX_EXTRACT_RESENDS);
     });
 
     it("each attempt stamps processed_at, so a long chain never gets a second chain beside it", async () => {

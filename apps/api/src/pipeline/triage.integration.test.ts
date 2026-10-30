@@ -807,6 +807,32 @@ describe("resendPendingExtractions", () => {
     expect((await row("a")).attempts).toBe(3);
   });
 
+  it("a failure while giving the resend back does not hide the send error", async () => {
+    await jobRelated("a", { attempts: 2 });
+    const ctx = testWorkerCtx();
+    ctx.queue.failSendWith = new Error("queue down");
+    // The database refuses the restoring write, as it might when the connection drops.
+    const gmailMessage = new Proxy(prisma.gmailMessage, {
+      get(target, property, receiver) {
+        if (property !== "updateMany") return Reflect.get(target, property, receiver) as unknown;
+        return (args: Parameters<typeof target.updateMany>[0]) => {
+          const attempts = (args.data as { attempts?: unknown }).attempts;
+          if (typeof attempts === "object" && attempts !== null && "decrement" in attempts) {
+            return Promise.reject(new Error("connection lost"));
+          }
+          return target.updateMany(args);
+        };
+      },
+    });
+    const broken = {
+      ...ctx,
+      prisma: new Proxy(prisma, {
+        get: (t, p, r) => (p === "gmailMessage" ? gmailMessage : (Reflect.get(t, p, r) as unknown)),
+      }),
+    };
+    await expect(resendPendingExtractions(broken)).rejects.toThrow("queue down");
+  });
+
   it("sends nothing while the Gmail authorization is lost", async () => {
     await seedConnection(prisma, { status: "needs_reauth" });
     await jobRelated("a");

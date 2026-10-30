@@ -119,8 +119,10 @@ const gmailBackfill: JobHandler = async (ctx, job) => {
  * `leads.check` for leads whose first send was lost (`sendPendingChecks`). Messages already `job_related`
  * are sent to extraction again first (a send lost after a commit is not repeated by a retry). A
  * full batch sends the next one at once, so a large backfill does not wait a minute per 25
- * messages. Gmail's `Retry-After` defers the job instead of failing it; lost authorization ends
- * the job and stops the sync schedule.
+ * messages. Gmail's `Retry-After` defers the job instead of failing it. While the connection is
+ * already lost the job does nothing, so the 1-minute sweep neither calls Gmail nor logs the
+ * lost authorization again (`gmail.sync` stops its own schedule); an authorization lost during
+ * the job ends it and stops the sync schedule.
  */
 const emailTriage: JobHandler = async (ctx, job) => {
   // The one 1-minute sweep that runs in every mode: it also sends `leads.check` for leads whose
@@ -134,6 +136,7 @@ const emailTriage: JobHandler = async (ctx, job) => {
     );
   }
   if (await shouldSkipWhileDelayed(ctx, QUEUES.emailTriage, job)) return;
+  if (await gmailAuthIsLost(ctx.prisma)) return;
   try {
     await resendPendingExtractions(ctx);
     const { processed } = await runTriageBatch(ctx);
@@ -155,14 +158,29 @@ function exhaustedCode(error: unknown): string {
   return "extract_error";
 }
 
+/*
+ * Writes outside the intake lock. §6.8 puts every system write that changes records under the
+ * lock; these three touch only a message's retry bookkeeping (`processed_at`, `attempts`), never
+ * an application, lead, company, interview or event, and each is a single guarded `updateMany`
+ * (`where state = 'job_related'`), so they cannot race a stage that moves the message on:
+ *   - the extract heartbeat, which stamps `processed_at` at the start of every attempt;
+ *   - `onDeferred`, which moves `processed_at` to the deferred job's due time;
+ *   - the resend counter in `resendPendingExtractions` (triage.ts), which increments `attempts`
+ *     before each send and gives it back when the send fails.
+ * Taking the lock for them would make every extraction attempt queue behind a long import or
+ * search finalize just to write a timestamp.
+ */
+
 /**
  * `email.extract`, one job per `job_related` message (key = message id). Each attempt stamps
  * `processed_at` as a heartbeat for triage's resend sweep. Gmail's `Retry-After` defers the job
- * (and moves that stamp to the deferred job's due time); lost authorization ends it and stops the sync schedule, like triage (the first
- * job to meet it does; jobs that find the connection already unusable end at once). Any other
- * error goes to pg-boss for its backoff, and when the last retry has failed the message is marked
- * `failed` with an *Extraction failed* review item: triage's resend sweep re-sends every
- * `job_related` message, so a message left in that state would be retried for ever.
+ * and moves that stamp to the deferred job's due time.
+ *
+ * Lost authorization ends the job and stops the sync schedule, like triage: the first job to meet
+ * it does, and jobs that find the connection already unusable end at once. Any other error goes
+ * to pg-boss for its backoff. When the last retry has failed the message is marked `failed` with
+ * an *Extraction failed* review item: triage's resend sweep re-sends every `job_related` message,
+ * so a message left in that state would be retried for ever.
  */
 const emailExtract: JobHandler = async (ctx, job) => {
   const messageId = job.data.messageId;
@@ -186,11 +204,12 @@ const emailExtract: JobHandler = async (ctx, job) => {
     const deferred = await deferForRetryAfter(ctx, QUEUES.emailExtract, job, error, {
       singletonKey: messageId,
       // The job is waiting on purpose, not lost: move the resend wait to when it is due (the sweep
-      // leaves the row alone until 10 minutes later) and forget the resends counted so far.
+      // leaves the row alone until 10 minutes later). The resend count stays, so a message that
+      // also meets a Retry-After in some cycle still reaches the cap.
       onDeferred: async (dueAt) => {
         await ctx.prisma.gmailMessage.updateMany({
           where: { id: messageId, state: "job_related" },
-          data: { processedAt: dueAt, attempts: 0 },
+          data: { processedAt: dueAt },
         });
       },
     });

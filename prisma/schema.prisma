@@ -524,11 +524,14 @@ model GmailMessage {
   applicationId     String?          @map("application_id") @db.Uuid
   /// Two meanings, by state: failed triage attempts while `discovered` (the fifth fails the
   /// message), then, once `job_related`, how many times the resend sweep sent it to extraction
-  /// again (reset to 0 when triage decides it and when extraction defers for a Gmail Retry-After;
-  /// the fifth resend fails it). Never read for any other state.
+  /// again (reset to 0 when triage decides it; the fifth resend fails it). Never read for any
+  /// other state.
   attempts          Int              @default(0)
   lastError         String?          @map("last_error")
   discoveredAt      DateTime         @default(now()) @map("discovered_at") @db.Timestamptz(3)
+  /// When the message last left a stage. While `job_related` it is a heartbeat or a due time: each
+  /// extraction attempt stamps it, and a Gmail Retry-After moves it to when the deferred job is due.
+  /// The resend sweep treats the job as lost only once it is 10 minutes old.
   processedAt       DateTime?        @map("processed_at") @db.Timestamptz(3)
   updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
