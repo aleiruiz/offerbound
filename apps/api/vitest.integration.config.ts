@@ -4,6 +4,7 @@ export default defineConfig({
   ssr: { resolve: { conditions: ["@offerbound/source"] } },
   test: {
     name: "api-integration",
+    globalSetup: ["./test/global-setup.ts"],
     include: ["src/**/*.integration.test.ts"],
     fileParallelism: false,
     testTimeout: 30_000,

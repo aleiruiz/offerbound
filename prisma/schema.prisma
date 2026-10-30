@@ -1,0 +1,765 @@
+// Offerbound data model. DATA_MODEL.md is the authority for columns, enums, defaults and indexes.
+//
+// Prisma 6 cannot express partial unique indexes, expression indexes or check constraints, and it
+// does not manage extensions here. Those are hand-written in migrations/0001_init/migration.sql
+// and listed in MANUAL_SQL.md. Check every new migration for DROP statements against that list.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Enums (DATA_MODEL §2)
+// ---------------------------------------------------------------------------------------------
+
+enum ApplicationStatus {
+  applied
+  screening
+  assessment
+  interviewing
+  offer
+  accepted
+  rejected
+  withdrawn
+  abandoned
+
+  @@map("application_status")
+}
+
+enum ApplicationSource {
+  sheet_import
+  gmail
+  lead_conversion
+  manual
+
+  @@map("application_source")
+}
+
+enum LeadStatus {
+  new
+  shortlisted
+  dismissed
+  applied
+  suppressed
+
+  @@map("lead_status")
+}
+
+enum LeadPipelineState {
+  checking
+  ranking
+  ready
+
+  @@map("lead_pipeline_state")
+}
+
+enum SuppressedReason {
+  company_already_seen
+  same_company_in_batch
+  excluded_seniority
+  ineligible
+
+  @@map("suppressed_reason")
+}
+
+enum LeadSource {
+  search_agent
+  gmail_alert
+  gmail_recruiter
+  sheet_import
+  paste_report
+  manual
+
+  @@map("lead_source")
+}
+
+enum Verification {
+  pending
+  verified
+  unverified
+  unverifiable
+
+  @@map("verification")
+}
+
+enum WorkMode {
+  remote
+  hybrid
+  onsite
+  unknown
+
+  @@map("work_mode")
+}
+
+enum TriState {
+  yes
+  no
+  unknown
+
+  @@map("tri_state")
+}
+
+enum Seniority {
+  junior
+  mid
+  senior
+  staff_plus
+  lead
+  manager
+  unknown
+
+  @@map("seniority")
+}
+
+enum CompPeriod {
+  year
+  month
+  hour
+
+  @@map("comp_period")
+}
+
+enum InterviewKind {
+  recruiter_screen
+  hiring_manager
+  technical
+  system_design
+  behavioral
+  take_home_review
+  onsite_loop
+  other
+
+  @@map("interview_kind")
+}
+
+enum InterviewStatus {
+  to_schedule
+  scheduled
+  completed
+  cancelled
+
+  @@map("interview_status")
+}
+
+enum MessageState {
+  discovered
+  skipped
+  triaged_out
+  job_related
+  extracted
+  applied
+  needs_review
+  failed
+
+  @@map("message_state")
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+
+  @@map("message_direction")
+}
+
+enum TriageMethod {
+  rule
+  llm
+
+  @@map("triage_method")
+}
+
+enum EmailCategory {
+  application_confirmation
+  rejection
+  interview_invite
+  interview_reschedule
+  interview_cancellation
+  assessment
+  offer
+  recruiter_outreach
+  job_alert
+  status_update_other
+  candidate_outbound
+  not_job_related
+
+  @@map("email_category")
+}
+
+enum EventType {
+  imported
+  email_received
+  email_sent
+  application_created
+  lead_created
+  lead_converted
+  status_changed
+  field_updated
+  note_updated
+  interview_created
+  interview_updated
+  interview_cancelled
+  interview_completed
+  follow_up_due
+  follow_up_done
+  abandoned
+  reopened
+  merged
+  undone
+
+  @@map("event_type")
+}
+
+enum Actor {
+  system
+  owner
+  import
+
+  @@map("actor")
+}
+
+enum ReviewKind {
+  low_confidence
+  ambiguous_match
+  unexpected_transition
+  possible_duplicate_company
+  extraction_failed
+  undone_change
+
+  @@map("review_kind")
+}
+
+enum ReviewState {
+  open
+  resolved
+  dismissed
+
+  @@map("review_state")
+}
+
+enum ConnectionStatus {
+  active
+  needs_reauth
+  missing_scope
+  disconnected
+
+  @@map("connection_status")
+}
+
+enum BackfillState {
+  not_started
+  running
+  done
+  failed
+
+  @@map("backfill_state")
+}
+
+enum SearchTrigger {
+  schedule
+  manual
+
+  @@map("search_trigger")
+}
+
+enum SearchRunStatus {
+  running
+  succeeded
+  partial
+  failed
+
+  @@map("search_run_status")
+}
+
+enum IntakeBatchKind {
+  search_run
+  gmail_message
+  paste_report
+  sheet_import
+  manual
+
+  @@map("intake_batch_kind")
+}
+
+enum LlmPurpose {
+  triage
+  extract
+  rank
+  search
+  parse_report
+  cv_profile
+
+  @@map("llm_purpose")
+}
+
+enum LlmCallStatus {
+  ok
+  error
+
+  @@map("llm_call_status")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tables (DATA_MODEL §3)
+// ---------------------------------------------------------------------------------------------
+
+/// §3.1. The GIN indexes on aliases, domains and ats_slugs are declared here with the names the migration uses.
+model Company {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version        Int      @default(1)
+  name           String
+  normalizedName String   @unique @map("normalized_name")
+  aliases        String[] @default([])
+  domains        String[] @default([])
+  atsSlugs       String[] @default([]) @map("ats_slugs")
+  websiteDomain  String?  @map("website_domain")
+  groupId        String?  @map("group_id") @db.Uuid
+  createdSource  String   @map("created_source")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  group        Company?      @relation("CompanyGroup", fields: [groupId], references: [id], onDelete: SetNull)
+  members      Company[]     @relation("CompanyGroup")
+  contacts     Contact[]
+  leads        Lead[]
+  applications Application[]
+  events       Event[]
+  reviewItems  ReviewItem[]
+
+  @@index([groupId])
+  @@index([aliases], type: Gin, map: "company_aliases_gin")
+  @@index([domains], type: Gin, map: "company_domains_gin")
+  @@index([atsSlugs], type: Gin, map: "company_ats_slugs_gin")
+  @@map("company")
+}
+
+/// §3.2. email is citext, so uniqueness is case-insensitive.
+model Contact {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String?  @map("company_id") @db.Uuid
+  email     String   @unique @db.Citext
+  name      String?
+  title     String?
+  isAgency  Boolean  @default(false) @map("is_agency")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  leads   Lead[]
+
+  @@map("contact")
+}
+
+/// §3.3. Hand-written: partial unique on job_key (where not null) and the lead_suppressed_reason check.
+model Lead {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version               Int               @default(1)
+  companyId             String            @map("company_id") @db.Uuid
+  intakeBatchId         String            @map("intake_batch_id") @db.Uuid
+  title                 String
+  jobUrl                String?           @map("job_url")
+  jobKey                String?           @map("job_key")
+  locationText          String?           @map("location_text")
+  country               String?
+  workMode              WorkMode          @default(unknown) @map("work_mode")
+  remoteFromHomeCountry TriState          @default(unknown) @map("remote_from_home_country")
+  sponsorship           TriState          @default(unknown)
+  relocation            TriState          @default(unknown)
+  sponsorshipText       String?           @map("sponsorship_text")
+  compensationText      String?           @map("compensation_text")
+  compMin               Decimal?          @map("comp_min") @db.Decimal(12, 2)
+  compMax               Decimal?          @map("comp_max") @db.Decimal(12, 2)
+  compCurrency          String?           @map("comp_currency") @db.Char(3)
+  compPeriod            CompPeriod?       @map("comp_period")
+  compIsEstimate        Boolean           @default(false) @map("comp_is_estimate")
+  compBasis             String?           @map("comp_basis")
+  seniority             Seniority         @default(unknown)
+  track                 String?
+  fitScore              Int?              @map("fit_score") @db.SmallInt
+  fitReason             String?           @map("fit_reason")
+  gaps                  String[]          @default([])
+  eligible              TriState          @default(unknown)
+  eligibilityReason     String?           @map("eligibility_reason")
+  status                LeadStatus        @default(new)
+  statusChangedAt       DateTime          @map("status_changed_at") @db.Timestamptz(3)
+  pipelineState         LeadPipelineState @default(checking) @map("pipeline_state")
+  suppressedReason      SuppressedReason? @map("suppressed_reason")
+  dismissedReason       String?           @map("dismissed_reason")
+  companySeenBefore     Boolean           @default(false) @map("company_seen_before")
+  verification          Verification      @default(pending)
+  verifiedAt            DateTime?         @map("verified_at") @db.Timestamptz(3)
+  pageExcerpt           String?           @map("page_excerpt")
+  rankedAt              DateTime?         @map("ranked_at") @db.Timestamptz(3)
+  source                LeadSource
+  sourceMessageId       String?           @map("source_message_id")
+  contactId             String?           @map("contact_id") @db.Uuid
+  postedAt              DateTime?         @map("posted_at") @db.Timestamptz(3)
+  foundAt               DateTime          @default(now()) @map("found_at") @db.Timestamptz(3)
+  applicationId         String?           @unique @map("application_id") @db.Uuid
+  notes                 String?
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: NoAction)
+  intakeBatch   IntakeBatch   @relation(fields: [intakeBatchId], references: [id], onDelete: NoAction)
+  sourceMessage GmailMessage? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  contact       Contact?      @relation(fields: [contactId], references: [id], onDelete: NoAction)
+  /// The application this lead was converted into (lead.application_id).
+  application   Application?  @relation("LeadApplicationId", fields: [applicationId], references: [id], onDelete: SetNull)
+  /// The application whose application.lead_id points back at this lead.
+  convertedFrom Application?  @relation("ApplicationLeadId")
+  events        Event[]
+  threadLinks   ThreadLink[]
+  reviewItems   ReviewItem[]
+
+  @@index([status, pipelineState, track, fitScore(sort: Desc)])
+  @@index([companyId])
+  @@index([intakeBatchId])
+  @@index([foundAt])
+  @@map("lead")
+}
+
+/// §3.4. Hand-written: partial unique on job_key (where not null), partial index on follow_up_due.
+model Application {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version               Int                @default(1)
+  companyId             String             @map("company_id") @db.Uuid
+  leadId                String?            @unique @map("lead_id") @db.Uuid
+  title                 String
+  jobUrl                String?            @map("job_url")
+  jobKey                String?            @map("job_key")
+  locationText          String?            @map("location_text")
+  country               String?
+  workMode              WorkMode           @default(unknown) @map("work_mode")
+  compensationText      String?            @map("compensation_text")
+  sponsorshipText       String?            @map("sponsorship_text")
+  status                ApplicationStatus
+  statusChangedAt       DateTime           @map("status_changed_at") @db.Timestamptz(3)
+  statusBeforeAbandon   ApplicationStatus? @map("status_before_abandon")
+  appliedAt             DateTime?          @map("applied_at") @db.Timestamptz(3)
+  lastCompanyActivityAt DateTime?          @map("last_company_activity_at") @db.Timestamptz(3)
+  lastOutboundAt        DateTime?          @map("last_outbound_at") @db.Timestamptz(3)
+  followUpDue           Boolean            @default(false) @map("follow_up_due")
+  followUpDueSince      DateTime?          @map("follow_up_due_since") @db.Timestamptz(3)
+  followUpDoneAt        DateTime?          @map("follow_up_done_at") @db.Timestamptz(3)
+  source                ApplicationSource
+  notes                 String?
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: NoAction)
+  /// The lead this application points at (application.lead_id).
+  lead          Lead?          @relation("ApplicationLeadId", fields: [leadId], references: [id], onDelete: SetNull)
+  /// The lead whose lead.application_id points at this application.
+  convertedLead Lead?          @relation("LeadApplicationId")
+  interviews    Interview[]
+  messages      GmailMessage[]
+  threadLinks   ThreadLink[]
+  events        Event[]
+  reviewItems   ReviewItem[]
+
+  @@index([status])
+  @@index([companyId])
+  @@index([lastCompanyActivityAt])
+  @@map("application")
+}
+
+/// §3.5. Hand-written: partial unique on ics_uid (where not null).
+model Interview {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version         Int             @default(1)
+  applicationId   String          @map("application_id") @db.Uuid
+  kind            InterviewKind
+  status          InterviewStatus
+  startsAt        DateTime?       @map("starts_at") @db.Timestamptz(3)
+  endsAt          DateTime?       @map("ends_at") @db.Timestamptz(3)
+  timezoneHint    String?         @map("timezone_hint")
+  meetingUrl      String?         @map("meeting_url")
+  schedulingUrl   String?         @map("scheduling_url")
+  location        String?
+  interviewers    String[]        @default([])
+  icsUid          String?         @map("ics_uid")
+  sourceMessageId String?         @map("source_message_id")
+  notes           String?
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  sourceMessage GmailMessage? @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+
+  @@index([status, startsAt])
+  @@index([applicationId])
+  @@map("interview")
+}
+
+/// §3.6. Content columns (from_*, to_emails, subject, snippet, body_text) are null unless job-related.
+/// to_emails is a nullable column in SQL; Prisma list fields cannot express null, so clearing it
+/// to null needs raw SQL (an empty array reads the same as null for the application).
+model GmailMessage {
+  id                String           @id
+  threadId          String           @map("thread_id")
+  internalDate      DateTime         @map("internal_date") @db.Timestamptz(3)
+  direction         MessageDirection
+  labelIds          String[]         @map("label_ids")
+  state             MessageState     @default(discovered)
+  triageMethod      TriageMethod?    @map("triage_method")
+  triageRule        String?          @map("triage_rule")
+  triageConfidence  Float?           @map("triage_confidence") @db.Real
+  category          EmailCategory?
+  extractConfidence Float?           @map("extract_confidence") @db.Real
+  extraction        Json?
+  icsEvents         Json?            @map("ics_events")
+  fromEmail         String?          @map("from_email")
+  fromName          String?          @map("from_name")
+  toEmails          String[]         @map("to_emails")
+  subject           String?
+  snippet           String?
+  bodyText          String?          @map("body_text")
+  summary           String?
+  applicationId     String?          @map("application_id") @db.Uuid
+  attempts          Int              @default(0)
+  lastError         String?          @map("last_error")
+  discoveredAt      DateTime         @default(now()) @map("discovered_at") @db.Timestamptz(3)
+  processedAt       DateTime?        @map("processed_at") @db.Timestamptz(3)
+  updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  leads         Lead[]
+  interviews    Interview[]
+  events        Event[]
+  reviewItems   ReviewItem[]
+  intakeBatches IntakeBatch[]
+  llmCalls      LlmCall[]
+
+  @@index([state, internalDate])
+  @@index([threadId])
+  @@index([applicationId])
+  @@map("gmail_message")
+}
+
+/// §3.7. Hand-written: thread_link_target check (application_id or lead_id is set).
+model ThreadLink {
+  threadId      String   @id @map("thread_id")
+  applicationId String?  @map("application_id") @db.Uuid
+  leadId        String?  @map("lead_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("thread_link")
+}
+
+/// §3.8. entity_key is not a column: the idempotency unique index is an expression index,
+/// (message_id, type, coalesce(application_id::text, lead_id::text, '-')) where message_id is not null.
+model Event {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId   String?   @map("application_id") @db.Uuid
+  leadId          String?   @map("lead_id") @db.Uuid
+  companyId       String?   @map("company_id") @db.Uuid
+  type            EventType
+  actor           Actor
+  occurredAt      DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  messageId       String?   @map("message_id")
+  summary         String
+  data            Json?
+  changeSet       Json?     @map("change_set")
+  undoable        Boolean
+  undoneAt        DateTime? @map("undone_at") @db.Timestamptz(3)
+  undoneByEventId String?   @map("undone_by_event_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  lead          Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company       Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  message       GmailMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  undoneByEvent Event?        @relation("EventUndoneBy", fields: [undoneByEventId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  undoes        Event[]       @relation("EventUndoneBy")
+
+  @@index([applicationId, occurredAt(sort: Desc)])
+  @@index([leadId, occurredAt(sort: Desc)])
+  @@map("event")
+}
+
+/// §3.9. Hand-written: partial unique (message_id, kind) where state = 'open' and message_id is not null.
+model ReviewItem {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind          ReviewKind
+  state         ReviewState @default(open)
+  messageId     String?     @map("message_id")
+  applicationId String?     @map("application_id") @db.Uuid
+  leadId        String?     @map("lead_id") @db.Uuid
+  companyId     String?     @map("company_id") @db.Uuid
+  confidence    Float?      @db.Real
+  plan          Json?
+  candidates    Json        @default("[]")
+  reasons       String[]    @default([])
+  resolution    Json?
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  resolvedAt    DateTime?   @map("resolved_at") @db.Timestamptz(3)
+
+  message     GmailMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  application Application?  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  company     Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([state, createdAt(sort: Desc)])
+  @@map("review_item")
+}
+
+/// §3.10. Hand-written: partial unique on file_hash (where not null).
+model IntakeBatch {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind        IntakeBatchKind
+  searchRunId String?         @map("search_run_id") @db.Uuid
+  messageId   String?         @map("message_id")
+  fileHash    String?         @map("file_hash")
+  counts      Json
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  finalizedAt DateTime?       @map("finalized_at") @db.Timestamptz(3)
+
+  searchRun SearchRun?    @relation(fields: [searchRunId], references: [id], onDelete: NoAction)
+  message   GmailMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  leads     Lead[]
+
+  @@map("intake_batch")
+}
+
+/// §3.11
+model ImportPreview {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind      String
+  fileHash  String?  @map("file_hash")
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@map("import_preview")
+}
+
+/// §3.12. Hand-written: partial unique on status where status = 'running'.
+model SearchRun {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trigger        SearchTrigger
+  status         SearchRunStatus
+  startedAt      DateTime        @map("started_at") @db.Timestamptz(3)
+  finishedAt     DateTime?       @map("finished_at") @db.Timestamptz(3)
+  rounds         Int             @default(0) @db.SmallInt
+  returned       Int             @default(0)
+  accepted       Int             @default(0)
+  suppressed     Int             @default(0)
+  duplicates     Int             @default(0)
+  dead           Int             @default(0)
+  webSearchCalls Int             @default(0) @map("web_search_calls")
+  costMicros     BigInt?         @map("cost_micros")
+  briefHash      String          @map("brief_hash")
+  error          String?
+
+  intakeBatches IntakeBatch[]
+  llmCalls      LlmCall[]
+
+  @@index([startedAt(sort: Desc)])
+  @@map("search_run")
+}
+
+/// §3.13. Hand-written: partial unique on is_active where is_active.
+model CandidateProfile {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fileName      String   @map("file_name")
+  mimeType      String   @map("mime_type")
+  sizeBytes     Int      @map("size_bytes")
+  textContent   String   @map("text_content")
+  profile       Json?
+  profileStatus String   @map("profile_status")
+  model         String?
+  isActive      Boolean  @map("is_active")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+
+  @@map("candidate_profile")
+}
+
+/// §3.14 (singleton). Hand-written: gmail_connection_singleton check (id = 1).
+model GmailConnection {
+  id                   Int              @id @db.SmallInt
+  googleSub            String           @map("google_sub")
+  email                String
+  scopes               String[]
+  refreshTokenEnc      String?          @map("refresh_token_enc")
+  accessTokenEnc       String?          @map("access_token_enc")
+  accessTokenExpiresAt DateTime?        @map("access_token_expires_at") @db.Timestamptz(3)
+  status               ConnectionStatus
+  historyId            String?          @map("history_id")
+  startedAt            DateTime?        @map("started_at") @db.Timestamptz(3)
+  lastSyncAt           DateTime?        @map("last_sync_at") @db.Timestamptz(3)
+  lastSyncError        String?          @map("last_sync_error")
+  backfillSince        DateTime         @map("backfill_since") @db.Date
+  backfillState        BackfillState    @default(not_started) @map("backfill_state")
+  backfillPageToken    String?          @map("backfill_page_token")
+  backfillListed       Int              @default(0) @map("backfill_listed")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("gmail_connection")
+}
+
+/// §3.15
+model Session {
+  idHash     String   @id @map("id_hash")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  lastSeenAt DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  userAgent  String?  @map("user_agent")
+
+  @@map("session")
+}
+
+/// §3.16
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("setting")
+}
+
+/// §3.17
+model DailyActivity {
+  day           DateTime @id @db.Date
+  outreachCount Int      @default(0) @map("outreach_count")
+  prepMinutes   Int      @default(0) @map("prep_minutes")
+  followUps     Int      @default(0) @map("follow_ups")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("daily_activity")
+}
+
+/// §3.18
+model LlmCall {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose           LlmPurpose
+  model             String
+  inputTokens       Int           @map("input_tokens")
+  cachedInputTokens Int           @map("cached_input_tokens")
+  outputTokens      Int           @map("output_tokens")
+  webSearchCalls    Int           @default(0) @map("web_search_calls")
+  costMicros        BigInt?       @map("cost_micros")
+  latencyMs         Int           @map("latency_ms")
+  status            LlmCallStatus
+  errorCode         String?       @map("error_code")
+  requestId         String?       @map("request_id")
+  messageId         String?       @map("message_id")
+  searchRunId       String?       @map("search_run_id") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  message   GmailMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  searchRun SearchRun?    @relation(fields: [searchRunId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([purpose, createdAt])
+  @@map("llm_call")
+}
