@@ -185,6 +185,35 @@ describe("useGlobalShortcuts", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("g then a navigates even when a list under the same component binds a, and a plain a still reaches the list", async () => {
+    const user = userEvent.setup();
+    const a = vi.fn();
+    // The list is a child, so its effects (and listener) are registered before the global one,
+    // which is the order on a hard load of a list page.
+    function Page() {
+      useGlobalShortcuts();
+      return (
+        <>
+          <Where />
+          <List onOpen={vi.fn()} keys={{ a }} />
+        </>
+      );
+    }
+    renderWithProviders(<Page />, { route: "/leads" });
+    await user.keyboard("j");
+    await user.keyboard("a");
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(a).toHaveBeenCalledWith({ id: "a" });
+
+    await user.keyboard("ga");
+    expect(screen.getByTestId("where")).toHaveTextContent("/applications");
+    expect(a).toHaveBeenCalledTimes(1);
+
+    // a pending chord also swallows a second key that is not a destination
+    await user.keyboard("gj");
+    expect(screen.getByTestId("focused")).toHaveTextContent("0");
+  });
+
   it("a g without a second key does not linger", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {

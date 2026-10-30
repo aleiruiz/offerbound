@@ -85,11 +85,12 @@ export function useGlobalShortcuts(): void {
       if (ignoreKey(e)) return;
       if (waiting) {
         stopWaiting();
+        // The second key of a chord is always ours, even when it is not a destination, so a page's
+        // own key handler (for example `a` on a list row) never sees it.
+        e.preventDefault();
+        e.stopPropagation();
         const destination = GO_SHORTCUTS[e.key];
-        if (destination) {
-          e.preventDefault();
-          void navigate(destination);
-        }
+        if (destination) void navigate(destination);
         return;
       }
       if (e.key === "g") {
@@ -100,9 +101,10 @@ export function useGlobalShortcuts(): void {
         setShortcutDialogOpen(true);
       }
     };
-    document.addEventListener("keydown", onKeyDown);
+    // Capture phase, so the chord is settled before any page listener runs, whatever the mount order.
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
       stopWaiting();
     };
   }, [navigate]);
