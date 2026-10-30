@@ -129,7 +129,69 @@ const edgeRows: [name: string, input: string, expected: string | null][] = [
   ["fragment is dropped", "http://quarry.example/c/1#apply", "url:quarry.example/c/1"],
 ];
 
+const fixRows: [name: string, input: string, expected: string | null][] = [
+  [
+    "smartrecruiters slug without an id",
+    "https://jobs.smartrecruiters.com/Northwind/senior-engineer",
+    "url:jobs.smartrecruiters.com/Northwind/senior-engineer",
+  ],
+  [
+    "smartrecruiters other slug stays distinct",
+    "https://jobs.smartrecruiters.com/Northwind/senior-designer",
+    "url:jobs.smartrecruiters.com/Northwind/senior-designer",
+  ],
+  [
+    "smartrecruiters oneclick-ui is not an org",
+    "https://jobs.smartrecruiters.com/oneclick-ui/company/Northwind/publication/abc",
+    "url:jobs.smartrecruiters.com/oneclick-ui/company/Northwind/publication/abc",
+  ],
+  [
+    "greenhouse host with gh_jid uses the org",
+    "https://boards.greenhouse.io/Lumen?gh_jid=4012345",
+    "greenhouse:lumen:4012345",
+  ],
+  [
+    "greenhouse job-boards host with gh_jid uses the org",
+    "https://job-boards.greenhouse.io/lumen/other?gh_jid=4012345",
+    "greenhouse:lumen:4012345",
+  ],
+  [
+    "greenhouse embed uses for=",
+    "https://boards.greenhouse.io/embed/job_app?for=Lumen&gh_jid=4012345",
+    "greenhouse:lumen:4012345",
+  ],
+  [
+    "greenhouse embed without for= falls back to the host",
+    "https://boards.greenhouse.io/embed/job_app?gh_jid=4012345",
+    "greenhouse:boards.greenhouse.io:4012345",
+  ],
+  [
+    "workday underscore outside the job part",
+    "https://acme.wd5.myworkdayjobs.com/External_Careers/job/Austin/Data-Lead",
+    "url:acme.wd5.myworkdayjobs.com/External_Careers/job/Austin/Data-Lead",
+  ],
+  [
+    "workday needs a job segment",
+    "https://acme.wd5.myworkdayjobs.com/External/Data-Lead_R-1",
+    "url:acme.wd5.myworkdayjobs.com/External/Data-Lead_R-1",
+  ],
+  [
+    "linkedin bare numeric path is not a job",
+    "https://www.linkedin.com/4020000001",
+    "url:linkedin.com/4020000001",
+  ],
+  [
+    "linkedin view slug without an id",
+    "https://www.linkedin.com/jobs/view/python3",
+    "url:linkedin.com/jobs/view/python3",
+  ],
+];
+
 describe("jobKey", () => {
+  it.each(fixRows)("%s", (_name, input, expected) => {
+    expect(jobKey(input)).toBe(expected);
+  });
+
   it.each(keyRows)("%s -> %s", (input, expected) => {
     expect(jobKey(input)).toBe(expected);
   });
@@ -153,6 +215,9 @@ describe("atsSlug", () => {
     ["https://quarry.example/jobs/1", null],
     [`https://jobs.lever.co/Kestrel/${LEVER}`, "lever:kestrel"],
     ["https://boards.greenhouse.io/Lumen/jobs/4012345", "greenhouse:lumen"],
+    ["https://boards.greenhouse.io/embed/job_app?for=Lumen&token=1", "greenhouse:lumen"],
+    ["https://boards.greenhouse.io/embed/job_app?token=1", null],
+    ["https://jobs.smartrecruiters.com/oneclick-ui/company/Northwind/publication/abc", null],
     ["https://job-boards.greenhouse.io/lumen", "greenhouse:lumen"],
     ["https://acme.wd5.myworkdayjobs.com/en-US/External", "workday:acme"],
     ["https://sable.jobs.personio.de/job/998877", "personio:sable"],

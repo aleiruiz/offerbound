@@ -80,13 +80,28 @@ const LEVER_HOSTS = new Set(["jobs.lever.co", "jobs.eu.lever.co"]);
 const WORKDAY_HOST = /^([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com$/;
 const PERSONIO_HOST = /^([a-z0-9-]+)\.jobs\.personio\.[a-z]{2,}$/;
 
+/** Greenhouse org: first path segment, or `for=` on the legacy embed URLs; never `embed`. */
+function greenhouseOrg(p: Parsed): string | undefined {
+  const first = p.segments[0]?.toLowerCase();
+  if (first === "embed") return param(p.params, "for")?.toLowerCase();
+  return first;
+}
+
+/** SmartRecruiters paths that are not `/{company}/{id}`. */
+const SMARTRECRUITERS_RESERVED: ReadonlySet<string> = new Set(["oneclick-ui"]);
+
 /** `{ats}:{org}` for the ATSs whose org is part of the host or path, or null. */
 function slugOf(p: Parsed): string | null {
   const { host, segments } = p;
   if (host === "jobs.ashbyhq.com") return withOrg("ashby", segments[0]);
   if (LEVER_HOSTS.has(host)) return withOrg("lever", segments[0]);
-  if (GREENHOUSE_HOSTS.has(host)) return withOrg("greenhouse", segments[0]);
-  if (host === "jobs.smartrecruiters.com") return withOrg("smartrecruiters", segments[0]);
+  if (GREENHOUSE_HOSTS.has(host)) return withOrg("greenhouse", greenhouseOrg(p));
+  if (host === "jobs.smartrecruiters.com") {
+    const company = segments[0]?.toLowerCase();
+    return company && SMARTRECRUITERS_RESERVED.has(company)
+      ? null
+      : withOrg("smartrecruiters", company);
+  }
   if (host === "apply.workable.com") return withOrg("workable", segments[0]);
   const workday = WORKDAY_HOST.exec(host);
   if (workday) return withOrg("workday", workday[1]);
@@ -116,19 +131,23 @@ function atsKey(p: Parsed): string | null {
   if (LEVER_HOSTS.has(host) && a && b && UUID.test(b)) {
     return `lever:${a.toLowerCase()}:${b.toLowerCase()}`;
   }
-  if (GREENHOUSE_HOSTS.has(host) && a && b === "jobs" && c && /^\d+$/.test(c)) {
+  if (GREENHOUSE_HOSTS.has(host) && a && a !== "embed" && b === "jobs" && c && /^\d+$/.test(c)) {
     return `greenhouse:${a.toLowerCase()}:${c}`;
   }
   const workday = WORKDAY_HOST.exec(host);
   if (workday) {
-    // .../job/{location}/{slug}_{reqId}[/apply]
-    const reqId = segments.map((s) => /^.+_([^_]+)$/.exec(s)?.[1]).findLast((r) => r !== undefined);
-    if (reqId) return `workday:${workday[1]}:${reqId}`;
+    // .../job/{location}/{slug}_{reqId}[/apply]: only the segments after `job` count
+    const after = segments.slice(segments.indexOf("job") + 1);
+    if (segments.includes("job")) {
+      if (after.at(-1) === "apply") after.pop();
+      const reqId = /^.+_([^_]+)$/.exec(after.at(-1) ?? "")?.[1];
+      if (reqId) return `workday:${workday[1]}:${reqId}`;
+    }
   }
   const personio = PERSONIO_HOST.exec(host);
   if (personio && a === "job" && b && /^\d+$/.test(b)) return `personio:${personio[1]}:${b}`;
-  if (host === "jobs.smartrecruiters.com" && a && b) {
-    const id = /^([^-]+)/.exec(b)?.[1];
+  if (host === "jobs.smartrecruiters.com" && a && b && !SMARTRECRUITERS_RESERVED.has(a)) {
+    const id = /^(\d+)(?:-.*)?$/.exec(b)?.[1];
     if (id) return `smartrecruiters:${a.toLowerCase()}:${id}`;
   }
   if (host === "apply.workable.com" && a && b === "j" && c) {
@@ -139,7 +158,7 @@ function atsKey(p: Parsed): string | null {
   if (domain === "linkedin.com") {
     const view = segments.findIndex((s, i) => s === "view" && segments[i - 1] === "jobs");
     const id =
-      /(\d+)$/.exec(segments[view + 1] ?? "")?.[1] ??
+      (view === -1 ? undefined : /^(?:.*-)?(\d+)$/.exec(segments[view + 1] ?? "")?.[1]) ??
       (/^\d+$/.test(param(params, "currentJobId") ?? "") ? param(params, "currentJobId") : null);
     if (id) return `linkedin:${id}`;
   }
@@ -151,7 +170,8 @@ function atsKey(p: Parsed): string | null {
   // Greenhouse-hosted job pages embedded on a company's own site.
   const ghJid = param(params, "gh_jid");
   if (ghJid && /^\d+$/.test(ghJid)) {
-    return `greenhouse:${host.replace(/^www\./, "")}:${ghJid}`;
+    const org = GREENHOUSE_HOSTS.has(host) ? greenhouseOrg(p) : undefined;
+    return `greenhouse:${org ?? host.replace(/^www\./, "")}:${ghJid}`;
   }
   return null;
 }
