@@ -1,5 +1,4 @@
-import type { ApplicationStatus, TimelineEvent } from "@offerbound/contracts";
-import { ApplicationStatusSchema } from "@offerbound/contracts";
+import type { TimelineEvent } from "@offerbound/contracts";
 import MailOutlineOutlined from "@mui/icons-material/MailOutlineOutlined";
 import UndoOutlined from "@mui/icons-material/UndoOutlined";
 import Box from "@mui/material/Box";
@@ -8,7 +7,6 @@ import Typography from "@mui/material/Typography";
 import type { KeyboardEvent } from "react";
 import { DEFAULT_TIMEZONE, formatDateTime } from "../lib/format";
 import { isTypingTarget } from "../lib/shortcuts";
-import { STATUS_LABEL } from "./StatusChip";
 
 /** What the stop's shape says about the entry (DESIGN_SPEC §6.3): never color alone. */
 export type StopKind = "auto" | "email" | "owner" | "lead";
@@ -22,21 +20,12 @@ export function stopKind(event: TimelineEvent): StopKind {
   return "auto";
 }
 
-const STATUS_WORDS = new RegExp(`\\bto (${Object.values(STATUS_LABEL).join("|")})\\b`, "i");
-
-/** The status an automatic entry moved to, read from its sentence ("Moved to Screening ..."). */
-function statusOf(event: TimelineEvent): ApplicationStatus | null {
-  if (event.type === "abandoned") return "abandoned";
-  const word = STATUS_WORDS.exec(event.summary)?.[1];
-  const parsed = ApplicationStatusSchema.safeParse(word?.toLowerCase());
-  return parsed.success ? parsed.data : null;
-}
-
 const STOP_BOX = 20;
 
 function Stop({ event }: { event: TimelineEvent }) {
   const kind = stopKind(event);
-  const status = kind === "auto" ? statusOf(event) : null;
+  // A status event is colored by the status it moved to; without one the disc is neutral.
+  const status = kind === "auto" ? event.toStatus : null;
   return (
     <Box
       data-stop={kind}
@@ -52,7 +41,7 @@ function Stop({ event }: { event: TimelineEvent }) {
               width: STOP_BOX,
               height: STOP_BOX,
               borderRadius: "50%",
-              bgcolor: status ? theme.palette.status[status].main : theme.palette.primary.main,
+              bgcolor: status ? theme.palette.status[status].main : theme.palette.text.secondary,
               boxShadow: ring,
             };
           case "email":

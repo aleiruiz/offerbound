@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { makeEvent } from "../../test/factories";
 import { renderWithProviders } from "../../test/render";
+import { createOfferboundTheme } from "../theme";
 import { Timeline } from "./Timeline";
 
 const events = [
@@ -20,6 +21,7 @@ const events = [
     actor: "system",
     occurredAt: "2026-10-27T20:12:00Z",
     summary: "Moved to Interviewing",
+    toStatus: "interviewing",
     messageId: "m9",
     undoable: true,
   }),
@@ -38,6 +40,7 @@ const events = [
     actor: "system",
     occurredAt: "2026-10-21T15:05:00Z",
     summary: "Moved to Screening",
+    toStatus: "screening",
     undoable: false,
   }),
   makeEvent({
@@ -104,10 +107,37 @@ describe("Timeline", () => {
     expect(stopOf("old")).toBe("lead");
   });
 
-  it("colors an automatic stop with the status named in its sentence", () => {
-    renderWithProviders(<Timeline events={events} onUndo={vi.fn()} onViewEmail={vi.fn()} />);
-    const stop = document.querySelector('[data-event-id="stale"] [data-stop]');
-    expect(stop).toHaveAttribute("data-status", "screening");
+  it("colors an automatic stop with the status it moved to; a rejected event is the rejected color", () => {
+    const rejected = makeEvent({
+      id: "rej",
+      summary: "Moved to Rejected",
+      toStatus: "rejected",
+      undoable: true,
+    });
+    renderWithProviders(
+      <Timeline events={[...events, rejected]} onUndo={vi.fn()} onViewEmail={vi.fn()} />,
+    );
+    const stop = (id: string) => document.querySelector(`[data-event-id="${id}"] [data-stop]`);
+    expect(stop("stale")).toHaveAttribute("data-status", "screening");
+    expect(stop("rej")).toHaveAttribute("data-status", "rejected");
+    const palette = createOfferboundTheme("light").palette;
+    expect(stop("rej")).toHaveStyle({ backgroundColor: palette.status.rejected.main });
+    expect(stop("stale")).toHaveStyle({ backgroundColor: palette.status.screening.main });
+  });
+
+  it("an automatic event without toStatus gets the neutral color, never the route color", () => {
+    renderWithProviders(
+      <Timeline
+        events={[makeEvent({ id: "plain", summary: "Moved to Interviewing", toStatus: null })]}
+        onUndo={vi.fn()}
+        onViewEmail={vi.fn()}
+      />,
+    );
+    const stop = document.querySelector('[data-event-id="plain"] [data-stop]');
+    expect(stop).not.toHaveAttribute("data-status");
+    const palette = createOfferboundTheme("light").palette;
+    expect(stop).toHaveStyle({ backgroundColor: palette.text.secondary });
+    expect(stop).not.toHaveStyle({ backgroundColor: palette.primary.main });
   });
 
   it("says an undone change was undone, and u undoes the focused entry", async () => {

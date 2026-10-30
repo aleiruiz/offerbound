@@ -106,6 +106,7 @@ export function makeEvent(overrides: Partial<TimelineEvent> = {}): TimelineEvent
     actor: "system",
     summary: "Moved to Interviewing",
     messageId: null,
+    toStatus: null,
     undoable: true,
     undoneAt: null,
     ...overrides,

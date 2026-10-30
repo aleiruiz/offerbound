@@ -3,11 +3,7 @@ import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import MailOutlineOutlined from "@mui/icons-material/MailOutlineOutlined";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { Link as RouterLink } from "react-router";
 import {
   DEFAULT_TIMEZONE,
   formatCompensation,
@@ -16,6 +12,7 @@ import {
   localDayKey,
 } from "../lib/format";
 import { isHttpUrl } from "../lib/url";
+import { RowActions, type RowAction } from "./RowActions";
 import { FlagChip } from "./StatusChip";
 
 const WORK_MODE: Record<Lead["workMode"], string | null> = {
@@ -99,6 +96,67 @@ export function LeadRow({
     .filter(Boolean)
     .join(" ");
 
+  const actions: RowAction[] = [];
+  if (lead.status === "new" && onShortlist) {
+    actions.push({
+      key: "shortlist",
+      label: "Shortlist",
+      kind: "outlined",
+      onClick: () => onShortlist(lead),
+    });
+  }
+  if (open && onMarkApplied) {
+    actions.push({
+      key: "applied",
+      label: "Mark applied",
+      kind: "text",
+      onClick: () => onMarkApplied(lead),
+    });
+  }
+  if (!open && lead.status !== "applied" && onReconsider) {
+    actions.push({
+      key: "reconsider",
+      label: "Reconsider",
+      kind: "outlined",
+      onClick: () => onReconsider(lead),
+    });
+  }
+  if (lead.status === "applied" && lead.applicationId) {
+    actions.push({
+      key: "application",
+      label: "Open application",
+      kind: "text",
+      to: `/applications/${lead.applicationId}`,
+    });
+  }
+  if (open && onDismiss) {
+    actions.push({
+      key: "dismiss",
+      label: "Dismiss lead",
+      kind: "icon",
+      icon: <CloseOutlined fontSize="small" />,
+      onClick: () => onDismiss(lead),
+    });
+  }
+  if (onViewEmail && (lead.source === "gmail_recruiter" || lead.source === "gmail_alert")) {
+    actions.push({
+      key: "email",
+      label: "View source email",
+      kind: "icon",
+      icon: <MailOutlineOutlined fontSize="small" />,
+      onClick: () => onViewEmail(lead),
+    });
+  }
+  if (isHttpUrl(lead.jobUrl)) {
+    actions.push({
+      key: "posting",
+      label: "Open job posting",
+      kind: "icon",
+      icon: <OpenInNewOutlined fontSize="small" />,
+      href: lead.jobUrl,
+    });
+  }
+
   return (
     <Box
       component="li"
@@ -120,8 +178,8 @@ export function LeadRow({
         },
       }}
     >
-      <Box sx={{ width: 44, textAlign: "center", flex: "0 0 auto" }}>
-        <Typography sx={{ fontSize: 22, lineHeight: "28px", fontWeight: 800 }}>
+      <Box sx={{ width: 48, textAlign: "center", flex: "0 0 auto" }}>
+        <Typography sx={{ fontSize: 24, lineHeight: "28px", fontWeight: 800 }}>
           {lead.fitScore ?? "–"}
         </Typography>
         <Typography variant="caption" color="text.secondary">
@@ -159,60 +217,7 @@ export function LeadRow({
         </Typography>
       </Box>
 
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.5 }}>
-        {lead.status === "new" && onShortlist ? (
-          <Button size="small" variant="outlined" onClick={() => onShortlist(lead)}>
-            Shortlist
-          </Button>
-        ) : null}
-        {open && onMarkApplied ? (
-          <Button size="small" onClick={() => onMarkApplied(lead)}>
-            Mark applied
-          </Button>
-        ) : null}
-        {!open && lead.status !== "applied" && onReconsider ? (
-          <Button size="small" variant="outlined" onClick={() => onReconsider(lead)}>
-            Reconsider
-          </Button>
-        ) : null}
-        {lead.status === "applied" && lead.applicationId ? (
-          <Button size="small" component={RouterLink} to={`/applications/${lead.applicationId}`}>
-            Open application
-          </Button>
-        ) : null}
-        {open && onDismiss ? (
-          <Tooltip title="Dismiss lead">
-            <IconButton aria-label="Dismiss lead" size="small" onClick={() => onDismiss(lead)}>
-              <CloseOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : null}
-        {onViewEmail && (lead.source === "gmail_recruiter" || lead.source === "gmail_alert") ? (
-          <Tooltip title="View source email">
-            <IconButton
-              aria-label="View source email"
-              size="small"
-              onClick={() => onViewEmail(lead)}
-            >
-              <MailOutlineOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : null}
-        {isHttpUrl(lead.jobUrl) ? (
-          <Tooltip title="Open job posting">
-            <IconButton
-              aria-label="Open job posting"
-              size="small"
-              component="a"
-              href={lead.jobUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <OpenInNewOutlined fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : null}
-      </Box>
+      <RowActions actions={actions} />
     </Box>
   );
 }

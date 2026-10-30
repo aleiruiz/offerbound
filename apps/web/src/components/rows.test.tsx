@@ -128,7 +128,7 @@ describe("TargetMeter", () => {
     const bar = screen.getByRole("progressbar", { name: "Applications" });
     expect(bar).toHaveAttribute("aria-valuenow", "3");
     expect(bar).toHaveAttribute("aria-valuemin", "0");
-    expect(bar).toHaveAttribute("aria-valuemax", "8");
+    expect(bar).toHaveAttribute("aria-valuemax", "12");
     expect(screen.getByText("Pick from 6 shortlisted")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "+1 message" }));
     expect(onLog).toHaveBeenCalled();
@@ -145,7 +145,57 @@ describe("TargetMeter", () => {
     expect(screen.getByText("of 90 min")).toBeInTheDocument();
     const full = screen.getByRole("progressbar", { name: "New leads" });
     expect(full).toHaveAttribute("aria-valuenow", "24");
+    expect(full).toHaveAttribute("aria-valuemax", "30");
     const part = within(screen.getByText("Interview prep").parentElement!).getByRole("progressbar");
     expect(part).toHaveAttribute("aria-valuemax", "90");
+  });
+});
+
+describe("TargetMeter bounds", () => {
+  it("never reports a value above aria-valuemax", () => {
+    renderWithProviders(<TargetMeter label="Outreach" value={7} min={5} />);
+    const bar = screen.getByRole("progressbar", { name: "Outreach" });
+    expect(bar).toHaveAttribute("aria-valuenow", "7");
+    expect(bar).toHaveAttribute("aria-valuemax", "7");
+  });
+});
+
+describe("row actions below 600px move into a ⋯ menu", () => {
+  it("FollowUpRow", async () => {
+    const user = userEvent.setup();
+    const onMarkFollowedUp = vi.fn();
+    renderWithProviders(
+      <ul>
+        <FollowUpRow
+          application={makeApplication()}
+          now={NOW}
+          timezone={TZ}
+          onMarkFollowedUp={onMarkFollowedUp}
+        />
+      </ul>,
+      { width: 400 },
+    );
+    expect(screen.queryByRole("button", { name: "Mark followed up" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Mark followed up" }));
+    expect(onMarkFollowedUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("InterviewRow", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ul>
+        <InterviewRow interview={makeInterview()} timezone={TZ} now={NOW} onPrepNotes={vi.fn()} />
+      </ul>,
+      { width: 400 },
+    );
+    expect(screen.queryByRole("link", { name: "Open application" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Open application" })).toHaveAttribute(
+      "href",
+      "/applications/a1",
+    );
+    expect(within(menu).getByRole("menuitem", { name: "Prep notes" })).toBeInTheDocument();
   });
 });

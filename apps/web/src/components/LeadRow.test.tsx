@@ -97,3 +97,40 @@ describe("LeadRow", () => {
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-current", "true");
   });
 });
+
+describe("LeadRow layout and phones", () => {
+  it("sets the fit score at 24/28 in a 48px column", () => {
+    renderRow();
+    const score = screen.getByText("91");
+    expect(score).toHaveStyle({ fontSize: "24px", lineHeight: "28px" });
+    expect(score.parentElement).toHaveStyle({ width: "48px" });
+  });
+
+  it("below 600px the actions move into a ⋯ menu and the posting link opens a new tab", async () => {
+    const user = userEvent.setup();
+    const onShortlist = vi.fn();
+    const onDismiss = vi.fn();
+    renderWithProviders(
+      <ul>
+        <LeadRow
+          lead={makeLead()}
+          timezone="America/Monterrey"
+          now={NOW}
+          onShortlist={onShortlist}
+          onMarkApplied={vi.fn()}
+          onDismiss={onDismiss}
+        />
+      </ul>,
+      { width: 400 },
+    );
+    expect(screen.queryByRole("button", { name: "Shortlist" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Open job posting" })).toHaveAttribute(
+      "rel",
+      "noopener noreferrer",
+    );
+    await user.click(within(menu).getByRole("menuitem", { name: "Shortlist" }));
+    expect(onShortlist).toHaveBeenCalledTimes(1);
+  });
+});

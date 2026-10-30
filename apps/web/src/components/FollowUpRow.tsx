@@ -1,8 +1,7 @@
 import type { ApplicationSummary } from "@offerbound/contracts";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { Link as RouterLink } from "react-router";
+import { RowActions } from "./RowActions";
 import { DEFAULT_TIMEZONE, formatShortDate } from "../lib/format";
 
 const DAY_MS = 86_400_000;
@@ -61,14 +60,17 @@ export function FollowUpRow({
           {`${application.title}. ${followUpReason(application, timezone, now ?? new Date())}`}
         </Typography>
       </Box>
-      <Box sx={{ display: "flex", gap: 0.5 }}>
-        <Button size="small" variant="outlined" onClick={() => onMarkFollowedUp(application)}>
-          Mark followed up
-        </Button>
-        <Button size="small" component={RouterLink} to={`/applications/${application.id}`}>
-          Open
-        </Button>
-      </Box>
+      <RowActions
+        actions={[
+          {
+            key: "followed",
+            label: "Mark followed up",
+            kind: "outlined",
+            onClick: () => onMarkFollowedUp(application),
+          },
+          { key: "open", label: "Open", kind: "text", to: `/applications/${application.id}` },
+        ]}
+      />
     </Box>
   );
 }

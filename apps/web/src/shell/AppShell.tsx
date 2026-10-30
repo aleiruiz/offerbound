@@ -15,12 +15,13 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import KeyboardOutlined from "@mui/icons-material/KeyboardOutlined";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
 import { useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { ShortcutDialog } from "../components/ShortcutDialog";
 import { UndoSnackbar } from "../components/UndoSnackbar";
-import { useGlobalShortcuts } from "../lib/shortcuts";
+import { setShortcutDialogOpen, useGlobalShortcuts } from "../lib/shortcuts";
 import {
   BOTTOM_NAV_KEYS,
   MORE_NAV_KEYS,
@@ -111,6 +112,18 @@ function DrawerNav({ active }: { active: NavItem | undefined }) {
             );
           })}
         </List>
+        <ListItemButton
+          onClick={() => setShortcutDialogOpen(true)}
+          sx={{ mt: "auto", height: 44, borderRadius: 1, gap: 1.5, px: 1.5 }}
+        >
+          <ListItemIcon sx={{ minWidth: 0, color: "inherit" }}>
+            <KeyboardOutlined sx={{ fontSize: 20 }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Keyboard shortcuts"
+            slotProps={{ primary: { variant: "body2" } }}
+          />
+        </ListItemButton>
       </Box>
     </Drawer>
   );
@@ -164,6 +177,17 @@ function RailNav({ active }: { active: NavItem | undefined }) {
             );
           })}
         </List>
+        <Tooltip title="Keyboard shortcuts" placement="right">
+          <ListItemButton
+            aria-label="Keyboard shortcuts"
+            onClick={() => setShortcutDialogOpen(true)}
+            sx={{ mt: 0.5, height: 44, borderRadius: 1, justifyContent: "center", px: 0 }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: "inherit" }}>
+              <KeyboardOutlined sx={{ fontSize: 20 }} />
+            </ListItemIcon>
+          </ListItemButton>
+        </Tooltip>
       </Box>
     </Drawer>
   );
@@ -246,6 +270,16 @@ function BottomNav({ active }: { active: NavItem | undefined }) {
             </MenuItem>
           );
         })}
+        <MenuItem
+          onClick={() => {
+            setMoreOpen(false);
+            setShortcutDialogOpen(true);
+          }}
+          sx={{ minHeight: 44, gap: 1.5 }}
+        >
+          <KeyboardOutlined sx={{ fontSize: 20 }} />
+          Keyboard shortcuts
+        </MenuItem>
       </Menu>
     </Paper>
   );

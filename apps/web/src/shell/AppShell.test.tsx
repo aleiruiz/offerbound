@@ -98,4 +98,28 @@ describe("AppShell", () => {
     await user.keyboard("gi");
     expect(await screen.findByRole("heading", { name: "Interviews" })).toBeInTheDocument();
   });
+
+  it("has a visible Keyboard shortcuts control in the drawer, the rail and the More menu", async () => {
+    const user = userEvent.setup();
+    const close = async () => {
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    };
+    const { unmount } = renderShell(1000);
+    await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    await close();
+    unmount();
+
+    const rail = renderShell(700);
+    await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    await close();
+    rail.unmount();
+
+    renderShell(400);
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Keyboard shortcuts" }));
+    expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+  });
 });

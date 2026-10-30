@@ -39,7 +39,13 @@ export function EmptyState({
 /** Skeleton rows shaped like a list of leads or applications: score block, two text lines. */
 export function ListSkeleton({ label, rows = 5 }: { label: string; rows?: number }) {
   return (
-    <Paper variant="outlined" aria-busy="true" aria-label={label} sx={{ overflow: "hidden" }}>
+    <Paper
+      variant="outlined"
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      sx={{ overflow: "hidden" }}
+    >
       {Array.from({ length: rows }, (_, i) => (
         <Box
           key={i}

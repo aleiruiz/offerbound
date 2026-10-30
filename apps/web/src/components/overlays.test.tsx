@@ -114,6 +114,7 @@ describe("States", () => {
     renderWithProviders(<ListSkeleton label="Loading leads" rows={3} />);
     const region = screen.getByLabelText("Loading leads");
     expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveAttribute("role", "status");
     expect(region.querySelectorAll("[data-skeleton-row]")).toHaveLength(3);
   });
 

@@ -1,12 +1,11 @@
 import type { InterviewKind, InterviewWithApplication } from "@offerbound/contracts";
 import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import { Link as RouterLink } from "react-router";
 import { DEFAULT_TIMEZONE, formatTime, localDayKey } from "../lib/format";
 import { isHttpUrl } from "../lib/url";
+import { RowActions } from "./RowActions";
 import { FlagChip } from "./StatusChip";
 
 export const INTERVIEW_KIND: Record<InterviewKind, string> = {
@@ -127,28 +126,36 @@ export function InterviewRow({
           </Link>
         ) : null}
       </Box>
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-        {!scheduled && isHttpUrl(interview.schedulingUrl) ? (
-          <Button
-            size="small"
-            variant="outlined"
-            component="a"
-            href={interview.schedulingUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Pick a time
-          </Button>
-        ) : null}
-        {onPrepNotes ? (
-          <Button size="small" variant="outlined" onClick={() => onPrepNotes(interview)}>
-            Prep notes
-          </Button>
-        ) : null}
-        <Button size="small" component={RouterLink} to={`/applications/${application.id}`}>
-          Open application
-        </Button>
-      </Box>
+      <RowActions
+        actions={[
+          ...(!scheduled && isHttpUrl(interview.schedulingUrl)
+            ? [
+                {
+                  key: "pick",
+                  label: "Pick a time",
+                  kind: "outlined" as const,
+                  href: interview.schedulingUrl,
+                },
+              ]
+            : []),
+          ...(onPrepNotes
+            ? [
+                {
+                  key: "prep",
+                  label: "Prep notes",
+                  kind: "outlined" as const,
+                  onClick: () => onPrepNotes(interview),
+                },
+              ]
+            : []),
+          {
+            key: "open",
+            label: "Open application",
+            kind: "text" as const,
+            to: `/applications/${application.id}`,
+          },
+        ]}
+      />
     </Box>
   );
 }
