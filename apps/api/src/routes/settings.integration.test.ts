@@ -179,6 +179,27 @@ describe("GET and PUT /settings", () => {
     expect(queue.unscheduled).toEqual([]);
   });
 
+  it("PUT whose schedule cannot be registered answers 500 and saves nothing, so a retry registers it", async () => {
+    const { call, queue } = await appWith();
+    const failing = queue.schedule.bind(queue);
+    queue.schedule = () => Promise.reject(new Error("queue is down"));
+    const body = withPatch({ search: { enabled: true }, timers: { followUpDays: 5 } });
+
+    const res = await call("PUT", "/settings", body);
+    expect(res.statusCode).toBe(500);
+    expect((await call("GET", "/settings")).json()).toEqual(DEFAULT_SETTINGS);
+    expect(await prisma.setting.count()).toBe(0);
+
+    // The queue is back: the same request now saves and registers, because it still sees a change.
+    queue.schedule = failing;
+    const retry = await call("PUT", "/settings", body);
+    expect(retry.statusCode).toBe(200);
+    expect((await call("GET", "/settings")).json()).toEqual(body);
+    expect(queue.schedules).toEqual([
+      { name: "search.run", cron: "0 7 * * *", tz: "America/Monterrey" },
+    ]);
+  });
+
   it("in demo mode a changed schedule is not registered", async () => {
     const demoEnv = buildTestDeps().env;
     const { call, queue } = await appWith({ env: { ...demoEnv, mode: "demo" } });
