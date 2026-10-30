@@ -16,7 +16,7 @@ Day-to-day running of a private Offerbound instance on Coolify (compose services
 - The `api` and `worker` write JSON lines (pino) to standard output; Docker and Coolify keep them. There are no log files inside the containers.
 - Logs carry ids, job names, durations and outcome codes. They never contain email bodies, subjects, previews, sender names, CV text, the brief, prompts, model output, tokens, cookies, `Authorization` headers or the database URL (SECURITY section 4).
 - `LOG_LEVEL` sets the verbosity (default `info`). Change it in Coolify and redeploy.
-- A failed backup logs `backup failed: ...` with the reason (exit code, signal, timeout or empty file) and the file name, never `pg_dump`'s own output. The job then fails and pg-boss retries it twice. A dump that runs longer than 60 minutes is killed and counts as a failure.
+- A failed backup logs `backup failed: ...` with the reason (exit code, signal, timeout or empty file) and the file name, never `pg_dump`'s own output. The job then fails and pg-boss retries it twice. A dump that runs longer than 25 minutes (the job expires at 30) is killed and counts as a failure.
 
 ## Backups
 

@@ -3,11 +3,16 @@ import { mkdir, readdir, rename, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { ownerLocalDay } from "@offerbound/domain";
 import type { WorkerCtx } from "../deps.js";
+import { QUEUE_CONFIG, QUEUES } from "../jobs/queues.js";
 
 /** Where the compose `backups` volume is mounted in the worker (TECHNICAL_SPEC §16). */
 export const BACKUP_DIR = "/backups";
-/** A dump that runs longer than this is killed and counts as a failure. */
-export const BACKUP_TIMEOUT_MS = 60 * 60 * 1000;
+/**
+ * A dump that runs longer than this is killed and counts as a failure. It is derived from the
+ * queue's `expireInSeconds` (1800 s) minus a 5-minute margin, so 25 minutes: the dump is always
+ * dead before pg-boss expires the job and starts a retry that could write the same file.
+ */
+export const BACKUP_TIMEOUT_MS = (QUEUE_CONFIG[QUEUES.backupNightly].expireInSeconds - 300) * 1000;
 
 const BACKUP_FILE = /^offerbound-(\d{4}-\d{2}-\d{2})\.dump$/;
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -9,7 +9,7 @@ import { resetDb, testPrisma } from "../../test/db.js";
 import { testEnv } from "../../test/app.js";
 import { testWorkerCtx } from "../../test/worker.js";
 import { HANDLERS, backupNightlyHandler } from "../jobs/handlers.js";
-import { QUEUES } from "../jobs/queues.js";
+import { QUEUE_CONFIG, QUEUES } from "../jobs/queues.js";
 import { BACKUP_TIMEOUT_MS, runBackup, spawnProcess, type SpawnFn } from "./backup.js";
 import { runMaintenance } from "./maintenance.js";
 
@@ -175,7 +175,7 @@ describe("runBackup", () => {
     ]);
   });
 
-  it("passes pg_dump only PATH, HOME, LANG and PGPASSWORD, with a 60-minute timeout", async () => {
+  it("passes pg_dump only PATH, HOME, LANG and PGPASSWORD, with a 25-minute timeout", async () => {
     process.env.OPENAI_API_KEY = "leak-check-openai";
     process.env.TOKEN_ENCRYPTION_KEY = "leak-check-key";
     try {
@@ -190,7 +190,10 @@ describe("runBackup", () => {
       ).toEqual([]);
       expect(env.PGPASSWORD).toBe("pw");
       expect(calls[0]?.timeoutMs).toBe(BACKUP_TIMEOUT_MS);
-      expect(BACKUP_TIMEOUT_MS).toBe(60 * 60 * 1000);
+      expect(BACKUP_TIMEOUT_MS).toBe(25 * 60 * 1000);
+      expect(BACKUP_TIMEOUT_MS).toBeLessThan(
+        QUEUE_CONFIG[QUEUES.backupNightly].expireInSeconds * 1000,
+      );
     } finally {
       delete process.env.OPENAI_API_KEY;
       delete process.env.TOKEN_ENCRYPTION_KEY;
