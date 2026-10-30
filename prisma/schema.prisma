@@ -522,6 +522,10 @@ model GmailMessage {
   bodyText          String?          @map("body_text")
   summary           String?
   applicationId     String?          @map("application_id") @db.Uuid
+  /// Two meanings, by state: failed triage attempts while `discovered` (the fifth fails the
+  /// message), then, once `job_related`, how many times the resend sweep sent it to extraction
+  /// again (reset to 0 when triage decides it and when extraction defers for a Gmail Retry-After;
+  /// the fifth resend fails it). Never read for any other state.
   attempts          Int              @default(0)
   lastError         String?          @map("last_error")
   discoveredAt      DateTime         @default(now()) @map("discovered_at") @db.Timestamptz(3)

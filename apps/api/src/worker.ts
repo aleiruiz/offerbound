@@ -4,9 +4,10 @@ import { LOG_REDACT_PATHS } from "./app.js";
 import { EnvError, loadEnv } from "./config/env.js";
 import { createDeps, type WorkerCtx } from "./deps.js";
 import { resumeGmailJobs } from "./gmail/control.js";
-import { createBoss } from "./jobs/boss.js";
-import { registerHandlers } from "./jobs/handlers.js";
-import { PgBossQueue } from "./jobs/queues.js";
+import { createBoss, registerSchedules } from "./jobs/boss.js";
+import { HANDLERS, registerHandlers } from "./jobs/handlers.js";
+import { PgBossQueue, type QueueName } from "./jobs/queues.js";
+import { getSettings } from "./settings/service.js";
 
 export type { WorkerCtx } from "./deps.js";
 
@@ -14,8 +15,9 @@ export type { WorkerCtx } from "./deps.js";
 const STOP_TIMEOUT_MS = 30_000;
 
 /**
- * Starts pg-boss, creates the queues, registers the job handlers and picks up where the last
- * run stopped (a running backfill continues, the sync schedule is registered again). The jobs
+ * Starts pg-boss, creates the queues, registers the job handlers and the recurring schedules of
+ * the queues that have one, and picks up where the last run stopped (a running backfill
+ * continues, the sync schedule is registered again). The jobs
  * send further jobs through the worker's own queue, so `ctx.queue` is replaced by it. The worker
  * stops gracefully, letting running jobs finish, on SIGTERM or SIGINT or when `stop()` is called.
  */
@@ -27,6 +29,14 @@ export async function startWorker(base: WorkerCtx): Promise<{ stop: () => Promis
   const ctx: WorkerCtx = { ...base, queue };
   await queue.start();
   await registerHandlers(boss, ctx);
+  // A schedule for a queue nobody consumes would only pile up jobs; later tasks add handlers.
+  await registerSchedules(
+    queue,
+    ctx.env.mode,
+    await getSettings(ctx.prisma),
+    ctx.env.userTimezone,
+    new Set(Object.keys(HANDLERS) as QueueName[]),
+  );
   await resumeGmailJobs(ctx);
 
   let stopping: Promise<void> | undefined;

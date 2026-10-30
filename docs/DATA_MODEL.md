@@ -228,7 +228,7 @@ One row per Gmail message Offerbound has seen. **Content columns are null unless
 | `body_text` | text | yes | job-related only; ≤ 15,000 chars |
 | `summary` | text | yes | one line for the timeline |
 | `application_id` | uuid | yes | FK `application`, `on delete set null` |
-| `attempts` | int | no | default 0 |
+| `attempts` | int | no | default 0; failed triage attempts while `discovered`, then resends to extraction while `job_related` (reset when triage decides the message) |
 | `last_error` | text | yes | error code only, never content |
 | `discovered_at` | timestamptz | no | default now() |
 | `processed_at` | timestamptz | yes | |

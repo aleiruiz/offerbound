@@ -196,6 +196,16 @@ async function handleFailure(ctx: WorkerCtx, conn: Connection, error: unknown): 
   throw error;
 }
 
+/**
+ * For a stage other than sync (triage, extraction) that met lost authorization: the same effect
+ * as it has in sync. The status is recorded if the client did not already, and `gmail.sync`
+ * stops running until the owner reconnects, so the cron does not fire silently (AC-2.6).
+ */
+export async function stopSyncAfterAuthError(ctx: WorkerCtx, error: GmailAuthError): Promise<void> {
+  const conn = await ctx.prisma.gmailConnection.findUnique({ where: { id: 1 } });
+  if (conn) await handleFailure(ctx, conn, error);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Backfill (AC-2.3)
 // ---------------------------------------------------------------------------------------------
