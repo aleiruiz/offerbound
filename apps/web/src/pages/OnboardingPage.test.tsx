@@ -1,6 +1,6 @@
 import type { CvProfile, ImportSummary, Settings, SheetPreview } from "@offerbound/contracts";
 import { DEFAULT_SETTINGS } from "@offerbound/contracts";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -88,6 +88,17 @@ function file(name: string, type: string, bytes = 8): File {
 const callsTo = (api: MockApi, method: string, path: string) =>
   api.calls.filter((c) => c.method === method && new URL(c.url).pathname === path);
 
+/** A drop carrying these files, the way a browser reports a drag from the desktop. */
+const dropping = (...files: File[]) => ({ dataTransfer: { files, types: ["Files"] } });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
 async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
   for (let i = 0; i < steps; i += 1) {
     await user.click(await screen.findByRole("button", { name: "Skip this step" }));
@@ -121,11 +132,30 @@ describe("OnboardingPage", () => {
     expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
     expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
+    expect(within(steps).queryByText("Optional")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(
       screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
     ).toBeVisible();
+  });
+
+  it("marks steps 1 to 3 Optional in the stepper until they are skipped, and never the last", async () => {
+    const { user } = setup();
+    const steps = screen.getByLabelText("Setup steps");
+    expect(within(steps).getAllByText("Optional")).toHaveLength(3);
+    for (const name of ["Upload your CV", "Import your spreadsheet", "Write your search brief"]) {
+      expect(within(steps).getByText(name).closest("[class*=MuiStepLabel-root]")).toHaveTextContent(
+        "Optional",
+      );
+    }
+    expect(
+      within(steps).getByText("Start syncing Gmail").closest("[class*=MuiStepLabel-root]"),
+    ).not.toHaveTextContent("Optional");
+
+    await skipTo(user, 1);
+    expect(within(steps).getAllByText("Optional")).toHaveLength(2);
+    expect(within(steps).getAllByText("Skipped")).toHaveLength(1);
   });
 
   describe("the CV step", () => {
@@ -153,6 +183,79 @@ describe("OnboardingPage", () => {
         screen.getByRole("heading", { level: 2, name: "Import your spreadsheet" }),
       ).toBeVisible();
       expect(within(screen.getByLabelText("Setup steps")).queryByText("Skipped")).toBeNull();
+    });
+
+    it("accepts a file dropped on the drop zone, using the first of several", async () => {
+      const { api } = setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
+      const zone = screen.getByRole("group", { name: "CV drop zone" });
+      expect(within(zone).getByRole("button", { name: "Choose CV file" })).toBeInTheDocument();
+
+      fireEvent.drop(
+        zone,
+        dropping(file("cv.pdf", "application/pdf"), file("other.pdf", "application/pdf")),
+      );
+      expect(await screen.findByRole("region", { name: "Your CV profile" })).toBeInTheDocument();
+      const posts = callsTo(api, "POST", "/api/v1/cv");
+      expect(posts).toHaveLength(1);
+      expect((api.upload(posts[0] as Request)?.get("file") as File).name).toBe("cv.pdf");
+    });
+
+    it("gives a dropped file the same checks as a chosen one", async () => {
+      const { api } = setup();
+      const zone = screen.getByRole("group", { name: "CV drop zone" });
+      fireEvent.drop(zone, dropping(file("notes.txt", "text/plain")));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Offerbound reads PDF and DOCX files. Choose one of those.",
+      );
+      fireEvent.drop(zone, dropping(file("big.pdf", "application/pdf", 5 * 1024 * 1024 + 1)));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("larger than 5 MB"));
+      expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(0);
+    });
+
+    it("shows a drag-over state while a file is dragged over the zone", () => {
+      setup();
+      const zone = screen.getByRole("group", { name: "CV drop zone" });
+      expect(zone).not.toHaveAttribute("data-drag-over");
+      expect(within(zone).getByText("or drop a file here")).toBeInTheDocument();
+
+      fireEvent.dragEnter(zone, dropping());
+      expect(zone).toHaveAttribute("data-drag-over", "true");
+      expect(within(zone).getByText("Drop the file to add it")).toBeInTheDocument();
+
+      fireEvent.dragLeave(zone);
+      expect(zone).not.toHaveAttribute("data-drag-over");
+
+      // Dragging something that isn't a file (selected text, say) doesn't light the zone up.
+      fireEvent.dragEnter(zone, { dataTransfer: { files: [], types: ["text/plain"] } });
+      expect(zone).not.toHaveAttribute("data-drag-over");
+    });
+
+    it("shows the file, a progress bar and what to expect while the CV is read, and ignores drops meanwhile", async () => {
+      const answer = deferred<Response>();
+      const { api, user } = setup({ "POST /api/v1/cv": () => answer.promise });
+      await user.upload(
+        screen.getByLabelText("Choose CV file"),
+        file("my-long-cv-file-name.pdf", "application/pdf"),
+      );
+
+      const zone = screen.getByRole("group", { name: "CV drop zone" });
+      const status = await within(zone).findByRole("status");
+      expect(status).toHaveAttribute("aria-live", "polite");
+      expect(within(status).getByText("my-long-cv-file-name.pdf")).toBeInTheDocument();
+      expect(within(status).getByRole("progressbar", { name: "Reading your CV" })).toBeVisible();
+      expect(status).toHaveTextContent(
+        "Reading my-long-cv-file-name.pdf and building your profile. This usually takes under a minute; keep this page open.",
+      );
+      // No greyed-out chooser and no drop hint while the upload runs.
+      expect(within(zone).queryByRole("button", { name: /CV/ })).not.toBeInTheDocument();
+      expect(within(zone).queryByText("or drop a file here")).not.toBeInTheDocument();
+      fireEvent.drop(zone, dropping(file("second.pdf", "application/pdf")));
+      expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(1);
+
+      answer.resolve(jsonResponse(PROFILE, 201));
+      expect(await screen.findByRole("region", { name: "Your CV profile" })).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Replace CV" })).toBeInTheDocument();
     });
 
     it("says 'We couldn't read text from that file' on 422 cv_no_text", async () => {
@@ -268,6 +371,45 @@ describe("OnboardingPage", () => {
       return rendered;
     }
 
+    it("says the step is optional, and what to expect, before any file is chosen", async () => {
+      const { api, user } = await toImport();
+      const section = screen.getByRole("region", { name: "Import your spreadsheet" });
+      expect(within(section).getByText("Optional")).toBeInTheDocument();
+      expect(
+        within(section).getByText(
+          "If you don't track your applications in a spreadsheet, skip this step. Gmail sync builds your list from your emails.",
+        ),
+      ).toBeInTheDocument();
+
+      const expectations = within(section).getByRole("button", { name: "What to expect" });
+      expect(expectations).toHaveAttribute("aria-expanded", "true");
+      const list = within(section).getByRole("list");
+      const items = within(list).getAllByRole("listitem");
+      expect(items).toHaveLength(5);
+      expect(items[0]).toHaveTextContent(
+        "What it reads: the Applications tab exported as CSV. Offerbound finds the header row by itself; it needs Company, Role and Status. It also uses Country, City or modality, Date applied, Salary, Sponsorship or relocation, Job link and Notes when they are there.",
+      );
+      expect(items[1]).toHaveTextContent(
+        "How statuses become records: To research becomes a new lead. Applied, Interview and Rejected become applications. Cancelled becomes a dismissed lead. Any other status is reported and skipped.",
+      );
+      expect(items[2]).toHaveTextContent(
+        "What you see first: a preview with counts, rows with errors and duplicates in the file. Nothing is saved until you press Import.",
+      );
+      expect(items[3]).toHaveTextContent(
+        "Duplicates: rows that match records you already have are skipped, and the same file can't be imported twice.",
+      );
+      expect(items[4]).toHaveTextContent("Your spreadsheet: it isn't changed.");
+
+      // The section can be folded away on a small screen; the skip line and the button stay.
+      await user.click(expectations);
+      expect(expectations).toHaveAttribute("aria-expanded", "false");
+      expect(
+        within(section).getByText(/If you don't track your applications in a spreadsheet/),
+      ).toBeVisible();
+      expect(within(section).getByRole("button", { name: "Skip this step" })).toBeVisible();
+      expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
+    });
+
     it("shows the mapping preview and skipped rows, and 'Import N rows' commits", async () => {
       const { api, user } = await toImport({
         "POST /api/v1/import/sheet/commit": () => jsonResponse(SUMMARY, 201),
@@ -324,6 +466,84 @@ describe("OnboardingPage", () => {
       await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
       expect(await screen.findByText(/This file was already imported\./)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Skip this step" })).toBeInTheDocument();
+    });
+
+    it("accepts a CSV dropped on the drop zone, using the first of several", async () => {
+      const { api } = await toImport();
+      const zone = screen.getByRole("group", { name: "CSV drop zone" });
+      expect(within(zone).getByRole("button", { name: "Choose CSV file" })).toBeInTheDocument();
+      fireEvent.drop(
+        zone,
+        dropping(file("Applications.csv", "text/csv"), file("second.csv", "text/csv")),
+      );
+      expect(await screen.findByText("Applications.csv")).toBeInTheDocument();
+      const posts = callsTo(api, "POST", "/api/v1/import/sheet/preview");
+      expect(posts).toHaveLength(1);
+      expect((api.upload(posts[0] as Request)?.get("file") as File).name).toBe("Applications.csv");
+    });
+
+    it("gives a dropped file the same checks as a chosen one", async () => {
+      const { api } = await toImport();
+      const zone = screen.getByRole("group", { name: "CSV drop zone" });
+      fireEvent.drop(zone, dropping(file("notes.txt", "text/plain")));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Offerbound imports CSV files. In Google Sheets, choose File, Download, Comma-separated values, then add that file.",
+      );
+      fireEvent.drop(zone, dropping(file("big.csv", "text/csv", 2 * 1024 * 1024 + 1)));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("larger than 2 MB"));
+      expect(callsTo(api, "POST", "/api/v1/import/sheet/preview")).toHaveLength(0);
+    });
+
+    it("says import isn't available yet, not 'expired', when the preview route is missing", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () => apiError(404, "not_found", "Not found."),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+      );
+      expect(screen.queryByText(/expired/)).not.toBeInTheDocument();
+
+      // The way on stays open: Skip is visible and moves to the next step.
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
+      ).toBeVisible();
+      expect(within(screen.getByLabelText("Setup steps")).getAllByText("Skipped")).toHaveLength(2);
+    });
+
+    it("says the same when the preview call fails on the server or answers without the usual error body", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () =>
+          new Response("<html>Bad gateway</html>", { status: 502 }),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Spreadsheet import isn't available yet.",
+      );
+      expect(screen.getByRole("button", { name: "Skip this step" })).toBeVisible();
+    });
+
+    it("says the preview expired only when the commit can't find it, and Skip still works", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/commit": () => apiError(404, "not_found", "Not found."),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
+      expect(await screen.findByText("This preview expired. Add the file again.")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
+      ).toBeVisible();
     });
 
     it("shows the preview's error when the file can't be read", async () => {
