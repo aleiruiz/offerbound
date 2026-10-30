@@ -14,7 +14,7 @@ import { resetDb, testPrisma } from "../../test/db.js";
 import { testWorkerCtx } from "../../test/worker.js";
 import { withIntakeLock } from "../db/lock.js";
 import { QUEUES } from "../jobs/queues.js";
-import type { RecordingQueue } from "../../test/queue.js";
+import { RecordingQueue } from "../../test/queue.js";
 import { commitSheet, MAX_SHEET_BYTES } from "./sheet.js";
 
 const prisma = testPrisma();
@@ -452,6 +452,29 @@ describe("POST /import/sheet/commit", () => {
     );
     expect(await prisma.company.count()).toBe(1);
     expect(await prisma.application.count({ where: { companyId } })).toBe(2);
+  });
+
+  it("a lost leads.check send still commits and the other checks go out", async () => {
+    const body = await preview(
+      csv([
+        "Dune Analytics Example,Analytics Engineer,Mexico,Remote,,To research,,,https://jobs.ashbyhq.com/duneanalytics/9f9f,",
+        "Gum Media Example,Designer,Mexico,Remote,,To research,,,https://jobs.ashbyhq.com/gummedia/1a1a,",
+        "Hazel Health Example,Nurse,Mexico,Remote,,To research,,,https://jobs.ashbyhq.com/hazelhealth/2b2b,",
+      ]),
+    );
+    const lossy = new RecordingQueue();
+    let calls = 0;
+    const send = lossy.send.bind(lossy);
+    lossy.send = (...args: Parameters<RecordingQueue["send"]>) =>
+      ++calls === 1 ? Promise.reject(new Error("queue down")) : send(...args);
+
+    const summary = await commitSheet(
+      testWorkerCtx({ clock: () => NOW, queue: lossy }),
+      body.previewId,
+    );
+    expect(summary.leadsCreated).toBe(3);
+    expect(lossy.sent.filter((s) => s.name === QUEUES.leadsCheck)).toHaveLength(2);
+    expect(await prisma.lead.count({ where: { pipelineState: "checking" } })).toBe(3);
   });
 
   it("holds the intake lock while it writes", async () => {

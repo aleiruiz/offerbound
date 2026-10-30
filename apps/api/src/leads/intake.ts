@@ -308,15 +308,80 @@ export async function ingestLeads(
   return { batchId: created.id, leadIds, checkIds, createdCompanyIds, refs, counts };
 }
 
-/** Sends `leads.check` for every stored lead that waits for one. Call it after the commit. */
+/** A lead in `checking` this long without an update has lost its `leads.check` job. */
+export const PENDING_CHECK_AFTER_MS = 10 * 60 * 1000;
+
+/** How many stranded leads one sweep sends; the next sweep takes the rest. */
+const PENDING_CHECK_LIMIT = 200;
+
+type ErrorLog = { error: (obj: Record<string, unknown>, msg: string) => void };
+
+function logSendFailure(log: ErrorLog | undefined, leadId: string, error: unknown): void {
+  log?.error(
+    { errorName: error instanceof Error ? error.name : undefined, leadId },
+    "could not queue leads.check; the pending-checks sweep will send it",
+  );
+}
+
+/**
+ * Sends `leads.check` for every stored lead that waits for one. Call it after the commit. Each
+ * send stands alone: one that fails is logged (ids and error name only) and the rest still go.
+ * Returns how many failed; `sendPendingChecks` picks those leads up later.
+ */
 export async function enqueueLeadChecks(
   queue: Pick<JobQueue, "send">,
   result: Pick<IngestResult, "checkIds" | "batchId">,
-): Promise<void> {
+  log?: ErrorLog,
+): Promise<number> {
+  let failed = 0;
   // The batch id lets a redelivered job find its batch even after its lead is gone (a dead lead).
   for (const leadId of result.checkIds) {
-    await queue.send(QUEUES.leadsCheck, { leadId, batchId: result.batchId });
+    try {
+      await queue.send(QUEUES.leadsCheck, { leadId, batchId: result.batchId });
+    } catch (error) {
+      failed += 1;
+      logSendFailure(log, leadId, error);
+    }
   }
+  return failed;
+}
+
+/**
+ * Sends `leads.check` for every lead still in `checking` that has not changed for
+ * `PENDING_CHECK_AFTER_MS`: its first send was lost after the commit. Idempotent. The job skips a
+ * lead that is no longer `checking`, and the lead id as the job's key keeps sweeps from queueing a
+ * lead that is already waiting twice. The age keeps it from racing the send that follows a commit.
+ * Returns the number of leads sent.
+ */
+export async function sendPendingChecks(ctx: {
+  prisma: PrismaClient;
+  queue: Pick<JobQueue, "send">;
+  clock: () => Date;
+  log?: ErrorLog;
+}): Promise<number> {
+  const stranded = await ctx.prisma.lead.findMany({
+    where: {
+      pipelineState: "checking",
+      updatedAt: { lt: new Date(ctx.clock().getTime() - PENDING_CHECK_AFTER_MS) },
+    },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: PENDING_CHECK_LIMIT,
+    select: { id: true, intakeBatchId: true },
+  });
+  let sent = 0;
+  for (const { id, intakeBatchId } of stranded) {
+    try {
+      await ctx.queue.send(
+        QUEUES.leadsCheck,
+        { leadId: id, batchId: intakeBatchId },
+        { singletonKey: id },
+      );
+      sent += 1;
+    } catch (error) {
+      logSendFailure(ctx.log, id, error);
+    }
+  }
+  return sent;
 }
 
 /**

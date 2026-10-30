@@ -612,17 +612,8 @@ export async function commitSheet(ctx: WorkerCtx, previewId: string): Promise<Im
     return { summary, result };
   });
 
-  // After the commit, so a worker never looks for a lead it cannot see yet.
-  try {
-    await enqueueLeadChecks(ctx.queue, outcome.result);
-  } catch (error) {
-    ctx.log.error(
-      {
-        errorName: error instanceof Error ? error.name : undefined,
-        batchId: outcome.result.batchId,
-      },
-      "could not queue link checks for an imported sheet",
-    );
-  }
+  // After the commit, so a worker never looks for a lead it cannot see yet. A send that fails is
+  // logged; `sendPendingChecks` (run by the 1-minute sweep) sends it later.
+  await enqueueLeadChecks(ctx.queue, outcome.result, ctx.log);
   return outcome.summary;
 }
