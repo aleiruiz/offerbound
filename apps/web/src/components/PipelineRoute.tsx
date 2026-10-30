@@ -143,7 +143,12 @@ export interface PipelineRouteProps {
   /** Application counts per status; a missing status counts as 0. */
   byStatus: Partial<Record<ApplicationStatus, number>>;
   /** While the owner is looking, a status change slides the marker from one stop to the next. */
-  movement?: { from: ApplicationStatus; to: ApplicationStatus };
+  movement?: {
+    from: ApplicationStatus;
+    to: ApplicationStatus;
+    /** Tells one movement from the next, so each starts at its own `from` stop. */
+    key?: string | number;
+  };
 }
 
 /**
@@ -171,7 +176,13 @@ export function PipelineRoute({ byStatus, movement }: PipelineRouteProps) {
               <Stop key={status} status={status} count={count(status)} />
             ))}
           </Stepper>
-          {movement && onLine ? <Marker from={movement.from} to={movement.to} /> : null}
+          {movement && onLine ? (
+            <Marker
+              key={movement.key ?? `${movement.from}>${movement.to}`}
+              from={movement.from}
+              to={movement.to}
+            />
+          ) : null}
         </Box>
         <Box
           role="group"

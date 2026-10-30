@@ -12,7 +12,6 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-export const TodayPage = () => <PlaceholderPage title="Today" />;
 export const ApplicationsPage = () => <PlaceholderPage title="Applications" />;
 export const ApplicationDetailPage = () => <PlaceholderPage title="Application" />;
 export const LeadsPage = () => <PlaceholderPage title="Leads" />;

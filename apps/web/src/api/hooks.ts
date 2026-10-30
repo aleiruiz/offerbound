@@ -1,17 +1,27 @@
 import {
+  ApplicationDetailSchema,
   CvProfileSchema,
   CvUploadFailedSchema,
+  DailyCountsSchema,
+  LeadSchema,
   ImportSummarySchema,
   MeSchema,
   MessageDetailSchema,
   NavCountsSchema,
+  SearchRunSchema,
   SettingsSchema,
   SheetPreviewSchema,
   SyncStatusSchema,
+  TodaySchema,
+  type ApplicationSummary,
   type CvProfile,
+  type DailyActivityBody,
+  type Lead,
   type Settings,
+  type Today,
 } from "@offerbound/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DEFAULT_TIMEZONE } from "../lib/format";
 import { apiFetch, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
@@ -20,11 +30,13 @@ export const queryKeys = {
   syncStatus: ["sync-status"] as const,
   navCounts: ["nav-counts"] as const,
   settings: ["settings"] as const,
+  today: ["today"] as const,
 };
 
 /** TECHNICAL_SPEC §11: sync status polls every 30 s, the navigation counts every 60 s. */
 export const SYNC_STATUS_POLL_MS = 30_000;
 export const NAV_COUNTS_POLL_MS = 60_000;
+export const TODAY_POLL_MS = 30_000;
 
 /** `GET /me`: who is signed in, the instance mode and whether onboarding is done. */
 export function useMe() {
@@ -32,6 +44,11 @@ export function useMe() {
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiFetch("/me", { schema: MeSchema, signal }),
   });
+}
+
+/** The owner's time zone from `GET /me`; the default until it has answered (TECHNICAL_SPEC §2). */
+export function useTimezone(): string {
+  return useMe().data?.timezone ?? DEFAULT_TIMEZONE;
 }
 
 /** `GET /messages/:id`: one email with its body text. The body is personal content: never log it. */
@@ -172,5 +189,94 @@ export function useCompleteOnboarding() {
   return useMutation({
     mutationFn: () => apiFetch("/onboarding/complete", { method: "POST", schema: MeSchema }),
     onSuccess: (me) => queryClient.setQueryData(queryKeys.me, me),
+  });
+}
+
+/** `GET /today`: everything Today shows. Polls every 30 s (TECHNICAL_SPEC §11). */
+export function useToday() {
+  return useQuery({
+    queryKey: queryKeys.today,
+    queryFn: ({ signal }) => apiFetch("/today", { schema: TodaySchema, signal }),
+    refetchInterval: TODAY_POLL_MS,
+  });
+}
+
+/** Refresh what an action on Today changes: the page itself and the navigation badges. */
+function useRefreshToday() {
+  const queryClient = useQueryClient();
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+    ]);
+}
+
+/** `POST /daily-activity`: log outreach or prep minutes; the answer updates today's counts at once. */
+export function useLogDailyActivity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DailyActivityBody) =>
+      apiFetch("/daily-activity", { method: "POST", body, schema: DailyCountsSchema }),
+    onSuccess: (counts) =>
+      queryClient.setQueryData<Today>(queryKeys.today, (today) =>
+        today
+          ? {
+              ...today,
+              counts: {
+                ...today.counts,
+                outreach: counts.outreach,
+                prepMinutes: counts.prepMinutes,
+                followUps: counts.followUps,
+              },
+            }
+          : today,
+      ),
+  });
+}
+
+/** `POST /applications/:id/follow-up-done`: the owner followed up; the application leaves the list. */
+export function useMarkFollowedUp() {
+  const queryClient = useQueryClient();
+  const refresh = useRefreshToday();
+  return useMutation({
+    mutationFn: (application: ApplicationSummary) =>
+      apiFetch(`/applications/${encodeURIComponent(application.id)}/follow-up-done`, {
+        method: "POST",
+        schema: ApplicationDetailSchema,
+      }),
+    onSuccess: (_detail, application) => {
+      queryClient.setQueryData<Today>(queryKeys.today, (today) =>
+        today
+          ? {
+              ...today,
+              followUpsDue: today.followUpsDue.filter((a) => a.id !== application.id),
+            }
+          : today,
+      );
+      return refresh();
+    },
+  });
+}
+
+/** `POST /search/run`: start a search now. `409 already_running` when one is under way. */
+export function useRunSearch() {
+  const refresh = useRefreshToday();
+  return useMutation({
+    mutationFn: () => apiFetch("/search/run", { method: "POST", schema: SearchRunSchema }),
+    onSuccess: () => refresh(),
+  });
+}
+
+/** `PATCH /leads/:id`: shortlist, dismiss or put a lead back to new. Sends the lead's `version`. */
+export function useSetLeadStatus() {
+  const refresh = useRefreshToday();
+  return useMutation({
+    mutationFn: ({ lead, status }: { lead: Lead; status: "shortlisted" | "dismissed" | "new" }) =>
+      apiFetch(`/leads/${encodeURIComponent(lead.id)}`, {
+        method: "PATCH",
+        body: { version: lead.version, status },
+        schema: LeadSchema,
+      }),
+    onSuccess: () => refresh(),
   });
 }

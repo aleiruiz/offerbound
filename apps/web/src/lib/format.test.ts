@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   formatCompensation,
   formatDate,
+  formatLongDay,
   formatRelative,
   formatShortDate,
   formatTime,
+  zoneCity,
 } from "./format";
 
 const TZ = "America/Monterrey";
@@ -82,5 +84,19 @@ describe("localDayKey", () => {
     const { localDayKey } = await import("./format");
     expect(localDayKey("2026-10-31T05:30:00Z", TZ)).toBe("2026-10-30");
     expect(localDayKey("2026-10-31T06:00:00Z", TZ)).toBe("2026-10-31");
+  });
+});
+
+describe("formatLongDay and zoneCity", () => {
+  it("writes an owner-local day out, whatever the machine's zone", () => {
+    expect(formatLongDay("2026-10-29")).toBe("Thursday, October 29");
+    expect(formatLongDay("not a day")).toBeNull();
+    expect(formatLongDay("2026-13-40")).toBeNull();
+  });
+
+  it("names the city of an IANA zone", () => {
+    expect(zoneCity("America/Monterrey")).toBe("Monterrey");
+    expect(zoneCity("America/Mexico_City")).toBe("Mexico City");
+    expect(zoneCity("UTC")).toBe("UTC");
   });
 });

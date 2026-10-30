@@ -4,8 +4,10 @@ import type {
   Lead,
   MessageDetail,
   NavCounts,
+  ReviewItem,
   SyncStatus,
   TimelineEvent,
+  Today,
 } from "@offerbound/contracts";
 
 /** Test data builders. Companies and people are fictional. */
@@ -149,6 +151,83 @@ export function makeNavCounts(overrides: Partial<NavCounts> = {}): NavCounts {
     newLeads: 24,
     upcomingInterviews: 3,
     openReview: 4,
+    ...overrides,
+  };
+}
+
+export function makeReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
+  return {
+    id: "r1",
+    kind: "ambiguous_match",
+    state: "open",
+    createdAt: "2026-10-28T20:00:00Z",
+    confidence: 0.64,
+    message: {
+      id: "m2",
+      internalDate: "2026-10-28T20:00:00Z",
+      direction: "inbound",
+      fromName: "Dana Ortiz",
+      fromEmail: "dana@quarry.example",
+      subject: "Update on your application",
+      summary: null,
+      category: "rejection",
+    },
+    proposal: {
+      description: "Is this a rejection from Quarry AI?",
+      operations: [
+        {
+          entity: "application",
+          action: "update",
+          summary: "Would change Assessment to Rejected.",
+        },
+      ],
+    },
+    candidates: [],
+    ...overrides,
+  };
+}
+
+/** A populated Today answer: 41 applications, two follow-ups, one review item, one lead, one interview. */
+export function makeToday(overrides: Partial<Today> = {}): Today {
+  return {
+    date: "2026-10-29",
+    targets: {
+      leads: { min: 20, max: 30 },
+      applications: { min: 8, max: 12 },
+      outreach: { min: 5 },
+      followUps: { min: 3, max: 5 },
+      prepMinutes: { min: 90 },
+    },
+    counts: { newLeads: 24, applications: 3, outreach: 2, followUps: 1, prepMinutes: 30 },
+    followUpsDue: [
+      makeApplication({ id: "a1", appliedAt: "2026-10-20T15:00:00Z" }),
+      makeApplication({
+        id: "a2",
+        company: { id: "c4", name: "Caldera Energy" },
+        title: "Senior Software Engineer, Platform",
+        appliedAt: "2026-10-12T15:00:00Z",
+        lastCompanyActivityAt: "2026-10-21T16:00:00Z",
+      }),
+    ],
+    upcomingInterviews: [makeInterview()],
+    topLeads: [makeLead()],
+    review: { open: 4, first: [makeReviewItem()] },
+    sync: makeSyncStatus(),
+    pipeline: {
+      byStatus: {
+        applied: 12,
+        screening: 3,
+        assessment: 2,
+        interviewing: 3,
+        offer: 0,
+        accepted: 0,
+        rejected: 17,
+        withdrawn: 1,
+        abandoned: 3,
+      },
+      responseRate: 0.46,
+      interviewRate: 0.2,
+    },
     ...overrides,
   };
 }

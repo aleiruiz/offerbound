@@ -10,8 +10,8 @@ import {
   LeadsPage,
   ReviewPage,
   SettingsPage,
-  TodayPage,
 } from "./pages/placeholders";
+import { TodayPage } from "./pages/TodayPage";
 import { AppShell } from "./shell/AppShell";
 import { RequireSession } from "./shell/RequireSession";
 
