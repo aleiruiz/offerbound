@@ -1,0 +1,10 @@
+Company,Role,Country,City / modality,Date applied,Status,Salary,Sponsorship / relocation,Job link,Notes
+Alder Works Example,Backend Engineer,Mexico,Remote,2026-10-05,Applied,,,https://boards.greenhouse.io/alderworks/jobs/1001,Sent via referral
+Birch Systems Example,Platform Engineer,Canada,Hybrid - Toronto,2026-09-20,Interview,CAD 120k,Visa sponsorship offered,https://jobs.lever.co/birchsystems/aaaa-1111,
+Cedar Robotics Example,Data Engineer,Mexico,On-site - Monterrey,2026-09-02,Rejected,,,,Rejected after the screen
+Dune Analytics Example,Analytics Engineer,Mexico,Remote,,To research,,,https://jobs.ashbyhq.com/duneanalytics/9f9f,Look at later
+Elm Payments Example,Staff Engineer,USA,Remote,,Cancelled,,No,https://jobs.lever.co/elmpayments/bbbb-2222,Too senior
+Fir Logistics Example,SRE,Mexico,Remote,10/5/2026,Applied,,,,Date in the wrong format
+Gum Media Example,Designer,Mexico,Remote,2026-10-01,On hold,,,,Status the import does not know
+Alder Works Example,backend engineer,Mexico,Remote,2026-10-06,Applied,,,,Same company and role as line 2
+Hazel Health Example,Backend Engineer,Mexico,Remote,,To research,,,https://jobs.lever.co/birchsystems/aaaa-1111,Same job link as line 3

@@ -11,6 +11,7 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerImportRoutes } from "./routes/import.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 
@@ -93,6 +94,7 @@ export async function buildApp(
         registerGmailRoutes(guarded, deps);
         registerOnboardingRoutes(guarded, deps);
         await registerCvRoutes(guarded, deps);
+        await registerImportRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },

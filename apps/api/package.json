@@ -21,6 +21,7 @@
     "@offerbound/contracts": "workspace:*",
     "@offerbound/domain": "workspace:*",
     "@prisma/client": "6.19.0",
+    "csv-parse": "^7.0.3",
     "fastify": "^5",
     "google-auth-library": "^11.3.2",
     "html-to-text": "^10.0.1",
