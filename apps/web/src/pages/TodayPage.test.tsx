@@ -665,10 +665,14 @@ describe("TodayPage", () => {
       vi.useRealTimers();
       const frames: FrameRequestCallback[] = [];
       vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
-      const flush = () =>
+      // The marker queues its frame from a passive effect, which can land after the marker is in
+      // the DOM, so wait for the frame to exist before running it.
+      const flush = async () => {
+        await waitFor(() => expect(frames.length).toBeGreaterThan(0));
         act(() => {
           frames.splice(0).forEach((cb) => cb(0));
         });
+      };
 
       let answer: Today = counts({});
       const { queryClient } = setup({ "GET /api/v1/today": () => answer });
@@ -684,7 +688,7 @@ describe("TodayPage", () => {
       const marker = await screen.findByTestId("route-marker");
       expect(marker).toHaveAttribute("data-stop", "screening");
       expect(marker.style.left).toBe("10%");
-      flush();
+      await flush();
       expect(screen.getByTestId("route-marker").style.left).toBe("30%");
 
       // Then Assessment 2 -> 1, Interviewing 3 -> 4: the second marker starts at Assessment, not at Screening.
@@ -694,7 +698,7 @@ describe("TodayPage", () => {
         expect(screen.getByTestId("route-marker")).toHaveAttribute("data-stop", "interviewing"),
       );
       expect(screen.getByTestId("route-marker").style.left).toBe("50%");
-      flush();
+      await flush();
       expect(screen.getByTestId("route-marker").style.left).toBe("70%");
     });
 

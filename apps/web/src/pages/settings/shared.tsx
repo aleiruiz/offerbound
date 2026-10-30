@@ -11,6 +11,7 @@ import { useState, type ReactNode } from "react";
 import { ApiClientError } from "../../api/client";
 import { useSaveSettings, useSettings } from "../../api/hooks";
 import { ErrorState } from "../../components/States";
+import { DemoLock } from "../../lib/demo";
 
 /** Pieces shared by the Settings sections: the paper, the loading gate, saving and number fields. */
 
@@ -161,9 +162,11 @@ export function SaveBar({
           {save.saved ? "Changes saved" : ""}
         </Typography>
         {leading}
-        <Button variant="contained" disabled={disabled || save.pending} onClick={onSave}>
-          Save changes
-        </Button>
+        <DemoLock reason="settings">
+          <Button variant="contained" disabled={disabled || save.pending} onClick={onSave}>
+            Save changes
+          </Button>
+        </DemoLock>
       </Box>
     </>
   );

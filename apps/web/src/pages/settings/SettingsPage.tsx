@@ -12,7 +12,9 @@ import { useColorMode, type ThemePreference } from "../../ColorModeProvider";
 import { AiUsage } from "./AiUsage";
 import { Automation } from "./Automation";
 import { Cv } from "./Cv";
+import { Data } from "./Data";
 import { Gmail } from "./Gmail";
+import { useIsDemo } from "../../lib/demo";
 import { Import } from "./Import";
 import { Search } from "./Search";
 import { Targets } from "./Targets";
@@ -29,7 +31,6 @@ interface Section {
   element: ReactElement;
 }
 
-// The Data section joins this list with T10.3b.
 const SECTIONS: readonly Section[] = [
   { key: "gmail", label: "Gmail", element: <Gmail /> },
   { key: "search", label: "Job search", element: <Search /> },
@@ -39,6 +40,7 @@ const SECTIONS: readonly Section[] = [
   { key: "automation", label: "Automation", element: <Automation /> },
   { key: "import", label: "Import", element: <Import /> },
   { key: "ai-usage", label: "AI usage", element: <AiUsage /> },
+  { key: "data", label: "Data", element: <Data /> },
 ];
 
 const THEMES: { value: ThemePreference; label: string }[] = [
@@ -49,6 +51,7 @@ const THEMES: { value: ThemePreference; label: string }[] = [
 
 export function SettingsPage() {
   const { section: key } = useParams();
+  const demo = useIsDemo();
   const section = SECTIONS.find((s) => s.key === key);
   if (!section) return <Navigate to="/settings/gmail" replace />;
 
@@ -102,7 +105,8 @@ export function SettingsPage() {
           </Box>
           <Divider />
           <Appearance />
-          <SignOut />
+          {/* The demo has no sign-in, so nothing to sign out of. */}
+          {demo ? null : <SignOut />}
         </Box>
         <Box
           sx={{

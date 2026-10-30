@@ -57,7 +57,7 @@ Do this once, before the first deploy, so the client ID and secret are ready for
 
 Coolify, the resource, _Environment Variables_. After the first save Coolify lists every variable that `compose.prod.yaml` mentions. Add the values below.
 
-For every row marked **secret**, leave **Available at buildtime off**, so the value is runtime-only. Secrets must never be build variables. A missing required variable stops the deploy and the error names it.
+For every row marked **secret**, leave **Available at buildtime off**, so the value is runtime-only. Secrets must never be build variables. A missing required variable does not stop compose: the `api` and `worker` containers exit at start and their log names it (`Invalid environment (missing: ...)`), so the deploy shows as unhealthy.
 
 | Variable                             | Required | Secret | Value or default                                                                                             | Purpose                                         |
 | ------------------------------------ | -------- | ------ | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
@@ -112,7 +112,7 @@ Every model used by a purpose needs an entry, otherwise its calls show "unknown"
 ### 7. Deploy
 
 - [ ] Open the resource and press **Deploy**. The first build takes a few minutes. Order: `db` healthy, `api` builds, runs migrations and becomes healthy, then `worker` and `web` start.
-- [ ] If the deploy fails with `required variable <NAME> is missing a value`, add that variable in step 5 and deploy again.
+- [ ] If the `api` container exits at start with `Invalid environment (missing: <NAME>)` in its log, add that variable in step 5 and deploy again.
 
 Check it works:
 
@@ -139,9 +139,9 @@ Expect one row with status `active` and `gmail.readonly` in the scopes.
 - **Updates:** push to `main`, then press **Deploy** (or enable auto-deploy from the GitHub App). Migrations run on api start. The worker restarts after the api is healthy. Running jobs get 30 seconds to finish on stop.
 - **Logs:** Coolify, the resource, _Logs_ per service. Logs are JSON and never contain email content.
 - **Backups:** the worker writes `pg_dump -Fc` files to `/backups/offerbound-YYYY-MM-DD.dump` at 03:30 in the owner time zone and keeps `BACKUP_RETENTION_DAYS` days. They sit on the same host as the database; off-server copies are OQ-3.
-- **Restore** (TECHNICAL_SPEC section 16): stop `worker`, run `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>` from the `worker` container terminal (it has the Postgres client and the `/backups` volume), start `worker`.
+- **Restore:** follow [operations.md](operations.md), _Restore_. It stops `api` and `worker`, then streams the dump from the `backups` volume into the `db` container, which has `pg_restore`. A restore run from a `worker` terminal does not work, because that container is stopped for the restore.
 - **Rotating a secret:** change the value in Coolify and redeploy. For a suspected compromise follow the incident playbook in SECURITY section 13.
-- **Demo instance (Release 1.1):** a second resource, `offerbound-demo`, on `https://offerbound.northsoftmx.com` with `APP_MODE=demo` and no secrets. The current `compose.prod.yaml` requires the private variables, so the demo needs a variant of the compose file; that is Release 1.1 work.
+- **Demo instance (Release 1.1):** a second resource, `offerbound-demo`, on `https://offerbound.northsoftmx.com` with `APP_MODE=demo` and no secrets. It deploys from the same `compose.prod.yaml`: the private secrets are optional there, and the API itself refuses to start a private instance without them or a demo instance with them.
 
 ## Images
 

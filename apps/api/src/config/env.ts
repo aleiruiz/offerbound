@@ -108,7 +108,10 @@ const PriceSchema = z.object({
 });
 const PricingSchema = z.record(z.string().min(1), PriceSchema);
 
-/** Variables that must be absent in demo mode (TECHNICAL_SPEC §3.4, AC-16.1). */
+/**
+ * Variables that must be absent in demo mode (TECHNICAL_SPEC §3.4, AC-16.1), besides everything
+ * starting with `OPENAI_` or `GOOGLE_`.
+ */
 const DEMO_FORBIDDEN_EXACT = [
   "OWNER_EMAIL",
   "GOOGLE_CLIENT_ID",
@@ -269,7 +272,12 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
 
   if (demo) {
     for (const name of Object.keys(raw)) {
-      const forbiddenName = DEMO_FORBIDDEN_EXACT.includes(name) || name.startsWith("OPENAI_");
+      const forbiddenName =
+        DEMO_FORBIDDEN_EXACT.includes(name) ||
+        name.startsWith("OPENAI_") ||
+        name.startsWith("GOOGLE_");
+      // Empty means unset here as everywhere (compose passes `VAR: ""` for blank fields, and an
+      // empty value carries no secret).
       if (forbiddenName && read(name) !== undefined) forbidden.push(name);
     }
     if (missing.length > 0 || forbidden.length > 0 || invalid.length > 0) {

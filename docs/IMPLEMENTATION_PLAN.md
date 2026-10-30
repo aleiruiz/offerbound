@@ -280,9 +280,12 @@ const QUEUES = { gmailSync: "gmail.sync", gmailBackfill: "gmail.backfill", email
   backupNightly: "backup.nightly", demoReset: "demo.reset", maintenanceDaily: "maintenance.daily" } as const;
 type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 interface JobQueue {
-  send(name: QueueName, data?: Record<string, unknown>, opts?: { singletonKey?: string }): Promise<void>;
-  schedule(name: QueueName, cron: string, opts: { tz: string }): Promise<void>;
+  send(name: QueueName, data?: Record<string, unknown>,
+       opts?: { singletonKey?: string; startAfterSeconds?: number }): Promise<void>;  // startAfterSeconds: do not start before then (retries that honour Retry-After)
+  schedule(name: QueueName, cron: string, opts: { tz: string }): Promise<void>;       // registers or replaces the recurring job
   unschedule(name: QueueName): Promise<void>;
+  hasDelayed(name: QueueName): Promise<boolean>;  // a queued job of this queue waits for a future start time; cron ticks check it so they do not run ahead of a requested wait
+  isReady(): boolean;                              // the queue has started and accepts jobs (/ready)
 }
 // apps/api/src/db/lock.ts (T4.8)
 function withIntakeLock<T>(prisma: PrismaClient, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
@@ -712,7 +715,7 @@ Spec: TECHNICAL_SPEC §3, §16; SECURITY §10, §14; OQ-1, OQ-8. Blocked by T1.3
   - Services `db`, `api`, `worker` and `web` (TECHNICAL_SPEC §3.1).
   - `db` uses `POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}`, and `api` builds `DATABASE_URL` from it.
   - `worker` has `command: node apps/api/dist/worker.js` and `depends_on: api: service_healthy`, and mounts the `backups` volume at `/backups`.
-  - `api` has a healthcheck that fetches `/health`. Every secret uses `${VAR:?}` in private mode.
+  - `api` has a healthcheck that fetches `/health`. The private-only secrets use `${VAR:-}`, so the same file serves the demo; `loadEnv` enforces them when the API starts (a private instance refuses to start without them, a demo instance with a value for them).
   - No service publishes a port.
 - **The `images` CI job** runs `docker build -f apps/api/Dockerfile .` and `docker build -f apps/web/Dockerfile .`.
 - **`docs/deploy.md`** follows MTGRulesLawyer's deploy guide:
@@ -723,7 +726,7 @@ Spec: TECHNICAL_SPEC §3, §16; SECURITY §10, §14; OQ-1, OQ-8. Blocked by T1.3
   - Turn on notifications.
 
 **Verify** (no unit tests; these are checks):
-- [ ] `docker compose -f compose.prod.yaml config` succeeds when the required variables are set, and fails naming the variable when `OWNER_EMAIL` is unset.
+- [ ] `docker compose -f compose.prod.yaml config` succeeds when the required variables are set, and fails naming the variable when `PUBLIC_BASE_URL` is unset. With `OWNER_EMAIL` unset it still succeeds, and the `api` exits at start naming `OWNER_EMAIL` in `Invalid environment (missing: ...)`.
 - [ ] The CI `images` job is green.
 - [ ] Deploy `offerbound-private` (owner, or Claude through the browser).
   - `https://alei.offerbound.northsoftmx.com/ready` answers 200.

@@ -21,6 +21,8 @@ export interface RowAction {
   onClick?: () => void;
   to?: string;
   href?: string;
+  /** Turns the action off and says why in a tooltip (the demo's read-only controls). */
+  disabledReason?: string;
 }
 
 /**
@@ -59,10 +61,11 @@ export function RowActions({
               : a.href
                 ? { component: "a", href: a.href, target: "_blank", rel: "noopener noreferrer" }
                 : {};
-            return (
+            const item = (
               <MenuItem
                 key={a.key}
                 {...link}
+                disabled={a.disabledReason !== undefined}
                 sx={{ minHeight: 44 }}
                 onClick={() => {
                   setAnchor(null);
@@ -72,6 +75,15 @@ export function RowActions({
                 {a.icon ? <ListItemIcon>{a.icon}</ListItemIcon> : null}
                 {a.label}
               </MenuItem>
+            );
+            return a.disabledReason === undefined ? (
+              item
+            ) : (
+              <Tooltip key={a.key} title={a.disabledReason}>
+                <Box component="span" sx={{ display: "block" }}>
+                  {item}
+                </Box>
+              </Tooltip>
             );
           })}
         </Menu>
@@ -88,6 +100,18 @@ export function RowActions({
             ? { component: "a", href: a.href, target: "_blank", rel: "noopener noreferrer" }
             : {};
         if (a.kind === "icon") {
+          if (a.disabledReason !== undefined) {
+            // A disabled button takes no pointer events, so the tooltip hangs on a wrapper.
+            return (
+              <Tooltip key={a.key} title={a.disabledReason}>
+                <Box component="span" tabIndex={0} sx={{ display: "inline-flex" }}>
+                  <IconButton aria-label={a.label} size="small" disabled>
+                    {a.icon}
+                  </IconButton>
+                </Box>
+              </Tooltip>
+            );
+          }
           return (
             <Tooltip key={a.key} title={a.label}>
               <IconButton aria-label={a.label} size="small" onClick={a.onClick} {...link}>
@@ -96,16 +120,27 @@ export function RowActions({
             </Tooltip>
           );
         }
-        return (
+        const button = (
           <Button
             key={a.key}
             size="small"
             variant={a.kind === "outlined" ? "outlined" : "text"}
             onClick={a.onClick}
+            disabled={a.disabledReason !== undefined}
             {...link}
           >
             {a.label}
           </Button>
+        );
+        // A disabled button takes no pointer events, so the tooltip hangs on a wrapper.
+        return a.disabledReason === undefined ? (
+          button
+        ) : (
+          <Tooltip key={a.key} title={a.disabledReason}>
+            <Box component="span" tabIndex={0} sx={{ display: "inline-flex" }}>
+              {button}
+            </Box>
+          </Tooltip>
         );
       })}
     </Box>

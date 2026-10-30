@@ -25,6 +25,7 @@ import {
   rejectFile,
 } from "../../lib/files";
 import { SectionPaper } from "./shared";
+import { DemoLock } from "../../lib/demo";
 
 /**
  * Settings, CV (DESIGN_SPEC §5.7, AC-11.3, AC-11.4): the read-only profile with *Replace CV* and
@@ -66,15 +67,17 @@ export function Cv() {
         severity="warning"
         role="alert"
         action={
-          <Button
-            color="warning"
-            variant="outlined"
-            size="small"
-            disabled={retry.isPending}
-            onClick={() => retry.mutate()}
-          >
-            Retry profile
-          </Button>
+          <DemoLock reason="profile">
+            <Button
+              color="warning"
+              variant="outlined"
+              size="small"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate()}
+            >
+              Retry profile
+            </Button>
+          </DemoLock>
         }
       >
         <Box component="span" sx={{ fontWeight: 700 }}>
@@ -160,12 +163,14 @@ export function Cv() {
       ) : null}
 
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-        <FilePicker
-          label={profile || profileFailed ? "Replace CV" : "Choose CV file"}
-          accept={CV_ACCEPT}
-          onFile={choose}
-          disabled={reading}
-        />
+        <DemoLock reason="upload">
+          <FilePicker
+            label={profile || profileFailed ? "Replace CV" : "Choose CV file"}
+            accept={CV_ACCEPT}
+            onFile={choose}
+            disabled={reading}
+          />
+        </DemoLock>
         {profile ? (
           <Button variant="outlined" disabled={rerank.isPending} onClick={() => rerank.mutate()}>
             Re-rank new leads

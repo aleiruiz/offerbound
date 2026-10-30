@@ -1,0 +1,723 @@
+{
+  "anchor": "2026-10-09T18:00:00.000Z",
+  "onboardingCompletedAt": "2026-10-07T16:00:00.000Z",
+  "settings": {
+    "brief": "Senior backend, data and platform engineering roles at product companies. Remote from Mexico, or hybrid in a city with relocation and visa sponsorship. Compensation from USD 90,000 a year. Skip consulting firms, gambling and crypto.",
+    "leadTarget": {
+      "min": 8,
+      "max": 10
+    }
+  },
+  "profile": {
+    "headline": "Senior backend and data engineer with nine years of experience",
+    "yearsExperience": 9,
+    "coreSkills": ["Go", "PostgreSQL", "Python", "Kubernetes", "Event-driven systems"],
+    "secondarySkills": ["TypeScript", "Terraform", "dbt"],
+    "domains": ["Payments", "Logistics", "Analytics"],
+    "recentRoles": [
+      {
+        "title": "Senior Backend Engineer",
+        "company": "Harlow & Pike Software",
+        "years": "2022-2026"
+      },
+      {
+        "title": "Backend Engineer",
+        "company": "Mistral Quay Systems",
+        "years": "2018-2022"
+      }
+    ],
+    "leadership": "Led a team of four engineers on a billing platform",
+    "languages": ["English", "Spanish"],
+    "location": "Monterrey, Mexico",
+    "workAuthorization": "Mexican citizen"
+  },
+  "mailbox": {
+    "order": [
+      "reschedule-ics-quarry-ai",
+      "offer-arbor-analytics",
+      "reject-tidewater-labs",
+      "outreach-direct-wren-aerospace",
+      "ambiguous-driftwood-software",
+      "invite-relative-copperline-software",
+      "reject-es-personio-lumen-health",
+      "alert-linkedin-five-jobs",
+      "followup-out-copperline-software",
+      "invite-screen-ironbark-labs"
+    ]
+  },
+  "companies": [
+    {
+      "key": "quarry",
+      "name": "Quarry AI",
+      "domains": ["quarry-ai.example"],
+      "websiteDomain": "quarry-ai.example"
+    },
+    {
+      "key": "kestrel",
+      "name": "Kestrel Pay",
+      "domains": ["kestrel-pay.example"],
+      "websiteDomain": "kestrel-pay.example"
+    },
+    {
+      "key": "arbor",
+      "name": "Arbor Analytics",
+      "domains": ["arboranalytics.example"],
+      "websiteDomain": "arboranalytics.example"
+    },
+    {
+      "key": "northwind",
+      "name": "Northwind Robotics"
+    },
+    {
+      "key": "tidewater",
+      "name": "Tidewater Labs",
+      "domains": ["tidewater-labs.example"],
+      "websiteDomain": "tidewater-labs.example"
+    },
+    {
+      "key": "lumen",
+      "name": "Lumen Health",
+      "domains": ["lumen-health.example"],
+      "websiteDomain": "lumen-health.example"
+    },
+    {
+      "key": "driftwood",
+      "name": "Driftwood Software"
+    },
+    {
+      "key": "copperline",
+      "name": "Copperline Software"
+    },
+    {
+      "key": "quillfeather",
+      "name": "Quillfeather Systems"
+    },
+    {
+      "key": "marrowdale",
+      "name": "Marrowdale Data"
+    },
+    {
+      "key": "tansy",
+      "name": "Tansy Robotics"
+    },
+    {
+      "key": "wickerbrook",
+      "name": "Wickerbrook Health"
+    },
+    {
+      "key": "lorrimer",
+      "name": "Lorrimer Logistics"
+    },
+    {
+      "key": "pebblecombe",
+      "name": "Pebblecombe Software"
+    },
+    {
+      "key": "brindlemoor",
+      "name": "Brindlemoor Tech"
+    },
+    {
+      "key": "sorrel",
+      "name": "Sorrel & Finch Labs"
+    }
+  ],
+  "contacts": [
+    {
+      "company": "quarry",
+      "name": "Maya Chen",
+      "email": "maya.chen@quarry-ai.example",
+      "title": "Talent partner"
+    },
+    {
+      "company": "kestrel",
+      "name": "Daniel Okafor",
+      "email": "recruiting@kestrel-pay.example",
+      "title": "Recruiter"
+    },
+    {
+      "company": "arbor",
+      "name": "Lena Fischer",
+      "email": "lena.fischer@arboranalytics.example",
+      "title": "Senior recruiter"
+    }
+  ],
+  "applications": [
+    {
+      "key": "quarry",
+      "company": "quarry",
+      "title": "Senior Machine Learning Engineer",
+      "status": "interviewing",
+      "source": "gmail",
+      "appliedAt": "2026-09-29T15:02:11.000Z",
+      "statusChangedAt": "2026-10-06T17:20:05.000Z",
+      "lastCompanyActivityAt": "2026-10-06T17:20:05.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/quarry-ai/7f3c2a10-5b6d-4e8a-9c41-2d0e6f1a8b33",
+      "workMode": "remote"
+    },
+    {
+      "key": "kestrel",
+      "company": "kestrel",
+      "title": "Senior Backend Engineer, Ledger",
+      "status": "interviewing",
+      "source": "gmail",
+      "appliedAt": "2026-09-30T14:30:09.000Z",
+      "statusChangedAt": "2026-10-05T18:00:12.000Z",
+      "lastCompanyActivityAt": "2026-10-05T18:00:12.000Z",
+      "jobUrl": "https://jobs.lever.co/kestrel-pay/b8e1f2c4-3a7d-4f60-8d19-5c2a9e7b0f41",
+      "workMode": "remote"
+    },
+    {
+      "key": "arbor",
+      "company": "arbor",
+      "title": "Analytics Engineer",
+      "status": "interviewing",
+      "source": "gmail",
+      "appliedAt": "2026-09-22T16:10:44.000Z",
+      "statusChangedAt": "2026-10-02T15:40:02.000Z",
+      "lastCompanyActivityAt": "2026-10-02T15:40:02.000Z",
+      "jobUrl": "https://boards.greenhouse.io/arboranalytics/jobs/4281937",
+      "workMode": "hybrid",
+      "locationText": "Denver, CO",
+      "country": "US"
+    },
+    {
+      "key": "northwind",
+      "company": "northwind",
+      "title": "Robotics Software Engineer",
+      "status": "applied",
+      "source": "gmail",
+      "appliedAt": "2026-10-01T21:15:33.000Z",
+      "statusChangedAt": "2026-10-01T21:15:33.000Z",
+      "lastCompanyActivityAt": "2026-10-01T21:15:33.000Z",
+      "jobUrl": "https://northwind.wd5.myworkdayjobs.com/en-US/Northwind_Careers/job/Austin-TX/Robotics-Software-Engineer_R-10442",
+      "workMode": "onsite",
+      "locationText": "Austin, TX",
+      "country": "US",
+      "followUpDue": true,
+      "followUpDueSince": "2026-10-08T21:15:33.000Z"
+    },
+    {
+      "key": "tidewater",
+      "company": "tidewater",
+      "title": "Platform Engineer",
+      "status": "assessment",
+      "source": "gmail",
+      "appliedAt": "2026-09-30T17:42:00.000Z",
+      "statusChangedAt": "2026-10-05T20:00:00.000Z",
+      "lastCompanyActivityAt": "2026-10-05T20:00:00.000Z",
+      "jobUrl": "https://tidewater-labs.example/careers/platform-engineer",
+      "workMode": "remote"
+    },
+    {
+      "key": "lumen",
+      "company": "lumen",
+      "title": "Product Data Scientist",
+      "status": "applied",
+      "source": "sheet_import",
+      "appliedAt": "2026-09-28T12:00:00.000Z",
+      "statusChangedAt": "2026-09-28T12:00:00.000Z",
+      "followUpDue": true,
+      "followUpDueSince": "2026-10-05T12:00:00.000Z"
+    },
+    {
+      "key": "copperline",
+      "company": "copperline",
+      "title": "Senior Software Engineer",
+      "status": "applied",
+      "source": "sheet_import",
+      "appliedAt": "2026-10-02T14:00:00.000Z",
+      "statusChangedAt": "2026-10-02T14:00:00.000Z",
+      "followUpDue": true,
+      "followUpDueSince": "2026-10-09T14:00:00.000Z"
+    },
+    {
+      "key": "driftwood-backend",
+      "company": "driftwood",
+      "title": "Senior Backend Engineer",
+      "status": "applied",
+      "source": "sheet_import",
+      "appliedAt": "2026-10-01T14:00:00.000Z",
+      "statusChangedAt": "2026-10-01T14:00:00.000Z"
+    },
+    {
+      "key": "driftwood-frontend",
+      "company": "driftwood",
+      "title": "Frontend Engineer",
+      "status": "applied",
+      "source": "sheet_import",
+      "appliedAt": "2026-10-01T14:00:00.000Z",
+      "statusChangedAt": "2026-10-01T14:00:00.000Z"
+    }
+  ],
+  "interviews": [
+    {
+      "application": "quarry",
+      "kind": "technical",
+      "status": "scheduled",
+      "startsAt": "2026-10-13T16:00:00.000Z",
+      "endsAt": "2026-10-13T17:00:00.000Z",
+      "timezoneHint": "America/Monterrey",
+      "meetingUrl": "https://meet.quarry-ai.example/mc-7731",
+      "interviewers": ["Elias Novak"],
+      "icsUid": "quarry-int-0917-a1@quarry-ai.example"
+    },
+    {
+      "application": "kestrel",
+      "kind": "technical",
+      "status": "to_schedule",
+      "schedulingUrl": "https://schedule.kestrel-pay.example/book/mateo-salgado-9f21"
+    },
+    {
+      "application": "arbor",
+      "kind": "system_design",
+      "status": "scheduled",
+      "startsAt": "2026-10-14T15:00:00.000Z",
+      "endsAt": "2026-10-14T16:30:00.000Z",
+      "timezoneHint": "America/Monterrey",
+      "meetingUrl": "https://meet.arboranalytics.example/sd-2291",
+      "interviewers": ["Lena Fischer", "Kofi Mensah"],
+      "icsUid": "arbor-sd-0924-77c1@arboranalytics.example"
+    }
+  ],
+  "messages": [
+    {
+      "fixture": "confirm-ashby-quarry-ai",
+      "application": "quarry",
+      "at": "2026-09-29T15:02:11.000Z"
+    },
+    {
+      "fixture": "confirm-lever-kestrel-pay",
+      "application": "kestrel",
+      "at": "2026-09-30T14:30:09.000Z"
+    },
+    {
+      "fixture": "invite-link-kestrel-pay",
+      "application": "kestrel",
+      "at": "2026-10-05T18:00:12.000Z"
+    },
+    {
+      "fixture": "confirm-greenhouse-arbor-analytics",
+      "application": "arbor",
+      "at": "2026-09-22T16:10:44.000Z"
+    },
+    {
+      "fixture": "confirm-workday-northwind-robotics",
+      "application": "northwind",
+      "at": "2026-10-01T21:15:33.000Z"
+    },
+    {
+      "fixture": "confirm-company-tidewater-labs",
+      "application": "tidewater",
+      "at": "2026-09-30T17:42:00.000Z"
+    }
+  ],
+  "threadLinks": [
+    {
+      "thread": "thr-quarry-ml",
+      "application": "quarry"
+    },
+    {
+      "thread": "thr-kestrel-backend",
+      "application": "kestrel"
+    },
+    {
+      "thread": "thr-arbor-analytics",
+      "application": "arbor"
+    },
+    {
+      "thread": "thr-northwind-robotics",
+      "application": "northwind"
+    },
+    {
+      "thread": "thr-tidewater-labs",
+      "application": "tidewater"
+    }
+  ],
+  "searchRun": {
+    "startedAt": "2026-10-09T17:20:00.000Z",
+    "finishedAt": "2026-10-09T17:28:00.000Z"
+  },
+  "leads": [
+    {
+      "key": "quillfeather",
+      "company": "quillfeather",
+      "title": "Senior Backend Engineer",
+      "jobUrl": "https://careers.quillfeather.example/jobs/senior-backend-engineer-2207",
+      "locationText": "Remote, Latin America",
+      "country": "MX",
+      "workMode": "remote",
+      "seniority": "senior",
+      "track": "A",
+      "fitScore": 87,
+      "fitReason": "Go and Postgres platform work matches the CV's core stack.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:21:00.000Z",
+      "pageExcerpt": "Senior Backend Engineer. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "yes",
+      "compensationText": "USD 105,000-130,000 per year"
+    },
+    {
+      "key": "marrowdale",
+      "company": "marrowdale",
+      "title": "Data Platform Engineer",
+      "jobUrl": "https://careers.marrowdale.example/openings/data-platform-engineer",
+      "locationText": "Guadalajara, Mexico",
+      "country": "MX",
+      "workMode": "hybrid",
+      "seniority": "senior",
+      "track": "A",
+      "fitScore": 82,
+      "fitReason": "Warehouse and streaming work in the CV's analytics domain.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:22:00.000Z",
+      "pageExcerpt": "Data Platform Engineer. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "no"
+    },
+    {
+      "key": "tansy",
+      "company": "tansy",
+      "title": "Senior Robotics Software Engineer",
+      "jobUrl": "https://careers.tansy-robotics.example/jobs/robotics-software-engineer-118",
+      "locationText": "Austin, United States",
+      "country": "US",
+      "workMode": "hybrid",
+      "seniority": "senior",
+      "track": "B",
+      "fitScore": 76,
+      "fitReason": "Strong backend fit; relocation with sponsorship is offered.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:23:00.000Z",
+      "pageExcerpt": "Senior Robotics Software Engineer. Join a small product team. Apply on the company careers page.",
+      "sponsorship": "yes",
+      "relocation": "yes",
+      "compensationText": "USD 140,000-170,000 per year",
+      "gaps": ["Robotics domain"]
+    },
+    {
+      "key": "wickerbrook",
+      "company": "wickerbrook",
+      "title": "Machine Learning Engineer",
+      "jobUrl": "https://careers.wickerbrook.example/jobs/machine-learning-engineer-31",
+      "locationText": "Remote, Mexico",
+      "country": "MX",
+      "workMode": "remote",
+      "seniority": "mid",
+      "track": "A",
+      "fitScore": 74,
+      "fitReason": "Python and data pipelines fit; the modelling scope is lighter than the CV.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:24:00.000Z",
+      "pageExcerpt": "Machine Learning Engineer. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "yes"
+    },
+    {
+      "key": "lorrimer",
+      "company": "lorrimer",
+      "title": "Backend Engineer, Routing",
+      "jobUrl": "https://careers.lorrimer.example/jobs/backend-engineer-routing",
+      "locationText": "Remote, Latin America",
+      "country": "MX",
+      "workMode": "remote",
+      "seniority": "mid",
+      "track": "A",
+      "fitScore": 69,
+      "fitReason": "Logistics domain match; the level is below the CV's seniority.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:25:00.000Z",
+      "pageExcerpt": "Backend Engineer, Routing. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "yes",
+      "gaps": ["Level below target"]
+    },
+    {
+      "key": "pebblecombe",
+      "company": "pebblecombe",
+      "title": "Senior Platform Engineer",
+      "jobUrl": "https://careers.pebblecombe.example/jobs/senior-platform-engineer-9",
+      "locationText": "Remote, Mexico",
+      "country": "MX",
+      "workMode": "remote",
+      "seniority": "senior",
+      "track": "A",
+      "fitScore": 90,
+      "fitReason": "Kubernetes and Go platform work, remote from the home country.",
+      "status": "shortlisted",
+      "foundAt": "2026-10-09T17:26:00.000Z",
+      "pageExcerpt": "Senior Platform Engineer. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "yes",
+      "compensationText": "USD 120,000-145,000 per year"
+    },
+    {
+      "key": "brindlemoor",
+      "company": "brindlemoor",
+      "title": "Analytics Engineer",
+      "jobUrl": "https://careers.brindlemoor.example/jobs/analytics-engineer-77",
+      "locationText": "Toronto, Canada",
+      "country": "CA",
+      "workMode": "onsite",
+      "seniority": "mid",
+      "track": "B",
+      "fitScore": 58,
+      "fitReason": "Analytics fit, but the role is on-site only.",
+      "status": "dismissed",
+      "foundAt": "2026-10-09T17:27:00.000Z",
+      "pageExcerpt": "Analytics Engineer. Join a small product team. Apply on the company careers page.",
+      "dismissedReason": "On-site only",
+      "sponsorship": "no"
+    },
+    {
+      "key": "sorrel",
+      "company": "sorrel",
+      "title": "Senior Data Engineer",
+      "jobUrl": "https://careers.sorrelandfinch.example/jobs/senior-data-engineer-14",
+      "locationText": "Monterrey, Mexico",
+      "country": "MX",
+      "workMode": "hybrid",
+      "seniority": "senior",
+      "track": "A",
+      "fitScore": 78,
+      "fitReason": "Data engineering in the home city, hybrid three days a week.",
+      "status": "new",
+      "foundAt": "2026-10-09T17:28:00.000Z",
+      "pageExcerpt": "Senior Data Engineer. Join a small product team. Apply on the company careers page.",
+      "remoteFromHomeCountry": "no"
+    }
+  ],
+  "events": [
+    {
+      "type": "application_created",
+      "actor": "system",
+      "at": "2026-09-29T15:02:11.000Z",
+      "summary": "Application received by Quarry AI",
+      "application": "quarry",
+      "message": "confirm-ashby-quarry-ai"
+    },
+    {
+      "type": "status_changed",
+      "actor": "system",
+      "at": "2026-10-06T17:20:05.000Z",
+      "summary": "Moved to Interviewing",
+      "application": "quarry",
+      "data": {
+        "fromStatus": "applied",
+        "toStatus": "interviewing"
+      }
+    },
+    {
+      "type": "interview_created",
+      "actor": "system",
+      "at": "2026-10-06T17:20:05.000Z",
+      "summary": "Interview scheduled",
+      "application": "quarry"
+    },
+    {
+      "type": "application_created",
+      "actor": "system",
+      "at": "2026-09-30T14:30:09.000Z",
+      "summary": "Application received by Kestrel Pay",
+      "application": "kestrel",
+      "message": "confirm-lever-kestrel-pay"
+    },
+    {
+      "type": "status_changed",
+      "actor": "system",
+      "at": "2026-10-05T18:00:12.000Z",
+      "summary": "Moved to Interviewing",
+      "application": "kestrel",
+      "message": "invite-link-kestrel-pay",
+      "data": {
+        "fromStatus": "applied",
+        "toStatus": "interviewing"
+      }
+    },
+    {
+      "type": "interview_created",
+      "actor": "system",
+      "at": "2026-10-05T18:00:12.000Z",
+      "summary": "Interview to schedule",
+      "application": "kestrel",
+      "message": "invite-link-kestrel-pay"
+    },
+    {
+      "type": "application_created",
+      "actor": "system",
+      "at": "2026-09-22T16:10:44.000Z",
+      "summary": "Application received by Arbor Analytics",
+      "application": "arbor",
+      "message": "confirm-greenhouse-arbor-analytics"
+    },
+    {
+      "type": "status_changed",
+      "actor": "system",
+      "at": "2026-10-02T15:40:02.000Z",
+      "summary": "Moved to Interviewing",
+      "application": "arbor",
+      "data": {
+        "fromStatus": "applied",
+        "toStatus": "interviewing"
+      }
+    },
+    {
+      "type": "interview_created",
+      "actor": "system",
+      "at": "2026-10-02T15:40:02.000Z",
+      "summary": "Interview scheduled",
+      "application": "arbor"
+    },
+    {
+      "type": "application_created",
+      "actor": "system",
+      "at": "2026-10-01T21:15:33.000Z",
+      "summary": "Application received by Northwind Robotics",
+      "application": "northwind",
+      "message": "confirm-workday-northwind-robotics"
+    },
+    {
+      "type": "follow_up_due",
+      "actor": "system",
+      "at": "2026-10-08T21:15:33.000Z",
+      "summary": "Follow-up due",
+      "application": "northwind"
+    },
+    {
+      "type": "application_created",
+      "actor": "system",
+      "at": "2026-09-30T17:42:00.000Z",
+      "summary": "Application received by Tidewater Labs",
+      "application": "tidewater",
+      "message": "confirm-company-tidewater-labs"
+    },
+    {
+      "type": "status_changed",
+      "actor": "system",
+      "at": "2026-10-05T20:00:00.000Z",
+      "summary": "Moved to Assessment",
+      "application": "tidewater",
+      "data": {
+        "fromStatus": "applied",
+        "toStatus": "assessment"
+      }
+    },
+    {
+      "type": "imported",
+      "actor": "import",
+      "at": "2026-09-28T12:00:00.000Z",
+      "summary": "Imported from your spreadsheet as Applied",
+      "application": "lumen"
+    },
+    {
+      "type": "follow_up_due",
+      "actor": "system",
+      "at": "2026-10-05T12:00:00.000Z",
+      "summary": "Follow-up due",
+      "application": "lumen"
+    },
+    {
+      "type": "imported",
+      "actor": "import",
+      "at": "2026-10-02T14:00:00.000Z",
+      "summary": "Imported from your spreadsheet as Applied",
+      "application": "copperline"
+    },
+    {
+      "type": "follow_up_due",
+      "actor": "system",
+      "at": "2026-10-09T14:00:00.000Z",
+      "summary": "Follow-up due",
+      "application": "copperline"
+    },
+    {
+      "type": "imported",
+      "actor": "import",
+      "at": "2026-10-01T14:00:00.000Z",
+      "summary": "Imported from your spreadsheet as Applied",
+      "application": "driftwood-backend"
+    },
+    {
+      "type": "imported",
+      "actor": "import",
+      "at": "2026-10-01T14:00:00.000Z",
+      "summary": "Imported from your spreadsheet as Applied",
+      "application": "driftwood-frontend"
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:21:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "quillfeather",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:22:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "marrowdale",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:23:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "tansy",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:24:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "wickerbrook",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:25:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "lorrimer",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:26:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "pebblecombe",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:27:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "brindlemoor",
+      "data": {
+        "source": "search_agent"
+      }
+    },
+    {
+      "type": "lead_created",
+      "actor": "system",
+      "at": "2026-10-09T17:28:00.000Z",
+      "summary": "Found by the job search",
+      "lead": "sorrel",
+      "data": {
+        "source": "search_agent"
+      }
+    }
+  ]
+}

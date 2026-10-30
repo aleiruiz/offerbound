@@ -20,6 +20,7 @@ import { CSV_ACCEPT, CSV_MAX_BYTES, rejectFile } from "../lib/files";
 import { formatCount, plural, rowsLabel } from "../lib/format";
 import { DropZone } from "./DropZone";
 import { FilePicker } from "./FilePicker";
+import { DemoLock, useIsDemo } from "../lib/demo";
 
 /**
  * The spreadsheet import (DESIGN_SPEC §5.8 and §5.7, AC-14.1-14.5): choose the CSV, read the
@@ -187,6 +188,7 @@ export function SheetImport({
   /** The buttons under the import: onboarding's footer, or Settings' single button. */
   actions: (state: SheetImportState) => ReactNode;
 }) {
+  const demo = useIsDemo();
   const preview = usePreviewSheetImport();
   const commit = useCommitSheetImport();
   const [fileName, setFileName] = useState<string | null>(null);
@@ -218,7 +220,7 @@ export function SheetImport({
       {intro}
       <ImportExpectations />
 
-      <DropZone label="CSV drop zone" onFile={choose} disabled={picking || imported}>
+      <DropZone label="CSV drop zone" onFile={choose} disabled={picking || imported || demo}>
         {data && fileName ? (
           <Box
             sx={{
@@ -238,23 +240,27 @@ export function SheetImport({
               </Typography>
             </Box>
             {!imported ? (
-              <FilePicker
-                label="Replace file"
-                accept={CSV_ACCEPT}
-                onFile={choose}
-                disabled={picking}
-                variant="text"
-              />
+              <DemoLock reason="import">
+                <FilePicker
+                  label="Replace file"
+                  accept={CSV_ACCEPT}
+                  onFile={choose}
+                  disabled={picking}
+                  variant="text"
+                />
+              </DemoLock>
             ) : null}
           </Box>
         ) : (
           <>
-            <FilePicker
-              label="Choose CSV file"
-              accept={CSV_ACCEPT}
-              onFile={choose}
-              disabled={picking}
-            />
+            <DemoLock reason="import">
+              <FilePicker
+                label="Choose CSV file"
+                accept={CSV_ACCEPT}
+                onFile={choose}
+                disabled={picking}
+              />
+            </DemoLock>
             <Box role="status" aria-live="polite">
               {preview.isPending ? (
                 <Typography variant="body2" color="text.secondary">

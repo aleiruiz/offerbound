@@ -523,15 +523,47 @@ export const ReportRowAnnotationSchema = z.enum([
 ]);
 export type ReportRowAnnotation = z.infer<typeof ReportRowAnnotationSchema>;
 
+/** The most rows one report yields; the rest are counted in `ReportPreview.droppedRows`. */
+export const MAX_REPORT_ROWS = 200;
+
 /** `POST /leads/import/preview` (TECHNICAL_SPEC §7.6). */
 export const ReportPreviewSchema = z.object({
   previewId: id,
   expiresAt: iso,
   rows: z.array(
-    z.object({ rowId: id, annotation: ReportRowAnnotationSchema, lead: ReportLeadSchema }),
+    z.object({
+      rowId: id,
+      annotation: ReportRowAnnotationSchema,
+      /** True only for `new`: the page starts with duplicates and already-seen rows unchecked. */
+      defaultKeep: z.boolean(),
+      lead: ReportLeadSchema,
+    }),
   ),
+  /** Postings the model read beyond `MAX_REPORT_ROWS`, which are not in `rows`. */
+  droppedRows: count,
 });
 export type ReportPreview = z.infer<typeof ReportPreviewSchema>;
+
+/** The longest report the paste box takes, in characters (TECHNICAL_SPEC §7.6). */
+export const MAX_REPORT_CHARS = 50_000;
+
+/**
+ * `POST /leads/import/preview` request body. The length is not checked here: a longer text is a
+ * `413 too_large`, not a `400 validation_failed`, so the route compares it with `MAX_REPORT_CHARS`.
+ */
+export const ReportPreviewBodySchema = z.object({ text: z.string() });
+export type ReportPreviewBody = z.infer<typeof ReportPreviewBodySchema>;
+
+/** `POST /leads/import/commit` request body: the preview and the rows still checked. */
+export const ReportCommitBodySchema = z.object({
+  previewId: id,
+  keepRowIds: z.array(id).min(1),
+});
+export type ReportCommitBody = z.infer<typeof ReportCommitBodySchema>;
+
+/** The 202 body of `POST /leads/import/commit`. */
+export const ReportCommitResultSchema = z.object({ batchId: id });
+export type ReportCommitResult = z.infer<typeof ReportCommitResultSchema>;
 
 /** `{ items, nextCursor }` for every list endpoint. */
 export const PageSchema = <T extends z.ZodType>(item: T) =>

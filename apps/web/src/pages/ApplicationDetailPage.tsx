@@ -43,6 +43,7 @@ import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { formatDate, formatDateTime, formatShortDate, formatTime, zoneCity } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
+import { DemoLock } from "../lib/demo";
 
 /**
  * Application detail (DESIGN_SPEC §5.3; AC-4.2 to 4.4, AC-6.2, AC-6.3): company, status, the next
@@ -326,9 +327,11 @@ function Details({
     <Card
       title="Details"
       action={
-        <Button size="small" onClick={onEdit}>
-          Edit details
-        </Button>
+        <DemoLock reason="edit">
+          <Button size="small" onClick={onEdit}>
+            Edit details
+          </Button>
+        </DemoLock>
       }
     >
       <Box component="dl" sx={{ m: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -450,18 +453,20 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
 
   return (
     <Card title="Notes" titleNode={<label htmlFor={fieldId}>Notes</label>}>
-      <TextField
-        id={fieldId}
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setStatus("idle");
-        }}
-        onBlur={flush}
-        multiline
-        minRows={5}
-        fullWidth
-      />
+      <DemoLock reason="notes" block>
+        <TextField
+          id={fieldId}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setStatus("idle");
+          }}
+          onBlur={flush}
+          multiline
+          minRows={5}
+          fullWidth
+        />
+      </DemoLock>
       <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">
         {isPending
           ? "Saving…"

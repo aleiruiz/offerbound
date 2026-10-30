@@ -160,6 +160,11 @@ export class FakeLlmProvider implements LlmProvider {
     this.registered.set(this.keyFor(purpose, input), clone(output));
   }
 
+  /** Starts the search batches over from the first (the demo's hourly reset). */
+  resetSearch(): void {
+    this.nextBatch = 0;
+  }
+
   /** Makes the next call of `purpose` fail with `error`; later calls succeed again. */
   failNext(purpose: LlmPurpose, error: LlmError): void {
     this.failures.set(purpose, [...(this.failures.get(purpose) ?? []), error]);

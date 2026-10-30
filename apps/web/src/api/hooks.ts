@@ -13,6 +13,8 @@ import {
   MessageDetailSchema,
   NavCountsSchema,
   PageSchema,
+  ReportCommitResultSchema,
+  ReportPreviewSchema,
   ReviewItemSchema,
   SearchRunSchema,
   SearchRunsSchema,
@@ -48,8 +50,9 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import { z } from "zod";
 import { DEFAULT_TIMEZONE } from "../lib/format";
-import { ApiClientError, apiFetch, apiFetchWithStatus } from "./client";
+import { ApiClientError, apiFetch, apiFetchText, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
@@ -88,17 +91,41 @@ export const SYNC_STATUS_POLL_MS = 30_000;
 export const NAV_COUNTS_POLL_MS = 60_000;
 export const TODAY_POLL_MS = 30_000;
 
-/** `GET /me`: who is signed in, the instance mode and whether onboarding is done. */
-export function useMe() {
+/**
+ * `GET /me`: who is signed in, the instance mode and whether onboarding is done. With
+ * `enabled: false` it only reads what `RequireSession` already fetched and never asks again.
+ */
+export function useMe(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiFetch("/me", { schema: MeSchema, signal }),
+    enabled: options.enabled ?? true,
   });
 }
 
 /** The owner's time zone from `GET /me`; the default until it has answered (TECHNICAL_SPEC §2). */
 export function useTimezone(): string {
   return useMe().data?.timezone ?? DEFAULT_TIMEZONE;
+}
+
+/** What `POST /demo/simulate-email` answers (202): the email it fed to the pipeline. */
+const SimulatedEmailSchema = z.object({ messageId: z.string() });
+
+/** `POST /demo/simulate-email` (TECHNICAL_SPEC §10.1, §12): the demo's next synthetic email, run through the pipeline. */
+export function useSimulateEmail(callbacks: MutationCallbacks<{ messageId: string }, void> = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/demo/simulate-email", { method: "POST", schema: SimulatedEmailSchema }),
+    onSuccess: async (result, variables) => {
+      // An email can change an application, an interview, a lead or a review item, and so Today
+      // and the badges: everything on screen is fetched again. Today's pipeline marker then moves
+      // by itself when it sees the counts change (DESIGN_SPEC §8).
+      await queryClient.invalidateQueries();
+      callbacks.onSuccess?.(result, variables);
+    },
+    onError: callbacks.onError,
+  });
 }
 
 /** `GET /messages/:id`: one email with its body text. The body is personal content: never log it. */
@@ -163,6 +190,31 @@ export function useAiUsage() {
   return useQuery<AiUsage>({
     queryKey: queryKeys.aiUsage,
     queryFn: ({ signal }) => apiFetch("/ai-usage", { schema: AiUsageSchema, signal }),
+  });
+}
+
+/**
+ * What `POST /data/purge-email-content` answers. The contracts package has no schema for this
+ * route, so the response is described here, next to the hook that reads it.
+ */
+export const PurgeEmailContentSchema = z.object({ messagesPurged: z.number().int().nonnegative() });
+export type PurgeEmailContent = z.infer<typeof PurgeEmailContentSchema>;
+
+/**
+ * `POST /data/purge-email-content`: clear the stored text of every email (AC-15.2). Records and
+ * timelines stay. The caller sends the typed `DELETE`; the server checks it again.
+ */
+export function usePurgeEmailContent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/data/purge-email-content", {
+        method: "POST",
+        body: { confirm: "DELETE" },
+        schema: PurgeEmailContentSchema,
+      }),
+    // Any email already on screen would still show its old text.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["message"] }),
   });
 }
 
@@ -501,6 +553,37 @@ export function useReconsiderLead(callbacks: MutationCallbacks<Lead, Lead> = {})
   });
 }
 
+/** `POST /leads/import/preview`: read a pasted report and say what each row would do. Writes nothing. */
+export function usePreviewReport() {
+  return useMutation({
+    mutationFn: (text: string) =>
+      apiFetch("/leads/import/preview", {
+        method: "POST",
+        body: { text },
+        schema: ReportPreviewSchema,
+      }),
+  });
+}
+
+/** `POST /leads/import/commit` (202): create the rows still checked, then refresh the lead lists. */
+export function useCommitReport() {
+  const refresh = useRefreshLeads();
+  return useMutation({
+    mutationFn: (body: { previewId: string; keepRowIds: string[] }) =>
+      apiFetch("/leads/import/commit", {
+        method: "POST",
+        body,
+        schema: ReportCommitResultSchema,
+      }),
+    onSuccess: () => refresh(),
+  });
+}
+
+/** `GET /companies/exclusion-list`: every company name and alias already seen, as plain text. */
+export function useFetchSeenCompanies() {
+  return useMutation({ mutationFn: () => apiFetchText("/companies/exclusion-list") });
+}
+
 /** How the lists are ordered: track priority then fit (AC-12.4, the default), or newest first. */
 export type LeadSort = "track_fit" | "newest";
 
@@ -783,10 +866,13 @@ export function useMergeApplication(
       }),
     onSuccess: async (target, variables) => {
       queryClient.setQueryData(queryKeys.application(target.id), target);
-      // The merged application's interviews now belong to the target.
+      // The merged application's interviews now belong to the target, and a lead linked to it goes
+      // back to shortlisted (TECHNICAL_SPEC §6.6), so the Leads lists and tab counts follow.
       await Promise.all([
         refreshAfterApplicationChange(queryClient),
         queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts }),
       ]);
       callbacks.onSuccess?.(target, variables);
     },

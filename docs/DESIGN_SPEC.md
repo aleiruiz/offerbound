@@ -152,7 +152,7 @@ Four-step `Stepper` (this content is a sequence, so numbers are right): Upload y
 
 ### 5.9 Sign in — artboard *Sign in*
 
-The one expressive screen (DS-10). Left, about three fifths of the width: a full-height `ink` panel. Across its top runs a band of identity colors (Applied blue, Screening purple, route green, signal amber), crossed by the route line with a stop per stage and a large Offer terminus. Below the band sits the wordmark at display size (Overpass 900, `clamp(44px, 8.4vw, 132px)`, tight tracking) and one line of copy. On load, a marker rides the line once from Applied to Offer (§8). Right: the quiet part — instance address, "Welcome back", one full-width contained *Sign in with Google* button (text only, no Google logo artwork), a box explaining the read-only scope and the expected unverified-app warning, and a link to the public demo. Below 640px the panel stacks on top, and only the Applied and Offer labels stay. The wrong-account error is on the States board (AC-1.1, 1.3).
+The one expressive screen (DS-10). Left, about three fifths of the width: a full-height `ink` panel. Across its top runs a band of identity colors (Applied blue, Screening purple, route green, signal amber), crossed by the route line with a stop per stage and a large Offer terminus. Below the band sits the logo at display size and one line of copy. The logo is the owner-approved concept B ("destino"), the lockup in its dark variant, not a text wordmark: `apps/web/src/assets/brand/lockup-dark.svg`, rendered by `apps/web/src/components/Logo.tsx` at `clamp(220px, 40vw, 560px)` wide (the other forms and files are listed in `docs/design/README.md`, Iconography). Overpass 900 stays in use for the *Offer* stop label on the route line. On load, a marker rides the line once from Applied to Offer (§8). Right: the quiet part — instance address, "Welcome back", one full-width contained *Sign in with Google* button (text only, no Google logo artwork), a box explaining the read-only scope and the expected unverified-app warning, and a link to the public demo. Below 640px the panel stacks on top, and only the Applied and Offer labels stay. The wrong-account error is on the States board (AC-1.1, 1.3).
 
 ### 5.10 Public demo (Release 1.1)
 
@@ -281,7 +281,7 @@ Below 600px every target is at least 44 × 44px; row actions that don't fit move
 | DS-7 | Keyboard-first lists with visible buttons for every shortcut | The owner reviews 20–30 leads a day |
 | DS-8 | Bottom navigation with five destinations on phones; rail on tablets | MUI-standard responsive navigation |
 | DS-9 | Fictional companies and people in all mockups and demo data | Keeps the canvas and demo shareable; no real company is shown with invented outcomes |
-| DS-10 | Sign in is the one expressive screen: the cover's color band and route line at full scale, display-size wordmark, one animated moment | Owner feedback (2026-10-29): the first version was too plain. It's the first thing a visitor to the instance sees and has no working content to compete with |
+| DS-10 | Sign in is the one expressive screen: the cover's color band and route line at full scale, display-size logo (the approved concept B lockup), one animated moment | Owner feedback (2026-10-29): the first version was too plain. It's the first thing a visitor to the instance sees and has no working content to compete with |
 
 ## 13. Changes to the approved specification
 

@@ -29,6 +29,7 @@ import {
   type ApplicationSort,
 } from "../api/hooks";
 import { AddApplicationDialog } from "../components/AddApplicationDialog";
+import { DemoLock } from "../lib/demo";
 import { FilterChip } from "../components/FilterChip";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { FlagChip, STATUS_LABEL, StatusChip } from "../components/StatusChip";
@@ -334,9 +335,11 @@ export function ApplicationsPage() {
             {caption}
           </Typography>
         </Box>
-        <Button variant="outlined" onClick={() => setAdding(true)}>
-          Add application
-        </Button>
+        <DemoLock reason="add">
+          <Button variant="outlined" onClick={() => setAdding(true)}>
+            Add application
+          </Button>
+        </DemoLock>
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>

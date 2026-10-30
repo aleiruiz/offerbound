@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { ApiClientError } from "../api/client";
 import { useSyncGmail, useSyncStatus } from "../api/hooks";
 import { formatRelative } from "../lib/format";
+import { DEMO_REASON, DemoLock, useIsDemo } from "../lib/demo";
 
 const visuallyHidden = {
   position: "absolute",
@@ -119,6 +120,7 @@ function Dot({ tone }: { tone: Tone }) {
  */
 export function SyncStatus({ layout }: { layout: SyncLayout }) {
   const status = useSyncStatus();
+  const demo = useIsDemo();
   const sync = useSyncGmail();
   // Read so the sentence ("2 min ago") is re-rendered after every poll, even for unchanged data.
   void status.dataUpdatedAt;
@@ -146,29 +148,31 @@ export function SyncStatus({ layout }: { layout: SyncLayout }) {
           </Typography>
         </Box>
         {status.data?.connection === "not_connected" ? null : (
-          <Button
-            variant="text"
-            size="small"
-            startIcon={<SyncOutlined sx={{ fontSize: 16 }} />}
-            onClick={syncNow}
-            disabled={disabled}
-            sx={{ alignSelf: "flex-start", ml: -1, height: 30 }}
-          >
-            Sync now
-          </Button>
+          <DemoLock reason="gmail">
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<SyncOutlined sx={{ fontSize: 16 }} />}
+              onClick={syncNow}
+              disabled={disabled}
+              sx={{ alignSelf: "flex-start", ml: -1, height: 30 }}
+            >
+              Sync now
+            </Button>
+          </DemoLock>
         )}
       </Box>
     );
   }
 
   const control = (
-    <Tooltip title="Sync now">
+    <Tooltip title={demo ? DEMO_REASON.gmail : "Sync now"}>
       <span>
         <IconButton
           aria-label="Sync now"
           color="primary"
           onClick={syncNow}
-          disabled={disabled}
+          disabled={disabled || demo}
           sx={{ width: 44, height: 44 }}
         >
           <SyncOutlined sx={{ fontSize: 20 }} />

@@ -35,6 +35,7 @@ import {
   type NavItem,
   type NavKey,
 } from "./nav";
+import { DemoBanner } from "./DemoBanner";
 import { ReconnectBanner } from "./ReconnectBanner";
 import { SyncStatus } from "./SyncStatus";
 
@@ -434,6 +435,7 @@ export function AppShell() {
       {variant === "drawer" && <DrawerNav active={active} counts={counts} />}
       {variant === "rail" && <RailNav active={active} counts={counts} />}
       <Box sx={{ flexGrow: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <DemoBanner />
         {variant === "bottom" && (
           <AppBar
             position="sticky"

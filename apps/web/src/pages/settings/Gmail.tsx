@@ -21,6 +21,7 @@ import { ErrorState } from "../../components/States";
 import { formatCount, formatRelative } from "../../lib/format";
 import { useLinkSx } from "../../lib/link-sx";
 import { SectionPaper, ToneChip, type Tone } from "./shared";
+import { DemoLock, useIsDemo } from "../../lib/demo";
 
 /**
  * Settings, Gmail (DESIGN_SPEC §5.7, AC-2.5, AC-2.8): the connection, the last check, the first-sync
@@ -66,6 +67,7 @@ export function Gmail() {
 
 function Connection({ status, readAt }: { status: SyncStatus; readAt: number }) {
   const me = useMe();
+  const demo = useIsDemo();
   const sync = useSyncGmail();
   const [confirming, setConfirming] = useState(false);
   // "2 minutes ago" is measured from when the status was read.
@@ -100,23 +102,31 @@ function Connection({ status, readAt }: { status: SyncStatus; readAt: number }) 
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1 }}>
           {connected ? (
-            <Button
-              variant="outlined"
-              startIcon={<SyncIcon />}
-              disabled={sync.isPending}
-              onClick={() => sync.mutate()}
-            >
-              Sync now
-            </Button>
+            <DemoLock reason="gmail">
+              <Button
+                variant="outlined"
+                startIcon={<SyncIcon />}
+                disabled={sync.isPending}
+                onClick={() => sync.mutate()}
+              >
+                Sync now
+              </Button>
+            </DemoLock>
+          ) : demo ? (
+            <DemoLock reason="gmail">
+              <Button variant="outlined">{reconnect ? "Reconnect Gmail" : "Connect Gmail"}</Button>
+            </DemoLock>
           ) : (
             <Button component="a" href={GOOGLE_START_PATH} variant="outlined">
               {reconnect ? "Reconnect Gmail" : "Connect Gmail"}
             </Button>
           )}
           {canDisconnect ? (
-            <Button color="error" onClick={() => setConfirming(true)}>
-              Disconnect Gmail
-            </Button>
+            <DemoLock reason="gmail">
+              <Button color="error" onClick={() => setConfirming(true)}>
+                Disconnect Gmail
+              </Button>
+            </DemoLock>
           ) : null}
         </Box>
       </Box>

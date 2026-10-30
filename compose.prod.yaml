@@ -1,22 +1,24 @@
 # Production stack for Coolify (docs/deploy.md). Local development uses compose.yaml.
 # Services: db, api, worker, web. No service publishes a port: the Coolify proxy reaches `web`
-# over the Docker network. Variables written ${VAR:?} are required in private mode: compose
-# (and so the deploy) fails naming the missing variable. SERVICE_PASSWORD_POSTGRES is the
-# exception: Coolify generates it, and it is written without ':?' so Coolify recognises it.
+# over the Docker network. Variables written ${VAR:?} are required by compose in every mode.
+# The private-only secrets are written ${VAR:-} so the same file also serves the demo, which must
+# have none of them: an empty value is the same as unset, and the API (loadEnv) refuses to start
+# a private instance without them and a demo instance with them. SERVICE_PASSWORD_POSTGRES is
+# written without ':?' so Coolify recognises it as a variable it generates.
 
 x-app-environment: &app-environment
   APP_MODE: ${APP_MODE:-private}
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?}
   DATABASE_URL: postgresql://offerbound:${SERVICE_PASSWORD_POSTGRES}@db:5432/offerbound
-  OWNER_EMAIL: ${OWNER_EMAIL:?}
+  OWNER_EMAIL: ${OWNER_EMAIL:-}
   USER_TIMEZONE: ${USER_TIMEZONE:-America/Monterrey}
   HOME_COUNTRY: ${HOME_COUNTRY:-MX}
-  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?}
-  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?}
-  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?}
-  OPENAI_API_KEY: ${OPENAI_API_KEY:?}
-  AI_PRICING: ${AI_PRICING:?}
-  AI_WEB_SEARCH_COST_PER_CALL_MICROS: ${AI_WEB_SEARCH_COST_PER_CALL_MICROS:?}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  AI_PRICING: ${AI_PRICING:-}
+  AI_WEB_SEARCH_COST_PER_CALL_MICROS: ${AI_WEB_SEARCH_COST_PER_CALL_MICROS:-}
   # Optional: empty means "use the application default" (TECHNICAL_SPEC §3.4).
   OPENAI_MODEL_TRIAGE: ${OPENAI_MODEL_TRIAGE:-}
   OPENAI_MODEL_EXTRACT: ${OPENAI_MODEL_EXTRACT:-}
