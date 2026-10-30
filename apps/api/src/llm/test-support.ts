@@ -1,4 +1,3 @@
-import type { LlmPurpose } from "@offerbound/contracts";
 import type { LlmConfig } from "./provider.js";
 
 /** Config used by LLM tests. Not imported by production code. */
@@ -35,12 +34,3 @@ export const TEST_LLM_CONFIG: LlmConfig = {
   webSearchCostPerCallMicros: 10_000,
   searchMaxToolCallsPerRound: 40,
 };
-
-export const ALL_PURPOSES: readonly LlmPurpose[] = [
-  "triage",
-  "extract",
-  "rank",
-  "search",
-  "parse_report",
-  "cv_profile",
-];

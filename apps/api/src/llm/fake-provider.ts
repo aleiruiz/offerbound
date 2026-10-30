@@ -117,7 +117,8 @@ function rankLead(input: RankInput, lead: RankInput["leads"][number]): Ranking {
  *
  * - Triage and extraction are keyed by message id (`inputKey(purpose, { messageId })`) from the
  *   email fixtures, so they do not depend on how the parser renders a message.
- * - Search hands out the lead batches in order, then `{ leads: [], notes: "no more" }`.
+ * - Search hands out the lead batches in order and starts over after the last one, so the demo's
+ *   *Run search now* never runs dry; with no batches it answers `{ leads: [], notes: "no more" }`.
  * - Rank, report parsing and CV profiling answer from outputs registered with {@link register}
  *   (keyed by the hash of the whole normalised input), else with a deterministic default.
  * - With a `db`, every call is also logged to `llm_call` (model `fake`, cost 0), like the real one.
@@ -151,7 +152,10 @@ export class FakeLlmProvider implements LlmProvider {
     return fake;
   }
 
-  /** Makes `purpose` answer `output` for exactly this input (extract: for this message id). */
+  /**
+   * Makes `purpose` answer `output` for exactly this input. Triage and extract are keyed by message
+   * id: pass `{ messageId }`; a triage output is that message's `TriageItem`.
+   */
   register(purpose: LlmPurpose, input: unknown, output: unknown): void {
     this.registered.set(this.keyFor(purpose, input), clone(output));
   }
@@ -163,15 +167,14 @@ export class FakeLlmProvider implements LlmProvider {
 
   triage(batch: TriageInput[], ctx?: LlmCallCtx): Promise<LlmResult<TriageResult>> {
     return this.run("triage", batch, ctx, () => ({
-      results: batch.map((item): TriageItem =>
-        clone(
-          this.triageByKey.get(inputKey("triage", { messageId: item.id })) ?? {
-            id: item.id,
-            jobRelated: false,
-            confidence: 0.9,
-          },
-        ),
-      ),
+      results: batch.map((item): TriageItem => {
+        const key = inputKey("triage", { messageId: item.id });
+        const registered = this.registered.get(key) as TriageItem | undefined;
+        return clone(
+          registered ??
+            this.triageByKey.get(key) ?? { id: item.id, jobRelated: false, confidence: 0.9 },
+        );
+      }),
     }));
   }
 
@@ -199,7 +202,8 @@ export class FakeLlmProvider implements LlmProvider {
     return this.run("search", input, ctx, () => {
       const registered = this.registered.get(inputKey("search", input));
       if (registered !== undefined) return clone(registered as SearchResult);
-      const batch = this.leadBatches[this.nextBatch];
+      if (this.leadBatches.length === 0) return { leads: [], notes: "no more" };
+      const batch = this.leadBatches[this.nextBatch % this.leadBatches.length];
       this.nextBatch += 1;
       return batch === undefined ? { leads: [], notes: "no more" } : clone(batch);
     });
@@ -222,9 +226,13 @@ export class FakeLlmProvider implements LlmProvider {
   }
 
   private keyFor(purpose: LlmPurpose, input: unknown): string {
-    if (purpose === "extract" && typeof input === "object" && input !== null) {
+    if (
+      (purpose === "extract" || purpose === "triage") &&
+      typeof input === "object" &&
+      input !== null
+    ) {
       const { messageId } = input as { messageId?: unknown };
-      if (typeof messageId === "string") return inputKey("extract", { messageId });
+      if (typeof messageId === "string") return inputKey(purpose, { messageId });
     }
     return inputKey(purpose, input);
   }
