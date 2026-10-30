@@ -319,7 +319,7 @@ type ErrorLog = { error: (obj: Record<string, unknown>, msg: string) => void };
 function logSendFailure(log: ErrorLog | undefined, leadId: string, error: unknown): void {
   log?.error(
     { errorName: error instanceof Error ? error.name : undefined, leadId },
-    "could not queue leads.check; the pending-checks sweep will send it",
+    "could not queue leads.check; the pending-checks sweep will send it later",
   );
 }
 
@@ -348,10 +348,13 @@ export async function enqueueLeadChecks(
 
 /**
  * Sends `leads.check` for every lead still in `checking` that has not changed for
- * `PENDING_CHECK_AFTER_MS`: its first send was lost after the commit. Idempotent. The job skips a
- * lead that is no longer `checking`, and the lead id as the job's key keeps sweeps from queueing a
- * lead that is already waiting twice. The age keeps it from racing the send that follows a commit.
- * Returns the number of leads sent.
+ * `PENDING_CHECK_AFTER_MS`: its first send was lost after the commit. The job skips a lead that is
+ * no longer `checking`, so a repeated send is harmless, but each one fetches the link again. The
+ * `leads.check` queue has no unique key per lead, so the sweep claims its leads first: in one
+ * statement it sets `updated_at` to now on every lead it will send, and a lead is sent again only
+ * after another `PENDING_CHECK_AFTER_MS` (the claim also keeps two sweeps from taking the same
+ * lead). A send that fails is therefore retried after that wait, not on the next sweep. The age
+ * keeps the sweep from racing the send that follows a commit. Returns the number of leads sent.
  */
 export async function sendPendingChecks(ctx: {
   prisma: PrismaClient;
@@ -359,23 +362,22 @@ export async function sendPendingChecks(ctx: {
   clock: () => Date;
   log?: ErrorLog;
 }): Promise<number> {
-  const stranded = await ctx.prisma.lead.findMany({
-    where: {
-      pipelineState: "checking",
-      updatedAt: { lt: new Date(ctx.clock().getTime() - PENDING_CHECK_AFTER_MS) },
-    },
-    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-    take: PENDING_CHECK_LIMIT,
-    select: { id: true, intakeBatchId: true },
-  });
+  const now = ctx.clock();
+  const cutoff = new Date(now.getTime() - PENDING_CHECK_AFTER_MS);
+  const claimed = await ctx.prisma.$queryRaw<{ id: string; batchId: string }[]>`
+    update lead set updated_at = ${now}
+    where id in (
+      select id from lead
+      where pipeline_state = 'checking' and updated_at < ${cutoff}
+      order by updated_at asc, id asc
+      limit ${PENDING_CHECK_LIMIT}
+      for update skip locked
+    )
+    returning id, intake_batch_id as "batchId"`;
   let sent = 0;
-  for (const { id, intakeBatchId } of stranded) {
+  for (const { id, batchId } of claimed) {
     try {
-      await ctx.queue.send(
-        QUEUES.leadsCheck,
-        { leadId: id, batchId: intakeBatchId },
-        { singletonKey: id },
-      );
+      await ctx.queue.send(QUEUES.leadsCheck, { leadId: id, batchId });
       sent += 1;
     } catch (error) {
       logSendFailure(ctx.log, id, error);

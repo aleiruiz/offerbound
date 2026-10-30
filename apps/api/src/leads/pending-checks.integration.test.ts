@@ -104,9 +104,25 @@ describe("sendPendingChecks", () => {
       {
         name: QUEUES.leadsCheck,
         data: { leadId: stale, batchId },
-        opts: { singletonKey: stale },
+        opts: {},
       },
     ]);
+  });
+
+  it("two sweeps in a row send a stranded lead only once, and again after another 10 minutes", async () => {
+    const batchId = await seedBatch();
+    const stale = await seedLead(batchId, "Stale Example", { updatedAt: minutesAgo(30) });
+    let now = NOW;
+    const ctx = testWorkerCtx({ clock: () => now });
+
+    expect(await sendPendingChecks(ctx)).toBe(1);
+    now = new Date(NOW.getTime() + 60_000);
+    expect(await sendPendingChecks(ctx)).toBe(0);
+    expect(ctx.queue.sent).toHaveLength(1);
+
+    now = new Date(NOW.getTime() + PENDING_CHECK_AFTER_MS + 60_000);
+    expect(await sendPendingChecks(ctx)).toBe(1);
+    expect(ctx.queue.sent.map((s) => s.data.leadId)).toEqual([stale, stale]);
   });
 
   it("carries on past a send that fails", async () => {
