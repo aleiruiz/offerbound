@@ -665,10 +665,12 @@ describe("applyEligibleMessages: create_leads", () => {
     ]);
     expect(await prisma.company.count()).toBe(2);
 
-    const events = await prisma.event.findMany({ orderBy: { createdAt: "asc" } });
+    // Both events are written in one transaction, so their createdAt can tie: order by lead.
+    const events = await prisma.event.findMany({ orderBy: { leadId: "asc" } });
     expect(events).toHaveLength(2);
-    for (const [index, event] of events.entries()) {
-      const mine = leads[index];
+    for (const event of events) {
+      const mine = leads.find((l) => l.id === event.leadId);
+      expect(mine).toBeDefined();
       expect(event).toMatchObject({
         type: "lead_created",
         actor: "system",
@@ -689,6 +691,20 @@ describe("applyEligibleMessages: create_leads", () => {
       );
       expect(entries.every((e) => e.created)).toBe(true);
     }
+  });
+
+  it("a lead's foundAt and createdAt are the email's internalDate, not the apply time", async () => {
+    await seed({
+      id: "alert",
+      at: "2026-10-05T09:00:00.000Z",
+      fromEmail: "alerts@jobs-alerts.example",
+      extraction: alert([lead(1)]),
+    });
+    await applyEligibleMessages(ctx());
+
+    const stored = await prisma.lead.findFirstOrThrow();
+    expect(stored.foundAt).toEqual(new Date("2026-10-05T09:00:00.000Z"));
+    expect(stored.createdAt).toEqual(new Date("2026-10-05T09:00:00.000Z"));
   });
 
   it("a duplicate lead is skipped and counted", async () => {
