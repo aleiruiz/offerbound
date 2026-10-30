@@ -50,6 +50,30 @@ type FieldErrors = Partial<Record<Field, string>>;
 
 const PICK_APPLICATION = "Pick the application this interview is for";
 
+/**
+ * The API names fields as the request body does; the dialog names them as it shows them. A server
+ * field with no place in the dialog (`status`, say) maps to nothing, and the alert says it instead.
+ */
+const SERVER_FIELD: Record<string, Field> = {
+  applicationId: "application",
+  kind: "kind",
+  startsAt: "startTime",
+  endsAt: "endTime",
+  interviewers: "interviewers",
+  meetingUrl: "meetingUrl",
+  location: "location",
+  notes: "notes",
+};
+
+function dialogErrors(fields: Record<string, string>): FieldErrors {
+  const mapped: FieldErrors = {};
+  for (const [name, message] of Object.entries(fields)) {
+    const field = SERVER_FIELD[name];
+    if (field !== undefined) mapped[field] = message;
+  }
+  return mapped;
+}
+
 /** "Priya Natarajan,  Tom Salas, " becomes two names. */
 function names(text: string): string[] {
   return text
@@ -58,7 +82,14 @@ function names(text: string): string[] {
     .filter((n) => n !== "");
 }
 
-function Form({ onClose }: { onClose: () => void }) {
+function Form({
+  onClose,
+  onPending,
+}: {
+  onClose: () => void;
+  /** Tells the dialog whether the interview is being sent, so it cannot be dismissed meanwhile. */
+  onPending: (pending: boolean) => void;
+}) {
   const timezone = useTimezone();
   const snackbar = useUndoSnackbar();
   const [search, setSearch] = useState("");
@@ -73,6 +104,8 @@ function Form({ onClose }: { onClose: () => void }) {
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
+  /** The server's answer put a message under at least one field. */
+  const [fieldsShown, setFieldsShown] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setQ(search.trim()), SEARCH_DEBOUNCE_MS);
@@ -98,14 +131,20 @@ function Form({ onClose }: { onClose: () => void }) {
       onClose();
     },
     onError: (error) => {
-      if (error instanceof ApiClientError && Object.keys(error.fields).length > 0) {
-        setErrors(error.fields);
-      }
+      const mapped = error instanceof ApiClientError ? dialogErrors(error.fields) : {};
+      setErrors(mapped);
+      setFieldsShown(Object.keys(mapped).length > 0);
     },
   });
+  const { isPending } = create;
+  useEffect(() => {
+    onPending(isPending);
+    return () => onPending(false);
+  }, [isPending, onPending]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    setFieldsShown(false);
     const next: FieldErrors = {};
     if (application === null) next.application = PICK_APPLICATION;
 
@@ -159,8 +198,7 @@ function Form({ onClose }: { onClose: () => void }) {
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
-        {create.isError &&
-        !(create.error instanceof ApiClientError && create.error.code === "validation_failed") ? (
+        {create.isError && !fieldsShown ? (
           <Alert severity="error">
             {`Couldn't add the interview. ${create.error instanceof ApiClientError ? create.error.message : "Check your connection and try again."}`}
           </Alert>
@@ -327,16 +365,18 @@ function Form({ onClose }: { onClose: () => void }) {
 export function AddInterviewDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
+  const [pending, setPending] = useState(false);
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      // Esc and a click outside wait while the interview is being sent, as Cancel does.
+      onClose={pending ? undefined : onClose}
       fullScreen={phone}
       fullWidth
       maxWidth="sm"
       aria-labelledby={TITLE_ID}
     >
-      <Form onClose={onClose} />
+      <Form onClose={onClose} onPending={setPending} />
     </Dialog>
   );
 }

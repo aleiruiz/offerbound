@@ -311,6 +311,39 @@ describe("InterviewsPage", () => {
       expect(screen.queryByText("Tomorrow")).not.toBeInTheDocument();
     });
 
+    it("lists a past interview that never got a time under No date, after the days", async () => {
+      const never = makeInterview({
+        id: "p4",
+        application: ARBOR_APP,
+        kind: "other",
+        status: "cancelled",
+        startsAt: null,
+        endsAt: null,
+        meetingUrl: null,
+        interviewers: [],
+      });
+      setup(
+        {
+          "GET /api/v1/interviews": interviewsHandler(
+            () => UPCOMING,
+            () => [never, ...PAST],
+          ),
+        },
+        { route: "/interviews?tab=past" },
+      );
+      expect(await screen.findByText("No date")).toBeInTheDocument();
+      const days = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+      expect(days).toEqual([
+        "Tuesday, October 27",
+        "Thursday, October 22",
+        "Tuesday, October 20",
+        "No date",
+      ]);
+      const group = within(screen.getByRole("list", { name: "No date" }));
+      expect(group.getByText("No time yet")).toBeInTheDocument();
+      expect(group.getByText("Cancelled")).toBeInTheDocument();
+    });
+
     it("opens on Past when the address says so, and falls back to Upcoming for an unknown tab", async () => {
       const first = setup({}, { route: "/interviews?tab=past" });
       expect(await screen.findByText("Tuesday, October 27")).toBeInTheDocument();
@@ -488,15 +521,88 @@ describe("InterviewsPage", () => {
       expect(within(sheet).getByRole("textbox", { name: "Prep notes" })).toHaveValue("More");
     });
 
-    it("Cancel closes the sheet without sending anything", async () => {
-      const { api, user } = setup({});
-      await screen.findByText("12:00–13:30");
-      await user.click(rowOf("12:00–13:30").getByRole("button", { name: "Prep notes" }));
-      const sheet = await screen.findByRole("dialog", { name: "Prep notes" });
-      setValue(within(sheet).getByRole("textbox", { name: "Prep notes" }), "Never saved");
-      await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-      expect(callsTo(api, "PATCH", "/api/v1/interviews/i3")).toHaveLength(0);
+    describe("unsaved typing", () => {
+      async function openDirty(user: ReturnType<typeof userEvent.setup>) {
+        await screen.findByText("12:00–13:30");
+        await user.click(rowOf("12:00–13:30").getByRole("button", { name: "Prep notes" }));
+        const sheet = await screen.findByRole("dialog", { name: "Prep notes" });
+        setValue(within(sheet).getByRole("textbox", { name: "Prep notes" }), "Unsaved thought");
+        return sheet;
+      }
+
+      it("Cancel asks 'Discard changes?'; Keep editing leaves the sheet and the typing alone", async () => {
+        const { api, user } = setup();
+        const sheet = await openDirty(user);
+        await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+        const ask = await screen.findByRole("dialog", { name: "Discard changes?" });
+        await user.click(within(ask).getByRole("button", { name: "Keep editing" }));
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("dialog", { name: "Discard changes?" }),
+          ).not.toBeInTheDocument(),
+        );
+        expect(screen.getByRole("textbox", { name: "Prep notes" })).toHaveValue("Unsaved thought");
+
+        await user.click(screen.getByRole("button", { name: "Cancel" }));
+        await user.click(
+          within(await screen.findByRole("dialog", { name: "Discard changes?" })).getByRole(
+            "button",
+            { name: "Discard" },
+          ),
+        );
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        expect(callsTo(api, "PATCH", "/api/v1/interviews/i3")).toHaveLength(0);
+      });
+
+      it("Esc, a click outside and the close button ask too", async () => {
+        const { user } = setup();
+        const sheet = await openDirty(user);
+        await user.keyboard("{Escape}");
+        expect(await screen.findByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Keep editing" }));
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("dialog", { name: "Discard changes?" }),
+          ).not.toBeInTheDocument(),
+        );
+
+        const backdrop = document.querySelector(".MuiDrawer-root > .MuiBackdrop-root");
+        if (!backdrop) throw new Error("no backdrop");
+        await user.click(backdrop);
+        expect(await screen.findByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Keep editing" }));
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("dialog", { name: "Discard changes?" }),
+          ).not.toBeInTheDocument(),
+        );
+
+        await user.click(within(sheet).getByRole("button", { name: "Close" }));
+        expect(await screen.findByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+      });
+
+      it("a sheet with nothing typed closes without asking, by Cancel, Esc or a click outside", async () => {
+        const { user } = setup();
+        await screen.findByText("12:00–13:30");
+        const open = async () => {
+          await user.click(rowOf("12:00–13:30").getByRole("button", { name: "Prep notes" }));
+          return screen.findByRole("dialog", { name: "Prep notes" });
+        };
+        let sheet = await open();
+        await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+        sheet = await open();
+        await user.keyboard("{Escape}");
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+        await open();
+        const backdrop = document.querySelector(".MuiDrawer-root > .MuiBackdrop-root");
+        if (!backdrop) throw new Error("no backdrop");
+        await user.click(backdrop);
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        expect(screen.queryByRole("dialog", { name: "Discard changes?" })).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -666,6 +772,62 @@ describe("InterviewsPage", () => {
       expect(await within(dialog).findByText("Not a link")).toBeInTheDocument();
       expect(screen.getByRole("dialog", { name: "Add interview" })).toBeInTheDocument();
     });
+
+    heavyIt("shows a server error on startsAt or endsAt under the time fields", async () => {
+      const { user } = setup({
+        "POST /api/v1/applications/a1/interviews": () =>
+          apiError(422, "validation_failed", "Check the details.", {
+            startsAt: "The start is in the past",
+            endsAt: "The end is too far away",
+          }),
+      });
+      const dialog = await openDialog(user);
+      await user.click(await within(dialog).findByRole("radio", { name: /Kestrel Pay/ }));
+      await user.click(within(dialog).getByRole("button", { name: "Add interview" }));
+      expect(await within(dialog).findByText("The start is in the past")).toBeInTheDocument();
+      expect(within(dialog).getByText("The end is too far away")).toBeInTheDocument();
+      // a field carries the message, so there is no second, generic alert
+      expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    heavyIt(
+      "a server error for a field the dialog does not have still shows an alert",
+      async () => {
+        const { user } = setup({
+          "POST /api/v1/applications/a1/interviews": () =>
+            apiError(422, "validation_failed", "Check the details.", { status: "Not allowed" }),
+        });
+        const dialog = await openDialog(user);
+        await user.click(await within(dialog).findByRole("radio", { name: /Kestrel Pay/ }));
+        await user.click(within(dialog).getByRole("button", { name: "Add interview" }));
+        expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+          "Couldn't add the interview. Check the details.",
+        );
+        expect(screen.getByRole("dialog", { name: "Add interview" })).toBeInTheDocument();
+      },
+    );
+
+    heavyIt(
+      "Esc and a click outside do not close it while the interview is being added",
+      async () => {
+        const { user } = setup({
+          "POST /api/v1/applications/a1/interviews": () => new Promise(() => undefined),
+        });
+        const dialog = await openDialog(user);
+        await user.click(await within(dialog).findByRole("radio", { name: /Kestrel Pay/ }));
+        await user.click(within(dialog).getByRole("button", { name: "Add interview" }));
+        await waitFor(() =>
+          expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled(),
+        );
+        await user.keyboard("{Escape}");
+        const backdrop = document.querySelector(".MuiDialog-container");
+        if (!backdrop) throw new Error("no backdrop");
+        await user.click(backdrop);
+        // a closing dialog stays in the DOM for its exit transition (225 ms): wait it out
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        expect(screen.getByRole("dialog", { name: "Add interview" })).toBeInTheDocument();
+      },
+    );
 
     heavyIt("is full screen on a phone, and Cancel closes it", async () => {
       const { user } = setup({}, { width: 390 });
