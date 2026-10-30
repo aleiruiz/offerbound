@@ -27,11 +27,18 @@ function show(message: string, onUndo?: () => Promise<void>, tone: SnackState["t
   set({ id: state.id + 1, open: true, message, onUndo, tone });
 }
 
-const handle = { show: (message: string, onUndo?: () => Promise<void>) => show(message, onUndo) };
+const handle = {
+  show: (message: string, onUndo?: () => Promise<void>) => show(message, onUndo),
+  alert: (message: string) => show(message, undefined, "alert"),
+};
 
-/** `show("Marked as applied", undo)` raises the snackbar for 6 seconds. Mount `<UndoSnackbar />` once. */
+/**
+ * `show("Marked as applied", undo)` raises the snackbar for 6 seconds; `alert` is the same for a
+ * failure. Mount `<UndoSnackbar />` once.
+ */
 export function useUndoSnackbar(): {
   show: (message: string, onUndo?: () => Promise<void>) => void;
+  alert: (message: string) => void;
 } {
   return handle;
 }

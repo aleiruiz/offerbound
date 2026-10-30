@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../api/hooks";
-import { makeNavCounts, makeSyncStatus } from "../../test/factories";
+import { DEMO_ME, OWNER_ME, makeNavCounts, makeSyncStatus } from "../../test/factories";
 import { mockApi } from "../../test/mock-api";
 import lockupLight from "../assets/brand/lockup.svg";
 import markLight from "../assets/brand/mark.svg";
@@ -296,5 +296,35 @@ describe("AppShell nav badges", () => {
     expect(fetches()).toBe(2);
     await flush(10);
     expect(screen.getByRole("link", { name: "Review 5" })).toBeInTheDocument();
+  });
+});
+
+describe("AppShell in the public demo", () => {
+  function renderDemoShell(width: number, me = DEMO_ME) {
+    mockApi({
+      "GET /api/v1/nav-counts": () => NO_COUNTS,
+      "GET /api/v1/gmail/status": () => makeSyncStatus(),
+    });
+    return renderWithProviders(
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route path="today" element={<h1>Today</h1>} />
+        </Route>
+      </Routes>,
+      { route: "/today", width, me },
+    );
+  }
+
+  it.each([1000, 700, 390])("shows the demo banner above the page at %ipx", (width) => {
+    renderDemoShell(width);
+    const banner = screen.getByRole("region", { name: "Demo" });
+    expect(banner).toHaveTextContent("Demo with made-up data. Everything resets every hour.");
+    const main = screen.getByRole("main");
+    expect(banner.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no banner to the owner", () => {
+    renderDemoShell(1000, OWNER_ME);
+    expect(screen.queryByRole("region", { name: "Demo" })).not.toBeInTheDocument();
   });
 });

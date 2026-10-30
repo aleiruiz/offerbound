@@ -39,6 +39,7 @@ import {
   wholeNumberError,
   type Tone,
 } from "./shared";
+import { DemoLock } from "../../lib/demo";
 
 /**
  * Settings, Job search (DESIGN_SPEC §5.7, AC-10.1, AC-10.5): the daily search, its brief, tracks and
@@ -249,17 +250,19 @@ function JobSearchForm({ settings }: { settings: Settings }) {
           Describe the roles, places, pay and exclusions you want. Your duplicate rules don't need
           to be here: Offerbound never shows a company you've already seen.
         </Typography>
-        <TextField
-          id="search-brief"
-          multiline
-          minRows={8}
-          fullWidth
-          value={draft.brief}
-          onChange={(event) => update({ brief: event.target.value })}
-          error={Boolean(message("search.brief")) || briefTooLong}
-          helperText={message("search.brief") || undefined}
-          slotProps={{ htmlInput: { "aria-label": "Search brief" } }}
-        />
+        <DemoLock reason="text" block>
+          <TextField
+            id="search-brief"
+            multiline
+            minRows={8}
+            fullWidth
+            value={draft.brief}
+            onChange={(event) => update({ brief: event.target.value })}
+            error={Boolean(message("search.brief")) || briefTooLong}
+            helperText={message("search.brief") || undefined}
+            slotProps={{ htmlInput: { "aria-label": "Search brief" } }}
+          />
+        </DemoLock>
         <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
           {`${formatCount(draft.brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters${
             briefTooLong ? ". Shorten it to save." : ""

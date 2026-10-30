@@ -49,10 +49,20 @@ function redirectToLogin(): void {
 }
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
+let demoReadOnlyHandler: (() => void) | null = null;
 
 /** The app registers a router navigation here; without one a 401 does a full page load of /login. */
 export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
   unauthorizedHandler = handler;
+}
+
+/**
+ * The app registers what to tell the visitor when the public demo refuses a request with
+ * `403 demo_read_only` (TECHNICAL_SPEC §10 errors, §12). The controls that take free text are disabled in
+ * the demo, so this is only for a request that got through.
+ */
+export function setDemoReadOnlyHandler(handler: (() => void) | null): void {
+  demoReadOnlyHandler = handler;
 }
 
 async function readJson(res: Response): Promise<unknown> {
@@ -108,6 +118,10 @@ async function send(path: string, init: ApiFetchInit<unknown>, accept: string): 
           body: json,
         });
     if (res.status === 401) (unauthorizedHandler ?? redirectToLogin)();
+    if (res.status === 403 && error.code === "demo_read_only") {
+      // After the caller's own error handling, so its generic "couldn't save" does not cover this.
+      setTimeout(() => demoReadOnlyHandler?.(), 0);
+    }
     throw error;
   }
   return res;

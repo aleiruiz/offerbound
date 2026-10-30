@@ -42,6 +42,7 @@ import { LeadRow } from "../components/LeadRow";
 import { Key } from "../components/ShortcutDialog";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
+import { DemoLock, useIsDemo } from "../lib/demo";
 import { formatShortDate, formatTime, localDayKey } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
@@ -274,6 +275,7 @@ export function LeadsPage() {
   const counts = useLeadCounts();
   const runs = useSearchRuns();
   const snackbar = useUndoSnackbar();
+  const demo = useIsDemo();
   const refreshLeads = useRefreshLeads();
 
   const tracks = useMemo(
@@ -486,9 +488,15 @@ export function LeadsPage() {
           <SearchCaption runs={runs.data} timezone={timezone} now={now} />
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
-          <Button variant="outlined" component={RouterLink} to="/leads/import">
-            Import a report
-          </Button>
+          {demo ? (
+            <DemoLock reason="import">
+              <Button variant="outlined">Import a report</Button>
+            </DemoLock>
+          ) : (
+            <Button variant="outlined" component={RouterLink} to="/leads/import">
+              Import a report
+            </Button>
+          )}
           {runSearchButton}
         </Box>
       </Box>

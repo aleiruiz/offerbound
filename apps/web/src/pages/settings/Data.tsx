@@ -8,6 +8,7 @@ import { ApiClientError } from "../../api/client";
 import { usePurgeEmailContent } from "../../api/hooks";
 import { formatCount } from "../../lib/format";
 import { SectionPaper } from "./shared";
+import { DemoLock } from "../../lib/demo";
 
 /**
  * Settings, Data (AC-15.2): *Delete stored email content* behind a typed confirmation. The button
@@ -56,27 +57,31 @@ export function Data() {
           Timeline entries stay, but the email behind them no longer shows its text. Email that
           Offerbound reads later is stored as usual. This can't be undone.
         </Typography>
-        <TextField
-          label="Type DELETE to confirm"
-          value={typed}
-          onChange={(event) => {
-            setTyped(event.target.value);
-            // An earlier result or error is about the last request, not this confirmation.
-            if (!purge.isPending) purge.reset();
-          }}
-          disabled={purge.isPending}
-          autoComplete="off"
-          slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: "off" } }}
-        />
+        <DemoLock reason="delete" block>
+          <TextField
+            label="Type DELETE to confirm"
+            value={typed}
+            onChange={(event) => {
+              setTyped(event.target.value);
+              // An earlier result or error is about the last request, not this confirmation.
+              if (!purge.isPending) purge.reset();
+            }}
+            disabled={purge.isPending}
+            autoComplete="off"
+            slotProps={{ htmlInput: { spellCheck: false, autoCapitalize: "off" } }}
+          />
+        </DemoLock>
         <Box>
-          <Button
-            type="submit"
-            color="error"
-            variant="contained"
-            disabled={!confirmed || purge.isPending}
-          >
-            Delete stored email content
-          </Button>
+          <DemoLock reason="delete">
+            <Button
+              type="submit"
+              color="error"
+              variant="contained"
+              disabled={!confirmed || purge.isPending}
+            >
+              Delete stored email content
+            </Button>
+          </DemoLock>
         </Box>
         {purge.isError ? (
           <Alert severity="error" role="alert">
