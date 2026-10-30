@@ -16,7 +16,7 @@ Day-to-day running of a private Offerbound instance on Coolify (compose services
 - The `api` and `worker` write JSON lines (pino) to standard output; Docker and Coolify keep them. There are no log files inside the containers.
 - Logs carry ids, job names, durations and outcome codes. They never contain email bodies, subjects, previews, sender names, CV text, the brief, prompts, model output, tokens, cookies, `Authorization` headers or the database URL (SECURITY section 4).
 - `LOG_LEVEL` sets the verbosity (default `info`). Change it in Coolify and redeploy.
-- A failed backup logs `backup: pg_dump failed` with the exit code and the first 500 characters of `pg_dump`'s own error text. The job then fails and pg-boss retries it twice.
+- A failed backup logs `backup failed: ...` with the reason (exit code, signal, timeout or empty file) and the file name, never `pg_dump`'s own output. The job then fails and pg-boss retries it twice. A dump that runs longer than 60 minutes is killed and counts as a failure.
 
 ## Backups
 
@@ -37,10 +37,13 @@ Day-to-day running of a private Offerbound instance on Coolify (compose services
 From the `worker` _Terminal_ (it has the Postgres client and the volume):
 
 ```sh
-pg_dump -Fc -f /backups/offerbound-manual-<yyyy-mm-dd>.dump "$DATABASE_URL"
+PGPASSWORD="$(node -p 'decodeURIComponent(new URL(process.env.DATABASE_URL).password)')" \
+  pg_dump -Fc -f /backups/offerbound-manual-<yyyy-mm-dd>.dump -h db -U offerbound offerbound
 ```
 
-The `offerbound-manual-` prefix keeps the file out of the retention clean-up; delete it yourself when you no longer need it. The URL appears in the container's process list while the command runs, which is acceptable inside your own container; do not paste it anywhere else.
+The password is read from the container's `DATABASE_URL` into the `PGPASSWORD` variable of that one command, so it does not appear in the command's arguments or in the process list. Do not use `pg_dump ... "$DATABASE_URL"`, which would put it there. `db` is the compose service name of the database.
+
+The `offerbound-manual-` prefix keeps the file out of the retention clean-up; delete it yourself when you no longer need it. The scheduled job writes through a `.partial` file and renames it when the dump is complete, so a file named `offerbound-YYYY-MM-DD.dump` is always a finished dump. A leftover `*.dump.partial` file is a failed attempt and can be deleted.
 
 ### Copy a backup out
 
