@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interviews</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-o{border-color:#0a7356}
+.btn-sm{height:30px;padding:0 8px;font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.tab{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 4px;border:none;border-bottom:3px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#4d5866;cursor:pointer}
+.tab[aria-selected="true"]{color:#0a7356;border-bottom-color:#0a7356}
+.n{font-size:12px;line-height:18px;padding:0 6px;border-radius:9px;background:#ecf0ec;color:#4d5866}
+.ob button:focus-visible,.ob a:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.day{font-size:14px;line-height:20px;font-weight:700;padding:12px 20px;background:#ecf0ec;border-top:1px solid #dce1dc}
+.iv{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 24px;padding:16px 20px;border-top:1px solid #dce1dc}
+.time{flex:0 0 132px;font-size:18px;line-height:24px;font-weight:700}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1000px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="interviews" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1080px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Interviews</h1>
+        <p class="cap">Times are in Monterrey time. Interviews come from invitation emails and calendar invites.</p>
+      </div>
+      <button type="button" class="btn btn-o">Add interview</button>
+    </header>
+    <div role="tablist" aria-label="Interview lists" style="display: flex; gap: 24px; border-bottom: 1px solid #dce1dc;">
+      <button type="button" role="tab" class="tab" aria-selected="true">Upcoming <span class="n">4</span></button>
+      <button type="button" role="tab" class="tab" aria-selected="false">Past <span class="n">9</span></button>
+    </div>
+
+    <section class="paper" aria-labelledby="ts" style="overflow: hidden; border-color: #e7c98f;">
+      <div style="padding: 14px 20px; background: #fcefd8; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <h2 id="ts" style="font-size: 14px; line-height: 20px; font-weight: 700; color: #8f5400;">To schedule</h2>
+        <p style="font-size: 13px; line-height: 18px; color: #5b3a00;">You haven't picked a time yet</p>
+      </div>
+      <div class="iv">
+        <div class="time" style="color: #8f5400;">No time yet</div>
+        <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+          <p><span style="font-weight: 600;">Hiring manager interview</span></p>
+          <p class="cap">Meridian Freight, Tech Lead, Web. Invitation on Oct 25 with a scheduling link.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;"><a class="btn btn-o btn-sm" href="https://example.com">Pick a time</a><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open application</a></div>
+      </div>
+    </section>
+
+    <section class="paper" aria-label="Scheduled interviews" style="overflow: hidden;">
+      <h2 class="day" style="border-top: none;">Friday, October 30</h2>
+      <div class="iv">
+        <div class="time">10:00–11:00</div>
+        <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Technical interview</span> <span class="chip" style="background: #e2f1eb; color: #0a7356; margin-left: 4px;">Tomorrow</span></p>
+          <p class="cap">Kestrel Pay, Senior Frontend Engineer, Payments. With Priya Natarajan and Tom Salas.</p>
+          <a href="https://example.com" style="font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3"></path></svg>Join video call</a>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Prep notes</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open application</a></div>
+      </div>
+
+      <h2 class="day">Monday, November 2</h2>
+      <div class="iv">
+        <div class="time">16:30–17:00</div>
+        <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Recruiter screen</span></p>
+          <p class="cap">Lumen Health, Senior Frontend Engineer. Phone call; the recruiter will call you.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Prep notes</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open application</a></div>
+      </div>
+
+      <h2 class="day">Wednesday, November 4</h2>
+      <div class="iv">
+        <div class="time">12:00–13:30</div>
+        <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">System design</span> <span class="chip" style="background: #eceff2; color: #545e6a; margin-left: 4px;">Rescheduled</span></p>
+          <p class="cap">Arbor Analytics, Senior Product Engineer, Data. Moved from Tue, Nov 3 by an email on Oct 28.</p>
+          <a href="https://example.com" style="font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3"></path></svg>Join video call</a>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Prep notes</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open application</a></div>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

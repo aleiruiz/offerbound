@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings: job search</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p,.ob fieldset,.ob legend{margin:0}
+.ob fieldset{border:none;padding:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.lbl{font-size:14px;line-height:20px;font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-c{background:#0a7356;color:#ffffff}
+.btn-o{border-color:#0a7356}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:1px solid #7a8580;background:#ffffff;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#16202e;cursor:pointer}
+.fchip[aria-pressed="true"]{background:#e2f1eb;border-color:#0a7356;color:#0a7356}
+.inp{height:40px;padding:0 12px;border:1px solid #7a8580;border-radius:4px;font:400 15px/22px 'Overpass','Segoe UI',system-ui,sans-serif;color:#16202e;background:#ffffff}
+.snav{display:flex;align-items:center;height:40px;padding:0 12px;border-radius:6px;text-decoration:none;color:#16202e;font-weight:600;font-size:14px}
+.ob button:focus-visible,.ob a:focus-visible,.ob input:focus-visible,.ob textarea:focus-visible,.ob select:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.tbl{width:100%;border-collapse:collapse;min-width:720px}
+.tbl th{text-align:left;font-size:13px;line-height:18px;font-weight:600;color:#4d5866;background:#ecf0ec;padding:10px 14px;border-bottom:1px solid #dce1dc}
+.tbl td{padding:11px 14px;border-bottom:1px solid #dce1dc}
+.tbl tr:last-child td{border-bottom:none}
+.num{text-align:right}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1480px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="settings" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 24px;">
+    <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Settings</h1>
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px;">
+      <nav aria-label="Settings sections" style="flex: 1 1 180px; max-width: 220px; display: flex; flex-direction: column; gap: 2px;">
+        <a class="snav" href="SettingsGmail.dc.html">Gmail</a>
+        <a class="snav" href="SettingsSearch.dc.html" aria-current="page" style="background: #e2f1eb; color: #0a7356; font-weight: 700;">Job search</a>
+        <a class="snav" href="#cv">CV</a>
+        <a class="snav" href="#">Daily targets</a>
+        <a class="snav" href="#">Timers</a>
+        <a class="snav" href="#">Automation</a>
+        <a class="snav" href="Onboarding.dc.html">Import</a>
+        <a class="snav" href="#">AI usage</a>
+        <a class="snav" href="#">Data</a>
+      </nav>
+
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+        <section class="paper" aria-labelledby="js-h" style="padding: 24px; display: flex; flex-direction: column; gap: 22px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+            <h2 id="js-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Job search</h2>
+            <p class="cap">Runs with OpenAI web search and your CV. Results go to Leads.</p>
+          </div>
+
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px;">
+            <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; padding-bottom: 8px;">
+              <span aria-hidden="true" style="position: relative; width: 36px; height: 20px; border-radius: 10px; background: #0a7356;"><span style="position: absolute; top: 2px; left: 18px; width: 16px; height: 16px; border-radius: 8px; background: #ffffff;"></span></span>
+              <input type="checkbox" role="switch" checked style="position: absolute; opacity: 0; width: 1px; height: 1px;">
+              <span class="lbl">Run every day</span>
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label for="run-time" class="lbl">At</label>
+              <input id="run-time" class="inp" type="time" value="07:00" style="width: 140px;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <span class="lbl" id="target-l">New leads per day</span>
+              <div style="display: flex; align-items: center; gap: 8px;" role="group" aria-labelledby="target-l">
+                <input class="inp" type="number" value="20" aria-label="At least" style="width: 84px;"><span class="cap">to</span><input class="inp" type="number" value="30" aria-label="At most" style="width: 84px;">
+              </div>
+            </div>
+          </div>
+          <p class="cap" style="margin-top: -12px;">Monterrey time. The search stops early rather than padding the list to reach the target.</p>
+
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="brief" class="lbl">Search brief</label>
+            <p class="cap">Describe the roles, places, pay and exclusions you want. Your duplicate rules don't need to be here: Offerbound never shows a company you've already seen.</p>
+            <textarea id="brief" rows="11" style="resize: vertical; padding: 12px 14px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/24px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e;">Find new, currently open roles: Senior Software Engineer, Senior Frontend or Product Engineer, full-stack React, TypeScript, Node.js or .NET, and hands-on Tech Lead.
+
+From Mexico: 100% remote only, no required office days. Mexico payroll: total compensation above [YOUR FLOOR]. USD contracts from Mexico: fixed monthly pay above [YOUR FLOOR].
+
+Abroad: remote, hybrid or on-site only with visa sponsorship and relocation support. Canada, New Zealand, Germany, Ireland, Sweden and the Netherlands first.
+
+Aim for about 40% remote from Mexico, 45% relocation and 5% contracts. Skip junior, Staff and Principal roles, and managers who don't code. Label any salary that isn't in the posting as an estimate.</textarea>
+            <p class="cap" style="text-align: right;">842 of 12,000 characters</p>
+          </div>
+
+          <fieldset style="display: flex; flex-direction: column; gap: 10px;">
+            <legend class="lbl" style="margin-bottom: 4px;">Tracks</legend>
+            <p class="cap">Each lead is put on one track. Leads are sorted by track priority, then fit.</p>
+            <div style="overflow-x: auto; border: 1px solid #dce1dc; border-radius: 6px;">
+              <table class="tbl" style="min-width: 520px;">
+                <thead><tr><th scope="col" style="width: 80px;">Key</th><th scope="col">Name</th><th scope="col" style="width: 140px;">Priority</th><th scope="col" style="width: 64px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Remove</span></th></tr></thead>
+                <tbody>
+                  <tr><td><input class="inp" value="A" aria-label="Track key" style="width: 52px; height: 34px;"></td><td><input class="inp" value="Remote from MX" aria-label="Track name" style="width: 100%; height: 34px;"></td><td><select class="inp" aria-label="Track priority" style="height: 34px;"><option selected>1, highest</option><option>2</option><option>3</option></select></td><td><button type="button" class="btn" aria-label="Remove track A" style="padding: 0 8px; color: #4d5866;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></td></tr>
+                  <tr><td><input class="inp" value="B" aria-label="Track key" style="width: 52px; height: 34px;"></td><td><input class="inp" value="Relocation" aria-label="Track name" style="width: 100%; height: 34px;"></td><td><select class="inp" aria-label="Track priority" style="height: 34px;"><option>1, highest</option><option selected>2</option><option>3</option></select></td><td><button type="button" class="btn" aria-label="Remove track B" style="padding: 0 8px; color: #4d5866;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></td></tr>
+                  <tr><td><input class="inp" value="C" aria-label="Track key" style="width: 52px; height: 34px;"></td><td><input class="inp" value="Hands-on lead" aria-label="Track name" style="width: 100%; height: 34px;"></td><td><select class="inp" aria-label="Track priority" style="height: 34px;"><option>1, highest</option><option>2</option><option selected>3</option></select></td><td><button type="button" class="btn" aria-label="Remove track C" style="padding: 0 8px; color: #4d5866;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div><button type="button" class="btn" style="margin-left: -8px;">Add track</button></div>
+          </fieldset>
+
+          <fieldset style="display: flex; flex-direction: column; gap: 10px;">
+            <legend class="lbl" style="margin-bottom: 4px;">Never show these levels</legend>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <button type="button" class="fchip" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Junior</button>
+              <button type="button" class="fchip" aria-pressed="false">Mid</button>
+              <button type="button" class="fchip" aria-pressed="false">Senior</button>
+              <button type="button" class="fchip" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Staff and above</button>
+              <button type="button" class="fchip" aria-pressed="false">Hands-on lead</button>
+              <button type="button" class="fchip" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Managers who don't code</button>
+            </div>
+          </fieldset>
+
+          <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 4px; border-top: 1px solid #dce1dc; padding-top: 16px;">
+            <button type="button" class="btn btn-o">Run search now</button>
+            <button type="button" class="btn btn-c">Save changes</button>
+          </div>
+        </section>
+
+        <section id="cv" class="paper" aria-labelledby="cv-h" style="padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <h2 id="cv-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">CV</h2>
+              <p class="cap">resume-oct-2026.pdf, uploaded Oct 29. Only the text and this profile are stored.</p>
+            </div>
+            <button type="button" class="btn btn-o">Replace CV</button>
+          </div>
+          <p style="font-weight: 600;">Senior software engineer, 8 years, full-stack with a frontend focus</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e2f1eb; color: #0a7356;">React</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">TypeScript</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Node.js</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">C# and .NET</span><span class="chip" style="background: #eceff2; color: #545e6a;">Python</span><span class="chip" style="background: #eceff2; color: #545e6a;">Azure</span><span class="chip" style="background: #eceff2; color: #545e6a;">AWS</span><span class="chip" style="background: #eceff2; color: #545e6a;">LLM integrations</span></div>
+          <p class="cap">Green: core skills. Grey: secondary skills. Leads list their gaps against this profile.</p>
+        </section>
+
+        <section class="paper" aria-labelledby="runs-h" style="overflow: hidden;">
+          <div style="padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+            <h2 id="runs-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Recent runs</h2>
+            <p class="cap">Last 14 runs</p>
+          </div>
+          <div style="overflow-x: auto; border-top: 1px solid #dce1dc;">
+            <table class="tbl">
+              <thead><tr><th scope="col">Started</th><th scope="col">Result</th><th scope="col" class="num">New leads</th><th scope="col" class="num">Suppressed</th><th scope="col" class="num">Closed postings</th><th scope="col" class="num">Web searches</th><th scope="col" class="num">Cost</th></tr></thead>
+              <tbody>
+                <tr><td>Today, 07:00</td><td><span class="chip" style="background: #e2f1eb; color: #0a7356;">Done</span></td><td class="num">24</td><td class="num">9</td><td class="num">3</td><td class="num">58</td><td class="num">US$0.61</td></tr>
+                <tr><td>Oct 28, 07:00</td><td><span class="chip" style="background: #fcefd8; color: #8f5400;">Below target</span></td><td class="num">17</td><td class="num">12</td><td class="num">2</td><td class="num">120</td><td class="num">US$1.08</td></tr>
+                <tr><td>Oct 27, 14:22</td><td><span class="chip" style="background: #fbe8e6; color: #b3261e;">Failed</span><p class="cap">OpenAI timed out in round 2. 6 leads from round 1 were kept.</p></td><td class="num">6</td><td class="num">1</td><td class="num">0</td><td class="num">40</td><td class="num">US$0.39</td></tr>
+                <tr><td>Oct 27, 07:00</td><td><span class="chip" style="background: #e2f1eb; color: #0a7356;">Done</span></td><td class="num">22</td><td class="num">7</td><td class="num">4</td><td class="num">71</td><td class="num">US$0.74</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

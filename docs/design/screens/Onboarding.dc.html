@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Onboarding</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob p,.ob ol{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-c{background:#0a7356;color:#ffffff}
+.ob button:focus-visible,.ob a:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.step{display:flex;align-items:center;gap:10px;flex:1 1 180px;min-width:0}
+.num{flex:0 0 28px;width:28px;height:28px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.tbl{width:100%;border-collapse:collapse;min-width:560px}
+.tbl th{text-align:left;font-size:13px;line-height:18px;font-weight:600;color:#4d5866;background:#ecf0ec;padding:10px 16px;border-bottom:1px solid #dce1dc}
+.tbl td{padding:12px 16px;border-bottom:1px solid #dce1dc}
+.tbl tr:last-child td{border-bottom:none}
+</style>
+</helmet>
+<div class="ob" style="min-height: 1080px; background: #f4f6f3; padding: 32px max(16px, 4vw) 48px; display: flex; flex-direction: column; gap: 28px;">
+  <span style="font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -0.01em;">Offerbound</span>
+  <div style="width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 28px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Set up Offerbound</h1>
+      <p class="cap">Four steps. Only the last one is required; you can come back to the others in Settings.</p>
+    </div>
+
+    <ol aria-label="Setup steps" style="list-style: none; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 8px;">
+      <li class="step"><span class="num" style="background: #0a7356; color: #ffffff;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg></span><span style="font-weight: 600;">Upload your CV</span><span aria-hidden="true" style="flex: 1 1 24px; height: 2px; background: #0a7356;"></span></li>
+      <li class="step" aria-current="step"><span class="num" style="background: #ffffff; color: #0a7356; border: 2px solid #0a7356;">2</span><span style="font-weight: 700; color: #0a7356;">Import your spreadsheet</span><span aria-hidden="true" style="flex: 1 1 24px; height: 2px; background: #dce1dc;"></span></li>
+      <li class="step"><span class="num" style="background: #ecf0ec; color: #4d5866;">3</span><span style="font-weight: 600; color: #4d5866;">Write your search brief</span><span aria-hidden="true" style="flex: 1 1 24px; height: 2px; background: #dce1dc;"></span></li>
+      <li class="step" style="flex-grow: 0;"><span class="num" style="background: #ecf0ec; color: #4d5866;">4</span><span style="font-weight: 600; color: #4d5866;">Start syncing Gmail</span></li>
+    </ol>
+
+    <section class="paper" aria-labelledby="imp-h" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <h2 id="imp-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Import your spreadsheet</h2>
+        <p style="max-width: 680px;">In Google Sheets, open the Applications tab and choose File, Download, Comma-separated values. Add that file here. Offerbound imports it once; from then on it keeps your list current from Gmail.</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #dce1dc; border-radius: 6px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4d5866" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><path d="M14 3v6h6M8 13h8M8 17h8"></path></svg>
+        <div style="flex: 1 1 260px; min-width: 0;"><p style="font-weight: 600; word-break: break-word;">Job Application Tracker - Applications.csv</p><p class="cap">102 rows found under the title rows</p></div>
+        <button type="button" class="btn">Replace file</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <p style="font-size: 14px; line-height: 20px; font-weight: 600;">What will be imported</p>
+        <div style="overflow-x: auto; border: 1px solid #dce1dc; border-radius: 6px;">
+          <table class="tbl">
+            <thead><tr><th scope="col">Status in your sheet</th><th scope="col">Becomes</th><th scope="col" style="text-align: right;">Rows</th></tr></thead>
+            <tbody>
+              <tr><td>To research</td><td>New leads, checked and ranked after import</td><td style="text-align: right;">40</td></tr>
+              <tr><td>Cancelled</td><td>Dismissed leads, kept so their companies aren't suggested again</td><td style="text-align: right;">26</td></tr>
+              <tr><td>Applied</td><td>Applications with status Applied</td><td style="text-align: right;">15</td></tr>
+              <tr><td>Interview</td><td>Applications with status Interviewing</td><td style="text-align: right;">2</td></tr>
+              <tr><td>Rejected</td><td>Applications with status Rejected</td><td style="text-align: right;">18</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div role="alert" style="display: flex; gap: 12px; padding: 12px 14px; border-radius: 6px; background: #fcefd8; color: #5b3a00;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8f5400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg>
+        <p style="font-size: 14px; line-height: 20px;"><span style="font-weight: 700;">1 row will be skipped.</span> Row 58 has the status "Paused", which Offerbound doesn't know. Change it in the sheet and add the file again, or import without it.</p>
+      </div>
+      <p class="cap">Your notes are kept as they are. Gmail sync starts in step 4, so your emails attach to these records instead of creating duplicates.</p>
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 4px;">
+        <button type="button" class="btn">Back</button>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;"><button type="button" class="btn">Skip this step</button><button type="button" class="btn btn-c">Import 101 rows</button></div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

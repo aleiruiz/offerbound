@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kestrel Pay application</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p,.ob dl,.ob dd{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-o{border-color:#0a7356}
+.btn-sm{height:30px;padding:0 8px;font-size:13px}
+.icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:18px;background:none;color:#4d5866;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.ob button:focus-visible,.ob a:focus-visible,.ob textarea:focus-visible,.ob select:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.tl{list-style:none;margin:0;padding:0;position:relative}
+.tl-item{position:relative;display:flex;gap:16px;padding-bottom:22px}
+.tl-item:last-child{padding-bottom:0}
+.tl-rail{position:relative;flex:0 0 20px;display:flex;justify-content:center}
+.tl-rail::after{content:"";position:absolute;top:22px;bottom:-22px;width:3px;background:#dce1dc;border-radius:2px}
+.tl-item:last-child .tl-rail::after{display:none}
+.dt{font-size:13px;line-height:18px;font-weight:600;color:#4d5866}
+.dd{font-size:15px;line-height:22px}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1360px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="applications" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 24px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+    <nav aria-label="Breadcrumb" class="cap"><a href="Applications.dc.html" style="font-weight: 600; text-decoration: none;">Applications</a> / Kestrel Pay</nav>
+
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+        <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Kestrel Pay</h1>
+        <p style="font-size: 18px; line-height: 24px; color: #4d5866;">Senior Frontend Engineer, Payments</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+          <span class="chip" style="background: #e2f1eb; color: #0a7356;">Interviewing</span>
+          <span class="chip" style="background: #eceff2; color: #545e6a;">Remote</span>
+          <span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <label for="status" class="cap" style="font-weight: 600;">Status</label>
+          <select id="status" style="height: 36px; padding: 0 10px; border: 1px solid #7a8580; border-radius: 4px; font: 600 14px/20px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e; background: #ffffff;">
+            <option>Applied</option><option>Screening</option><option>Assessment</option><option selected>Interviewing</option><option>Offer</option><option>Accepted</option><option>Rejected</option><option>Withdrawn</option><option>Abandoned</option>
+          </select>
+        </div>
+        <a class="btn btn-o" href="https://example.com" style="align-self: flex-end;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg>Open posting</a>
+        <button type="button" class="icon-btn" aria-label="More actions" style="align-self: flex-end;"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg></button>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px;">
+      <div style="flex: 2 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+        <section class="paper" aria-labelledby="next-h" style="padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;">
+            <h2 id="next-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Next interview</h2>
+            <button type="button" class="btn btn-sm">Add interview</button>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px 32px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="dt">Technical interview</span>
+              <span style="font-size: 18px; line-height: 24px; font-weight: 700;">Fri, Oct 30, 10:00–11:00</span>
+              <span class="cap">Monterrey time. Invite sent for 11:00–12:00 Eastern.</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span class="dt">Interviewers</span>
+              <span>Priya Natarajan, Tom Salas</span>
+              <a href="https://example.com" style="font-size: 14px; font-weight: 600; text-decoration: none;">Join video call</a>
+            </div>
+          </div>
+          <label for="prep" class="dt">Prep notes</label>
+          <textarea id="prep" rows="3" style="resize: vertical; padding: 10px 12px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/22px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e;">Review the checkout flow migration from their engineering blog. Prepare the design-system story and the accessibility audit numbers.</textarea>
+        </section>
+
+        <section class="paper" aria-labelledby="tl-h" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+            <h2 id="tl-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Timeline</h2>
+            <p class="cap">Filled stop: automatic change. Ring: email. Square: your action.</p>
+          </div>
+          <ol class="tl">
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 10px; background: #0a7356; box-shadow: 0 0 0 3px #ffffff;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 27, 14:12</p>
+                <p><span style="font-weight: 600;">Moved to Interviewing</span> and added a technical interview on Fri, Oct 30 at 10:00.</p>
+                <p class="cap">From an email with a calendar invite. Confidence 96%.</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-left: -8px;">
+                  <button type="button" class="btn btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"></path></svg>Undo</button>
+                  <button type="button" class="btn btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg>View email</button>
+                </div>
+              </div>
+            </li>
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 10px; background: #ffffff; border: 3px solid #4d5866;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 23, 17:30</p>
+                <p><span style="font-weight: 600;">Email from Dana Ortiz</span>, Talent Partner</p>
+                <p class="cap">Thanked you for the call and said the team will share next steps this week.</p>
+                <div style="margin-left: -8px;"><button type="button" class="btn btn-sm">View email</button></div>
+              </div>
+            </li>
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 10px; background: #6a46a8; box-shadow: 0 0 0 3px #ffffff;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 21, 09:05</p>
+                <p><span style="font-weight: 600;">Moved to Screening</span> and added a recruiter screen on Oct 23 at 16:00.</p>
+                <p class="cap">Can't undo: the application changed after this.</p>
+              </div>
+            </li>
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 20px; height: 20px; border-radius: 10px; background: #ffffff; border: 3px solid #4d5866;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 15, 11:40</p>
+                <p><span style="font-weight: 600;">Application received</span> from Kestrel Pay through Ashby</p>
+                <div style="margin-left: -8px;"><button type="button" class="btn btn-sm">View email</button></div>
+              </div>
+            </li>
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 18px; height: 18px; border-radius: 3px; background: #2f55a4; box-shadow: 0 0 0 3px #ffffff;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 15, 11:32</p>
+                <p><span style="font-weight: 600;">You marked the lead as applied</span></p>
+              </div>
+            </li>
+            <li class="tl-item">
+              <div class="tl-rail"><span style="position: relative; z-index: 1; width: 18px; height: 18px; border-radius: 3px; background: #ffffff; border: 3px solid #4d5866;"></span></div>
+              <div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+                <p class="cap">Oct 14, 07:04</p>
+                <p><span style="font-weight: 600;">Lead found</span> by the morning search. Fit 89, Remote from MX.</p>
+              </div>
+            </li>
+          </ol>
+        </section>
+      </div>
+
+      <aside style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+        <section class="paper" aria-labelledby="det-h" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+          <h2 id="det-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Details</h2>
+          <dl style="display: flex; flex-direction: column; gap: 12px;">
+            <div><dt class="dt">Job posting</dt><dd class="dd"><a href="https://example.com" style="text-decoration: none; word-break: break-all;">jobs.ashbyhq.com/kestrel-pay/7f3c…</a></dd></div>
+            <div><dt class="dt">Location</dt><dd class="dd">Remote, open to Mexico</dd></div>
+            <div><dt class="dt">Compensation</dt><dd class="dd" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">US$9.5–11k / month <span class="chip" style="background: #fcefd8; color: #8f5400;">Estimate</span></dd></div>
+            <div><dt class="dt">Contact</dt><dd class="dd">Dana Ortiz, Talent Partner</dd></div>
+            <div><dt class="dt">Applied</dt><dd class="dd">Oct 15</dd></div>
+            <div><dt class="dt">Last reply from company</dt><dd class="dd">Oct 27</dd></div>
+            <div><dt class="dt">Source</dt><dd class="dd">Lead from the morning search, Oct 14</dd></div>
+          </dl>
+        </section>
+        <section class="paper" aria-labelledby="notes-h" style="padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+          <h2 id="notes-h" style="font-size: 18px; line-height: 24px; font-weight: 700;"><label for="notes">Notes</label></h2>
+          <textarea id="notes" rows="5" style="resize: vertical; padding: 10px 12px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/22px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e;">Ask about on-call expectations and the timeline for the payments migration.</textarea>
+          <p class="cap">Saved automatically</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

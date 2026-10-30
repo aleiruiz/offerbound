@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Navigation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+.ob-nav a:focus-visible,.ob-nav button:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+</style>
+</helmet>
+<nav class="ob-nav" aria-label="Main" style="box-sizing: border-box; width: 240px; min-height: 960px; padding: 24px 12px; display: flex; flex-direction: column; gap: 28px; font-family: 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e; background: #ffffff;">
+  <div style="padding: 0 12px; display: flex; flex-direction: column; gap: 2px;">
+    <span style="font-size: 22px; line-height: 28px; font-weight: 800; letter-spacing: -0.01em;">Offerbound</span>
+    <span style="font-size: 13px; line-height: 18px; color: #4d5866;">{{instance}}</span>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <a href="Main.dc.html" aria-current="{{cur.today}}" style="{{s.today}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path><circle cx="12" cy="15.5" r="1.8"></circle></svg>
+      <span style="flex-grow: 1;">Today</span>
+    </a>
+    <a href="Applications.dc.html" aria-current="{{cur.applications}}" style="{{s.applications}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5h6v2M3 12h18"></path></svg>
+      <span style="flex-grow: 1;">Applications</span>
+      <span style="font-size: 13px; color: #4d5866; font-variant-numeric: tabular-nums;">20</span>
+    </a>
+    <a href="Leads.dc.html" aria-current="{{cur.leads}}" style="{{s.leads}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20.5 20.5l-4.8-4.8"></path></svg>
+      <span style="flex-grow: 1;">Leads</span>
+      <span style="font-size: 13px; color: #4d5866; font-variant-numeric: tabular-nums;">24 new</span>
+    </a>
+    <a href="Interviews.dc.html" aria-current="{{cur.interviews}}" style="{{s.interviews}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+      <span style="flex-grow: 1;">Interviews</span>
+      <span style="font-size: 13px; color: #4d5866; font-variant-numeric: tabular-nums;">3</span>
+    </a>
+    <a href="Review.dc.html" aria-current="{{cur.review}}" style="{{s.review}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l2 2 4-4M4 17l2 2 4-4M13 7h7M13 17h7"></path></svg>
+      <span style="flex-grow: 1;">Review</span>
+      <span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #8f5400; color: #ffffff; font-size: 12px; line-height: 22px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums;">4</span>
+    </a>
+    <a href="SettingsSearch.dc.html" aria-current="{{cur.settings}}" style="{{s.settings}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path></svg>
+      <span style="flex-grow: 1;">Settings</span>
+    </a>
+  </div>
+  <div style="margin-top: auto; padding: 12px; border-top: 1px solid #dce1dc; display: flex; flex-direction: column; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 18px; color: #4d5866;" role="status" aria-live="polite">
+      <span style="width: 8px; height: 8px; border-radius: 4px; background: #0a7356; flex-shrink: 0;"></span>
+      <span>Gmail synced 2 min ago</span>
+    </div>
+    <button type="button" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; margin-left: -8px; border: none; border-radius: 6px; background: none; color: #0a7356; font: 600 13px/18px 'Overpass', 'Segoe UI', system-ui, sans-serif; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18 3v4h-4M6 21v-4h4"></path></svg>
+      Sync now
+    </button>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","options":["today","applications","leads","interviews","review","settings"],"default":"today"},"$preview":{"width":240,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'today';
+    const base = 'display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 6px; text-decoration: none; font-size: 15px; line-height: 22px;';
+    const on = base + ' background: #e2f1eb; color: #0a7356; font-weight: 700;';
+    const off = base + ' color: #16202e; font-weight: 600;';
+    const keys = ['today', 'applications', 'leads', 'interviews', 'review', 'settings'];
+    const s = {};
+    const cur = {};
+    keys.forEach((k) => {
+      s[k] = k === active ? on : off;
+      cur[k] = k === active ? 'page' : 'false';
+    });
+    return { s, cur, instance: 'Private: alei.offerbound' };
+  }
+}
+</script>
+</body>
+</html>

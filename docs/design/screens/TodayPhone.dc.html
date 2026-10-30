@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#4fd1a5}a:hover{color:#7fe0bf}
+.ph,.ph *{box-sizing:border-box}
+.ph{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#e7ece9;font-variant-numeric:tabular-nums}
+.ph h1,.ph h2,.ph p,.ph ol{margin:0}
+.cap{font-size:13px;line-height:18px;color:#a7b1ad}
+.sec{background:#151e27;border:1px solid #26313b;border-radius:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;min-width:44px;padding:0 12px;border-radius:6px;border:1px solid #4fd1a5;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#4fd1a5;cursor:pointer}
+.ph button:focus-visible,.ph a:focus-visible{outline:2px solid #4fd1a5;outline-offset:2px}
+.tg{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-top:1px solid #26313b}
+.bar{display:block;height:5px;border-radius:3px;background:#26313b}
+.fill{display:block;height:5px;border-radius:3px;background:#4fd1a5}
+.tabi{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;color:#a7b1ad;text-decoration:none;font-size:12px;line-height:16px;font-weight:600;position:relative}
+</style>
+</helmet>
+<div class="ph" style="width: 390px; height: 844px; overflow: hidden; display: flex; flex-direction: column; background: #0e151c;">
+  <header style="flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; background: #151e27; border-bottom: 1px solid #26313b;">
+    <div>
+      <h1 style="font-size: 22px; line-height: 28px; font-weight: 700;">Today</h1>
+      <p class="cap">Thu, Oct 29. Gmail synced 2 min ago</p>
+    </div>
+    <button type="button" aria-label="Sync now" style="width: 44px; height: 44px; border: none; border-radius: 22px; background: none; color: #a7b1ad; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18 3v4h-4M6 21v-4h4"></path></svg></button>
+  </header>
+
+  <div style="flex: 1 1 auto; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+    <section class="sec" aria-label="Pipeline" style="padding: 14px 12px; display: flex; flex-direction: column; gap: 12px;">
+      <ol style="list-style: none; padding: 0; position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));">
+        <li aria-hidden="true" style="position: absolute; left: 10%; right: 10%; top: 7px; height: 3px; border-radius: 2px; background: #26313b;"></li>
+        <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 16px; height: 16px; border-radius: 8px; background: #9db8f5; box-shadow: 0 0 0 3px #151e27;"></span><span style="font-size: 20px; line-height: 24px; font-weight: 800;">12</span><span style="font-size: 11px; line-height: 14px; font-weight: 600; color: #9db8f5;">Applied</span></li>
+        <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 16px; height: 16px; border-radius: 8px; background: #c7aef5; box-shadow: 0 0 0 3px #151e27;"></span><span style="font-size: 20px; line-height: 24px; font-weight: 800;">3</span><span style="font-size: 11px; line-height: 14px; font-weight: 600; color: #c7aef5;">Screening</span></li>
+        <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 16px; height: 16px; border-radius: 8px; background: #6fd3e3; box-shadow: 0 0 0 3px #151e27;"></span><span style="font-size: 20px; line-height: 24px; font-weight: 800;">2</span><span style="font-size: 11px; line-height: 14px; font-weight: 600; color: #6fd3e3;">Assessment</span></li>
+        <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 16px; height: 16px; border-radius: 8px; background: #4fd1a5; box-shadow: 0 0 0 3px #151e27;"></span><span style="font-size: 20px; line-height: 24px; font-weight: 800;">3</span><span style="font-size: 11px; line-height: 14px; font-weight: 600; color: #4fd1a5;">Interviewing</span></li>
+        <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;"><span style="width: 16px; height: 16px; border-radius: 8px; background: #151e27; border: 2px solid #ebcb5c; box-shadow: 0 0 0 3px #151e27;"></span><span style="font-size: 20px; line-height: 24px; font-weight: 800;">0</span><span style="font-size: 11px; line-height: 14px; font-weight: 600; color: #ebcb5c;">Offer</span></li>
+      </ol>
+      <p class="cap" style="text-align: center;">Closed: 17 rejected, 1 withdrawn, 3 abandoned</p>
+    </section>
+
+    <section class="sec" aria-labelledby="ph-t">
+      <h2 id="ph-t" style="font-size: 16px; line-height: 22px; font-weight: 700; padding: 12px 14px;">Today's targets</h2>
+      <div class="tg">
+        <div style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">Applications</span><span><span style="font-weight: 800;">3</span> <span class="cap">of 8–12</span></span></div>
+        <span class="bar"><span class="fill" style="width: 37%;"></span></span>
+      </div>
+      <div class="tg">
+        <div style="display: flex; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">New leads</span><span><span style="font-weight: 800;">24</span> <span class="cap">of 20–30</span></span></div>
+        <span class="bar"><span class="fill" style="width: 100%;"></span></span>
+      </div>
+      <div class="tg">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">Outreach <span class="cap" style="font-weight: 400;">2 of 5</span></span><button type="button" class="btn" aria-label="Log one outreach message">+1</button></div>
+        <span class="bar"><span class="fill" style="width: 40%;"></span></span>
+      </div>
+      <div class="tg">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;"><span style="font-weight: 600;">Prep <span class="cap" style="font-weight: 400;">30 of 90 min</span></span><button type="button" class="btn">+15</button></div>
+        <span class="bar"><span class="fill" style="width: 33%;"></span></span>
+      </div>
+    </section>
+
+    <section class="sec" aria-labelledby="ph-f">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px;">
+        <h2 id="ph-f" style="font-size: 16px; line-height: 22px; font-weight: 700;">Follow-ups due</h2>
+        <span style="height: 22px; padding: 0 8px; border-radius: 4px; background: #3a2a0e; color: #f2b24c; font-size: 13px; line-height: 22px; font-weight: 600;">3</span>
+      </div>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-top: 1px solid #26313b; text-decoration: none; color: #e7ece9;"><span style="font-weight: 600;">Northwind Robotics</span><span class="cap">No reply for 9 days</span></a>
+      <a href="#" style="display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-top: 1px solid #26313b; text-decoration: none; color: #e7ece9;"><span style="font-weight: 600;">Caldera Energy</span><span class="cap">No reply for 8 days</span></a>
+    </section>
+
+    <section class="sec" aria-labelledby="ph-i">
+      <h2 id="ph-i" style="font-size: 16px; line-height: 22px; font-weight: 700; padding: 12px 14px;">Next interview</h2>
+      <div style="padding: 12px 14px; border-top: 1px solid #26313b; display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-weight: 700;">Fri, Oct 30, 10:00</span>
+        <span>Technical interview</span>
+        <span class="cap">Kestrel Pay</span>
+      </div>
+    </section>
+  </div>
+
+  <nav aria-label="Main" style="flex: 0 0 auto; display: flex; background: #151e27; border-top: 1px solid #26313b; padding: 4px 4px 8px;">
+    <a class="tabi" href="#" aria-current="page" style="color: #4fd1a5;"><span style="display: inline-flex; padding: 2px 16px; border-radius: 14px; background: #12352b;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path><circle cx="12" cy="15.5" r="1.8"></circle></svg></span>Today</a>
+    <a class="tabi" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M9 7V5h6v2M3 12h18"></path></svg>Applications</a>
+    <a class="tabi" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20.5 20.5l-4.8-4.8"></path></svg>Leads</a>
+    <a class="tabi" href="#"><span style="position: relative; display: inline-flex;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7l2 2 4-4M4 17l2 2 4-4M13 7h7M13 17h7"></path></svg><span style="position: absolute; top: -6px; right: -12px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #f2b24c; color: #2a1c00; font-size: 11px; line-height: 18px; font-weight: 700; text-align: center;">4</span></span>Review</a>
+    <a class="tabi" href="#"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>More</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

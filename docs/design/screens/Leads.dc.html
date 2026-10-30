@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leads</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob p{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-c{background:#0a7356;color:#ffffff}
+.btn-o{border-color:#0a7356}
+.btn-sm{height:30px;padding:0 10px;font-size:13px}
+.icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:18px;background:none;color:#4d5866;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.fchip{display:inline-flex;align-items:center;height:32px;padding:0 12px;border-radius:16px;border:1px solid #7a8580;background:#ffffff;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#16202e;cursor:pointer}
+.fchip[aria-pressed="true"]{background:#e2f1eb;border-color:#0a7356;color:#0a7356}
+.tab{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 4px;border:none;border-bottom:3px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#4d5866;cursor:pointer}
+.tab[aria-selected="true"]{color:#0a7356;border-bottom-color:#0a7356}
+.n{font-size:12px;line-height:18px;padding:0 6px;border-radius:9px;background:#ecf0ec;color:#4d5866}
+.ob button:focus-visible,.ob a:focus-visible,.ob select:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.lead{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 16px;padding:16px 20px;border-top:1px solid #dce1dc}
+.fit{width:48px;flex:0 0 48px;text-align:center}
+.fitn{font-size:24px;line-height:28px;font-weight:800}
+.kbd{display:inline-block;min-width:20px;padding:0 5px;border:1px solid #7a8580;border-bottom-width:2px;border-radius:4px;font-size:12px;line-height:18px;text-align:center;color:#16202e;background:#ffffff}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1320px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="leads" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Leads</h1>
+        <p class="cap">This morning's search ran at 07:00: 24 new, 9 suppressed, 3 closed postings dropped.</p>
+      </div>
+      <button type="button" class="btn btn-c"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20.5 20.5l-4.8-4.8"></path></svg>Run search now</button>
+    </header>
+
+    <div role="tablist" aria-label="Lead lists" style="display: flex; flex-wrap: wrap; gap: 24px; border-bottom: 1px solid #dce1dc;">
+      <button type="button" role="tab" class="tab" aria-selected="true">New <span class="n">24</span></button>
+      <button type="button" role="tab" class="tab" aria-selected="false">Shortlisted <span class="n">6</span></button>
+      <button type="button" role="tab" class="tab" aria-selected="false">Applied <span class="n">14</span></button>
+      <button type="button" role="tab" class="tab" aria-selected="false">Dismissed <span class="n">31</span></button>
+      <button type="button" role="tab" class="tab" aria-selected="false">Suppressed <span class="n">9</span></button>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+      <div role="group" aria-label="Filter by track" style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="fchip" aria-pressed="true">All tracks</button>
+        <button type="button" class="fchip" aria-pressed="false">Remote from MX</button>
+        <button type="button" class="fchip" aria-pressed="false">Relocation</button>
+        <button type="button" class="fchip" aria-pressed="false">Hands-on lead</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <label for="lead-sort" class="cap" style="font-weight: 600;">Sort</label>
+        <select id="lead-sort" style="height: 36px; padding: 0 10px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/22px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e; background: #ffffff;"><option>Track, then fit</option><option>Newest first</option></select>
+      </div>
+    </div>
+
+    <section class="paper" aria-label="New leads" style="overflow: hidden;">
+      <div class="lead" style="border-top: none;">
+        <div class="fit"><p class="fitn">91</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Tidewater Labs</span> <span style="color: #4d5866;">Senior Product Engineer</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #eceff2; color: #545e6a;">Remote</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Verified posting</span><span class="chip" style="background: #eceff2; color: #545e6a;">US$10–12k / month</span><span class="chip" style="background: #fcefd8; color: #8f5400;">Estimate</span></div>
+          <p>React, TypeScript and Node match your CV; payments work like your last role.</p>
+          <p class="cap">Gaps: Go. Found by the search at 07:04.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+        </div>
+      </div>
+
+      <div class="lead" style="background: #ecf0ec; outline: 2px solid #0a7356; outline-offset: -2px;" aria-current="true">
+        <div class="fit"><p class="fitn">87</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Kittiwake Systems</span> <span style="color: #4d5866;">Senior Frontend Engineer, Dublin</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #f0eaf8; color: #6a46a8;">Relocation</span><span class="chip" style="background: #eceff2; color: #545e6a;">Hybrid</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Verified posting</span><span class="chip" style="background: #eceff2; color: #545e6a;">€95–110k / year</span></div>
+          <p>Visa sponsorship and relocation are stated in the posting. Design-system and accessibility work.</p>
+          <p class="cap">Gaps: Angular. Found by the search at 07:06.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+        </div>
+      </div>
+
+      <div class="lead">
+        <div class="fit"><p class="fitn">84</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Brightline Learning</span> <span style="color: #4d5866;">Senior Full-stack Engineer (.NET, React)</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #eceff2; color: #545e6a;">Remote</span><span class="chip" style="background: #eceff2; color: #545e6a;">Unverified posting</span></div>
+          <p>Needs both C#/.NET and React, which your CV covers. No salary in the posting.</p>
+          <p class="cap">From a LinkedIn job alert at 06:12. The posting page timed out when checked.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+        </div>
+      </div>
+
+      <div class="lead">
+        <div class="fit"><p class="fitn">81</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Halyard Health</span> <span style="color: #4d5866;">Senior Frontend Engineer</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #fcefd8; color: #8f5400;">Company seen before</span><span class="chip" style="background: #eceff2; color: #545e6a;">US$8.5–10k / month</span></div>
+          <p>A recruiter wrote to you, so this lead is shown even though you were rejected for another Halyard role on Sep 22.</p>
+          <p class="cap">Recruiter email from Sam Lee, Oct 28.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <button type="button" class="icon-btn" aria-label="View recruiter email"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg></button>
+        </div>
+      </div>
+
+      <div class="lead">
+        <div class="fit"><p class="fitn">79</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Cobalt Freightworks</span> <span style="color: #4d5866;">Tech Lead, Platform</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #dff1f4; color: #00687a;">Hands-on lead</span><span class="chip" style="background: #eceff2; color: #545e6a;">Remote</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Verified posting</span><span class="chip" style="background: #eceff2; color: #545e6a;">US$140–165k / year</span></div>
+          <p>Leads a team of four while still coding most of the week. Matches your lead experience.</p>
+          <p class="cap">Gaps: Kubernetes. Found by the search at 07:09.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+        </div>
+      </div>
+
+      <div class="lead">
+        <div class="fit"><p class="fitn">76</p><p class="cap">fit</p></div>
+        <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+          <p><span style="font-weight: 600;">Sable Security</span> <span style="color: #4d5866;">Senior Software Engineer, Frontend</span></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #eceff2; color: #545e6a;">Remote</span><span class="chip" style="background: #eceff2; color: #545e6a;">LinkedIn only, not checked</span></div>
+          <p>Strong React match; security-product domain is new for you.</p>
+          <p class="cap">Gaps: Rust. From a LinkedIn job alert at 06:12.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px;">
+          <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+          <button type="button" class="btn btn-sm">Mark applied</button>
+          <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+          <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+      <p class="cap" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">Keys: <span class="kbd">j</span> <span class="kbd">k</span> move, <span class="kbd">s</span> shortlist, <span class="kbd">d</span> dismiss, <span class="kbd">a</span> mark applied, <span class="kbd">?</span> all shortcuts</p>
+      <button type="button" class="btn btn-o">Show 18 more</button>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1320}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

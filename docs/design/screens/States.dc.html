@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Empty, loading and error states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-c{background:#0a7356;color:#ffffff}
+.btn-o{border-color:#0a7356}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.ob button:focus-visible,.ob a:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.cell{display:flex;flex-direction:column;gap:10px;min-width:0}
+.cell > h2{font-size:14px;line-height:20px;font-weight:700;color:#4d5866}
+.sk{display:block;border-radius:4px;background:#e3e8e3}
+.snack{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 16px;border-radius:6px;background:#16202e;color:#e7ece9;box-shadow:0 8px 24px rgba(22,32,46,0.16)}
+</style>
+</helmet>
+<div class="ob" style="width: 1440px; height: 1280px; box-sizing: border-box; padding: 40px; background: #f4f6f3; display: flex; flex-direction: column; gap: 28px;">
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">States</h1>
+    <p class="cap">How each screen looks with no data, while loading, and when something goes wrong.</p>
+  </div>
+
+  <div class="cell">
+    <h2>Gmail needs reconnecting (shown under the top bar on every page)</h2>
+    <div role="alert" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px 16px; border-radius: 6px; background: #fcefd8; color: #5b3a00;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8f5400" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"></path><path d="M12 10v4M12 17v.5"></path></svg>
+      <p style="flex: 1 1 520px; font-size: 14px; line-height: 20px;"><span style="font-weight: 700;">Gmail needs reconnecting.</span> Google stopped Offerbound's access on Oct 29 at 14:02, so new email isn't being read. Your records are safe.</p>
+      <button type="button" class="btn btn-o" style="border-color: #8f5400; color: #8f5400;">Reconnect Gmail</button>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 24px;">
+    <div class="cell">
+      <h2>First sync in progress</h2>
+      <div class="paper" style="padding: 18px; display: flex; flex-direction: column; gap: 10px;" role="status" aria-live="polite">
+        <p style="font-weight: 600;">Reading your email since Sep 1</p>
+        <span role="progressbar" aria-label="First sync" aria-valuenow="56" aria-valuemin="0" aria-valuemax="100" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 56%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+        <p class="cap">1,204 of 2,148 checked. Applications update as emails are read; follow-up timers start when this finishes.</p>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Empty: applications</h2>
+      <div class="paper" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 18px; line-height: 24px; font-weight: 700;">No applications yet</p>
+        <p class="cap" style="font-size: 14px; line-height: 20px;">Import your spreadsheet or start syncing Gmail, and your applications show up here.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;"><button type="button" class="btn btn-c">Import spreadsheet</button><button type="button" class="btn btn-o">Start syncing Gmail</button></div>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Empty: follow-ups</h2>
+      <div class="paper" style="padding: 24px; display: flex; flex-direction: column; gap: 8px;">
+        <p style="font-weight: 700;">No follow-ups due</p>
+        <p class="cap" style="font-size: 14px; line-height: 20px;">Applications without a reply from the company for 7 days show up here.</p>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Loading a list</h2>
+      <div class="paper" aria-busy="true" aria-label="Loading leads" style="overflow: hidden;">
+        <div style="display: flex; gap: 14px; padding: 16px 18px;"><span class="sk" style="width: 40px; height: 36px;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 8px;"><span class="sk" style="width: 60%; height: 14px;"></span><span class="sk" style="width: 85%; height: 12px;"></span></div></div>
+        <div style="display: flex; gap: 14px; padding: 16px 18px; border-top: 1px solid #dce1dc;"><span class="sk" style="width: 40px; height: 36px;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 8px;"><span class="sk" style="width: 52%; height: 14px;"></span><span class="sk" style="width: 78%; height: 12px;"></span></div></div>
+        <div style="display: flex; gap: 14px; padding: 16px 18px; border-top: 1px solid #dce1dc;"><span class="sk" style="width: 40px; height: 36px;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 8px;"><span class="sk" style="width: 66%; height: 14px;"></span><span class="sk" style="width: 70%; height: 12px;"></span></div></div>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Error where the data would be</h2>
+      <div role="alert" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 6px; background: #fbe8e6; color: #5c1612;">
+        <p style="font-size: 14px; line-height: 20px;"><span style="font-weight: 700; color: #b3261e;">Couldn't load leads.</span> The server didn't answer within 10 seconds.</p>
+        <button type="button" class="btn btn-o" style="align-self: flex-start; border-color: #b3261e; color: #b3261e;">Try again</button>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Search running</h2>
+      <div class="paper" style="padding: 18px; display: flex; flex-direction: column; gap: 10px;" role="status" aria-live="polite">
+        <p style="font-weight: 600;">Searching for new leads</p>
+        <span aria-hidden="true" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc; overflow: hidden;"><span style="display: block; width: 35%; height: 6px; margin-left: 30%; border-radius: 3px; background: #0a7356;"></span></span>
+        <p class="cap">Round 2 of 3. 17 new leads so far. You can keep working; they appear in Leads when it finishes.</p>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>After an action</h2>
+      <div class="snack" role="status"><span style="font-size: 14px;">Marked as applied</span><button type="button" class="btn" style="height: 32px; color: #4fd1a5;">Undo</button></div>
+      <div class="snack" role="status"><span style="font-size: 14px;">Dismissed Sable Security</span><button type="button" class="btn" style="height: 32px; color: #4fd1a5;">Undo</button></div>
+    </div>
+
+    <div class="cell">
+      <h2>Undo not possible</h2>
+      <div class="snack" role="alert"><span style="font-size: 14px; flex: 1 1 260px;">Can't undo: this application changed after the update. Edit it directly.</span></div>
+    </div>
+
+    <div class="cell">
+      <h2>Suppressed lead</h2>
+      <div class="paper" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+        <p><span style="font-weight: 600;">Pinecrest Media</span> <span style="color: #4d5866;">Senior Frontend Engineer</span></p>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #eceff2; color: #545e6a;">Company already seen</span></div>
+        <p class="cap">You already applied to Pinecrest Media on Oct 10. Hidden by your rule to never repeat a company.</p>
+        <button type="button" class="btn btn-o" style="align-self: flex-start; height: 30px; font-size: 13px;">Reconsider</button>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>Signed in with the wrong account</h2>
+      <div role="alert" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 6px; background: #fbe8e6; color: #5c1612;">
+        <p style="font-size: 14px; line-height: 20px;"><span style="font-weight: 700; color: #b3261e;">This Offerbound is private.</span> someone@gmail.com isn't its owner, so nothing was saved.</p>
+        <button type="button" class="btn btn-o" style="align-self: flex-start; border-color: #b3261e; color: #b3261e;">Use another account</button>
+      </div>
+    </div>
+
+    <div class="cell">
+      <h2>An email couldn't be read (review queue)</h2>
+      <div class="paper" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+        <span class="chip" style="background: #fbe8e6; color: #b3261e; align-self: flex-start;">Couldn't read</span>
+        <p style="font-weight: 600;">Email from Juniper Bank, Oct 28</p>
+        <p class="cap">OpenAI's answer couldn't be used, twice. No records were changed.</p>
+        <div style="display: flex; gap: 8px;"><button type="button" class="btn btn-o" style="height: 30px; font-size: 13px;">Try again</button><button type="button" class="btn" style="height: 30px; font-size: 13px;">Dismiss</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cell">
+    <h2>Public demo banner (Release 1.1)</h2>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 16px; border-radius: 6px; background: #16202e; color: #e7ece9;">
+      <p style="flex: 1 1 520px; font-size: 14px; line-height: 20px;"><span style="font-weight: 700;">Demo with made-up data.</span> Everything resets every hour. Writing notes and importing files are turned off.</p>
+      <button type="button" class="btn" style="border: 1px solid #4fd1a5; color: #4fd1a5;">Simulate an incoming email</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1280}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

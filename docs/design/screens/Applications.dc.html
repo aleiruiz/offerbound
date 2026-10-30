@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Applications</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob p{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-o{border-color:#0a7356}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:1px solid #7a8580;background:#ffffff;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#16202e;cursor:pointer}
+.fchip[aria-pressed="true"]{background:#e2f1eb;border-color:#0a7356;color:#0a7356}
+.ob button:focus-visible,.ob a:focus-visible,.ob input:focus-visible,.ob select:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.tbl{width:100%;border-collapse:collapse;min-width:880px}
+.tbl th{text-align:left;font-size:13px;line-height:18px;font-weight:600;color:#4d5866;background:#ecf0ec;padding:10px 16px;border-bottom:1px solid #dce1dc}
+.tbl td{padding:12px 16px;border-bottom:1px solid #dce1dc;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1040px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="applications" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 20px;">
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Applications</h1>
+        <p class="cap">41 applications, 20 still open. Updated from Gmail every 5 minutes.</p>
+      </div>
+      <button type="button" class="btn btn-o">Add application</button>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+      <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 280px; max-width: 360px;">
+        <label for="app-search" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #4d5866;">Search</label>
+        <input id="app-search" type="search" placeholder="Company or role" style="height: 40px; padding: 0 12px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/22px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e; background: #ffffff;">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label for="app-sort" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #4d5866;">Sort by</label>
+        <select id="app-sort" style="height: 40px; padding: 0 12px; border: 1px solid #7a8580; border-radius: 4px; font: 400 15px/22px 'Overpass', 'Segoe UI', system-ui, sans-serif; color: #16202e; background: #ffffff;">
+          <option>Last activity</option>
+          <option>Applied date</option>
+          <option>Status</option>
+        </select>
+      </div>
+      <label style="display: inline-flex; align-items: center; gap: 10px; margin-top: 22px; font-size: 15px; cursor: pointer;">
+        <span aria-hidden="true" style="position: relative; width: 36px; height: 20px; border-radius: 10px; background: #7a8580;"><span style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 8px; background: #ffffff;"></span></span>
+        <input type="checkbox" role="switch" style="position: absolute; opacity: 0; width: 1px; height: 1px;">
+        Follow-up due only
+      </label>
+    </div>
+
+    <div role="group" aria-label="Filter by status" style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <button type="button" class="fchip" aria-pressed="true">All 41</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #2f55a4;"></span>Applied 12</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #6a46a8;"></span>Screening 3</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #00687a;"></span>Assessment 2</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #0a7356;"></span>Interviewing 3</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #755600;"></span>Offer 0</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #9b2c22;"></span>Rejected 17</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; background: #545e6a;"></span>Withdrawn 1</button>
+      <button type="button" class="fchip" aria-pressed="false"><span style="width: 8px; height: 8px; border-radius: 4px; border: 1px dashed #545e6a;"></span>Abandoned 3</button>
+    </div>
+
+    <section class="paper" aria-label="Applications" style="overflow-x: auto;">
+      <table class="tbl">
+        <thead>
+          <tr><th scope="col">Company and role</th><th scope="col">Status</th><th scope="col">Last reply from company</th><th scope="col">Next interview</th><th scope="col">Applied</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Kestrel Pay</a><p class="cap">Senior Frontend Engineer, Payments</p></td>
+            <td><span class="chip" style="background: #e2f1eb; color: #0a7356;">Interviewing</span></td>
+            <td>2 days ago<p class="cap">Oct 27</p></td>
+            <td>Fri, Oct 30, 10:00</td>
+            <td>Oct 15</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Arbor Analytics</a><p class="cap">Senior Product Engineer, Data</p></td>
+            <td><span class="chip" style="background: #e2f1eb; color: #0a7356;">Interviewing</span></td>
+            <td>Yesterday<p class="cap">Oct 28</p></td>
+            <td>Wed, Nov 4, 12:00</td>
+            <td>Oct 19</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Lumen Health</a><p class="cap">Senior Frontend Engineer</p></td>
+            <td><span class="chip" style="background: #f0eaf8; color: #6a46a8;">Screening</span></td>
+            <td>3 days ago<p class="cap">Oct 26</p></td>
+            <td>Mon, Nov 2, 16:30</td>
+            <td>Oct 16</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Meridian Freight</a><p class="cap">Tech Lead, Web</p></td>
+            <td><span class="chip" style="background: #e2f1eb; color: #0a7356;">Interviewing</span></td>
+            <td>4 days ago<p class="cap">Oct 25</p></td>
+            <td><span class="chip" style="background: #fcefd8; color: #8f5400;">To schedule</span></td>
+            <td>Oct 13</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Quarry AI</a><p class="cap">Senior Software Engineer</p></td>
+            <td><span class="chip" style="background: #dff1f4; color: #00687a;">Assessment</span><p class="cap">Due Nov 1</p></td>
+            <td>5 days ago<p class="cap">Oct 24</p></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 18</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Northwind Robotics</a><p class="cap">Senior Full-stack Engineer</p></td>
+            <td><div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Applied</span><span class="chip" style="background: #fcefd8; color: #8f5400;">Follow-up due</span></div></td>
+            <td><span class="cap">No reply yet</span></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 20</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Caldera Energy</a><p class="cap">Senior Software Engineer, Platform</p></td>
+            <td><div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Applied</span><span class="chip" style="background: #fcefd8; color: #8f5400;">Follow-up due</span></div></td>
+            <td>8 days ago<p class="cap">Oct 21</p></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 17</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Juniper Bank</a><p class="cap">Senior Software Engineer, .NET</p></td>
+            <td><span class="chip" style="background: #e7edf9; color: #2f55a4;">Applied</span></td>
+            <td>Yesterday<p class="cap">Oct 28, application received</p></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 28</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Pinecrest Media</a><p class="cap">Senior React Engineer</p></td>
+            <td><span class="chip" style="background: #fbe8e6; color: #9b2c22;">Rejected</span></td>
+            <td>6 days ago<p class="cap">Oct 23</p></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 10</td>
+          </tr>
+          <tr>
+            <td><a href="ApplicationDetail.dc.html" style="font-weight: 600; color: #16202e; text-decoration: none;">Orchard Retail</a><p class="cap">Senior Frontend Developer</p></td>
+            <td><span class="chip" style="background: #eceff2; color: #545e6a; border: 1px dashed #545e6a;">Abandoned</span></td>
+            <td>20 days ago<p class="cap">Oct 9</p></td>
+            <td><span class="cap">None</span></td>
+            <td>Oct 6</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+      <p class="cap">Showing 10 of 41</p>
+      <button type="button" class="btn btn-o">Show more</button>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1040}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

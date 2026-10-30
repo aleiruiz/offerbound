@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings: Gmail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p,.ob ul,.ob dl,.ob dd{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-o{border-color:#0a7356}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.snav{display:flex;align-items:center;height:40px;padding:0 12px;border-radius:6px;text-decoration:none;color:#16202e;font-weight:600;font-size:14px}
+.ob button:focus-visible,.ob a:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.stat{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-left:1px solid #dce1dc}
+.statn{font-size:28px;line-height:32px;font-weight:800}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1100px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="settings" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 24px;">
+    <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Settings</h1>
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px;">
+      <nav aria-label="Settings sections" style="flex: 1 1 180px; max-width: 220px; display: flex; flex-direction: column; gap: 2px;">
+        <a class="snav" href="SettingsGmail.dc.html" aria-current="page" style="background: #e2f1eb; color: #0a7356; font-weight: 700;">Gmail</a>
+        <a class="snav" href="SettingsSearch.dc.html">Job search</a>
+        <a class="snav" href="SettingsSearch.dc.html">CV</a>
+        <a class="snav" href="#">Daily targets</a>
+        <a class="snav" href="#">Timers</a>
+        <a class="snav" href="#">Automation</a>
+        <a class="snav" href="Onboarding.dc.html">Import</a>
+        <a class="snav" href="#">AI usage</a>
+        <a class="snav" href="#">Data</a>
+      </nav>
+
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+        <section class="paper" aria-labelledby="gm-h" style="padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+          <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                <h2 id="gm-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Gmail</h2>
+                <span class="chip" style="background: #e2f1eb; color: #0a7356;">Connected</span>
+              </div>
+              <p>you@gmail.com, read-only access</p>
+              <p class="cap">Last checked 2 minutes ago. New email is checked every 5 minutes.</p>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <button type="button" class="btn btn-o"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18 3v4h-4M6 21v-4h4"></path></svg>Sync now</button>
+              <button type="button" class="btn" style="color: #b3261e;">Disconnect Gmail</button>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;"><span style="font-size: 14px; line-height: 20px; font-weight: 600;">Email since Sep 1</span><span class="cap">2,148 of 2,148 checked</span></div>
+            <span role="progressbar" aria-label="First sync progress" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 100%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); border: 1px solid #dce1dc; border-radius: 6px; margin-left: 0;">
+            <div class="stat" style="border-left: none;"><span class="statn">0</span><span class="cap">New, not checked yet</span></div>
+            <div class="stat"><span class="statn">2</span><span class="cap">Job emails being read</span></div>
+            <div class="stat"><span class="statn">0</span><span class="cap">Ready to update records</span></div>
+            <div class="stat"><a href="Review.dc.html" style="text-decoration: none; display: flex; flex-direction: column; gap: 2px;"><span class="statn">4</span><span style="font-size: 13px; line-height: 18px; font-weight: 600;">Waiting for your review</span></a></div>
+            <div class="stat"><span class="statn" style="color: #b3261e;">1</span><span class="cap">Couldn't be read</span><button type="button" class="btn" style="height: 28px; padding: 0; justify-content: flex-start; font-size: 13px;">Try again</button></div>
+          </div>
+        </section>
+
+        <section class="paper" aria-labelledby="reads-h" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+          <h2 id="reads-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">What Offerbound reads</h2>
+          <ul style="padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 760px;">
+            <li>Emails from job sites, hiring systems like Ashby or Greenhouse, and companies you've applied to are read in full and sent to OpenAI to update your records.</li>
+            <li>For any other email, only the sender, subject and the short preview Gmail shows are sent to OpenAI, to decide whether it's about your job search.</li>
+            <li>Promotions and forum emails that don't come from a job source are skipped without being sent anywhere.</li>
+            <li>Emails you send are only read when they go to a company or recruiter you're in touch with, to count follow-ups.</li>
+            <li>For emails that aren't about your search, Offerbound keeps only the message id and date.</li>
+          </ul>
+          <p class="cap">Add senders to ignore in Settings, Automation.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

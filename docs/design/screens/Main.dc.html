@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Today</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+body{margin:0}
+a{color:#0a7356}a:hover{color:#075a43}
+.ob,.ob *{box-sizing:border-box}
+.ob{font-family:'Overpass','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:22px;color:#16202e;font-variant-numeric:tabular-nums}
+.ob h1,.ob h2,.ob h3,.ob p{margin:0}
+.paper{background:#ffffff;border:1px solid #dce1dc;border-radius:6px}
+.cap{font-size:13px;line-height:18px;color:#4d5866}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 14px;border-radius:6px;border:1px solid transparent;background:none;font:600 14px/20px 'Overpass','Segoe UI',system-ui,sans-serif;color:#0a7356;text-decoration:none;white-space:nowrap;cursor:pointer}
+.btn-c{background:#0a7356;color:#ffffff}
+.btn-o{border-color:#0a7356}
+.btn-sm{height:30px;padding:0 10px;font-size:13px}
+.icon-btn{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:18px;background:none;color:#4d5866;cursor:pointer}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:4px;font-size:13px;line-height:18px;font-weight:600;white-space:nowrap}
+.ob button:focus-visible,.ob a:focus-visible{outline:2px solid #0a7356;outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 20px;border-top:1px solid #dce1dc}
+</style>
+</helmet>
+<div class="ob" style="display: flex; flex-wrap: wrap; min-height: 1360px; background: #f4f6f3;">
+  <div style="flex: 0 0 240px; background: #ffffff; border-right: 1px solid #dce1dc;">
+    <dc-import name="Nav" active="today" hint-size="240px,960px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; max-width: 1240px; padding: 32px 32px 48px; display: flex; flex-direction: column; gap: 24px;">
+
+    <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <h1 style="font-size: 24px; line-height: 32px; font-weight: 700;">Today</h1>
+        <p class="cap">Thursday, October 29</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+        <button type="button" class="btn btn-o">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M20.5 20.5l-4.8-4.8"></path></svg>
+          Run search now
+        </button>
+      </div>
+    </header>
+
+    <section class="paper" aria-labelledby="pipeline-h" style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <h2 id="pipeline-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Pipeline</h2>
+        <p class="cap">41 applications. Response rate 46%. Reached screening or later 20%.</p>
+      </div>
+      <div style="overflow-x: auto;">
+        <div style="min-width: 640px; display: flex; flex-direction: column; gap: 16px;">
+          <ol aria-label="Active applications by stage" style="list-style: none; margin: 0; padding: 0; position: relative; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));">
+            <li aria-hidden="true" style="position: absolute; left: 10%; right: 10%; top: 10px; height: 4px; border-radius: 2px; background: #dce1dc;"></li>
+            <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+              <span style="width: 24px; height: 24px; border-radius: 12px; background: #2f55a4; box-shadow: 0 0 0 4px #ffffff;"></span>
+              <a href="Applications.dc.html" style="display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #16202e;"><span style="font-size: 32px; line-height: 36px; font-weight: 800;">12</span><span style="font-size: 14px; line-height: 20px; font-weight: 600; color: #2f55a4;">Applied</span></a>
+            </li>
+            <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+              <span style="width: 24px; height: 24px; border-radius: 12px; background: #6a46a8; box-shadow: 0 0 0 4px #ffffff;"></span>
+              <a href="Applications.dc.html" style="display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #16202e;"><span style="font-size: 32px; line-height: 36px; font-weight: 800;">3</span><span style="font-size: 14px; line-height: 20px; font-weight: 600; color: #6a46a8;">Screening</span></a>
+            </li>
+            <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+              <span style="width: 24px; height: 24px; border-radius: 12px; background: #00687a; box-shadow: 0 0 0 4px #ffffff;"></span>
+              <a href="Applications.dc.html" style="display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #16202e;"><span style="font-size: 32px; line-height: 36px; font-weight: 800;">2</span><span style="font-size: 14px; line-height: 20px; font-weight: 600; color: #00687a;">Assessment</span></a>
+            </li>
+            <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+              <span style="width: 24px; height: 24px; border-radius: 12px; background: #0a7356; box-shadow: 0 0 0 4px #ffffff;"></span>
+              <a href="Applications.dc.html" style="display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #16202e;"><span style="font-size: 32px; line-height: 36px; font-weight: 800;">3</span><span style="font-size: 14px; line-height: 20px; font-weight: 600; color: #0a7356;">Interviewing</span></a>
+            </li>
+            <li style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;">
+              <span style="width: 24px; height: 24px; border-radius: 12px; background: #ffffff; border: 3px solid #755600; box-shadow: 0 0 0 4px #ffffff;"></span>
+              <a href="Applications.dc.html" style="display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #16202e;"><span style="font-size: 32px; line-height: 36px; font-weight: 800;">0</span><span style="font-size: 14px; line-height: 20px; font-weight: 600; color: #755600;">Offer</span></a>
+            </li>
+          </ol>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 4%;">
+            <span aria-hidden="true" style="width: 28px; height: 16px; border-left: 3px solid #dce1dc; border-bottom: 3px solid #dce1dc; border-bottom-left-radius: 6px; margin-top: -12px;"></span>
+            <span class="cap" style="font-weight: 600;">Closed</span>
+            <span class="chip" style="background: #fbe8e6; color: #9b2c22;">Rejected 17</span>
+            <span class="chip" style="background: #eceff2; color: #545e6a;">Withdrawn 1</span>
+            <span class="chip" style="background: #eceff2; color: #545e6a; border: 1px dashed #545e6a;">Abandoned 3</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="paper" aria-labelledby="targets-h" style="padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <h2 id="targets-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Today's targets</h2>
+        <p class="cap">Counts reset at midnight, Monterrey time</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 20px 24px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 14px; line-height: 20px; font-weight: 600;">Applications</span>
+          <span><span style="font-size: 32px; line-height: 36px; font-weight: 800;">3</span> <span class="cap">of 8–12</span></span>
+          <span role="progressbar" aria-label="Applications today" aria-valuenow="3" aria-valuemin="0" aria-valuemax="8" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 37%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          <a href="Leads.dc.html" style="font-size: 13px; line-height: 18px; font-weight: 600; text-decoration: none;">Pick from 6 shortlisted</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 14px; line-height: 20px; font-weight: 600;">New leads</span>
+          <span><span style="font-size: 32px; line-height: 36px; font-weight: 800;">24</span> <span class="cap">of 20–30</span></span>
+          <span role="progressbar" aria-label="New leads today" aria-valuenow="24" aria-valuemin="0" aria-valuemax="20" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 100%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          <span class="cap">Target met</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 14px; line-height: 20px; font-weight: 600;">Outreach</span>
+          <span><span style="font-size: 32px; line-height: 36px; font-weight: 800;">2</span> <span class="cap">of 5</span></span>
+          <span role="progressbar" aria-label="Outreach today" aria-valuenow="2" aria-valuemin="0" aria-valuemax="5" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 40%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          <div style="display: flex; gap: 6px;"><button type="button" class="btn btn-o btn-sm" aria-label="Log one outreach message">+1 message</button></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 14px; line-height: 20px; font-weight: 600;">Follow-ups</span>
+          <span><span style="font-size: 32px; line-height: 36px; font-weight: 800;">1</span> <span class="cap">of 3–5</span></span>
+          <span role="progressbar" aria-label="Follow-ups today" aria-valuenow="1" aria-valuemin="0" aria-valuemax="3" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 33%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          <span class="cap">Counted from your sent mail</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 14px; line-height: 20px; font-weight: 600;">Interview prep</span>
+          <span><span style="font-size: 32px; line-height: 36px; font-weight: 800;">30</span> <span class="cap">of 90 min</span></span>
+          <span role="progressbar" aria-label="Interview prep minutes today" aria-valuenow="30" aria-valuemin="0" aria-valuemax="90" style="display: block; height: 6px; border-radius: 3px; background: #dce1dc;"><span style="display: block; width: 33%; height: 6px; border-radius: 3px; background: #0a7356;"></span></span>
+          <div style="display: flex; gap: 6px;"><button type="button" class="btn btn-o btn-sm">+15</button><button type="button" class="btn btn-o btn-sm">+30</button><button type="button" class="btn btn-o btn-sm">+60</button></div>
+        </div>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px;">
+      <div style="flex: 2 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 24px;">
+
+        <section class="paper" aria-labelledby="fu-h">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 20px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 id="fu-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Follow-ups due</h2>
+              <span class="chip" style="background: #fcefd8; color: #8f5400;">3</span>
+            </div>
+            <p class="cap">No reply from the company for 7 days or more</p>
+          </div>
+          <div class="row">
+            <div style="flex: 1 1 260px; min-width: 0;">
+              <p style="font-weight: 600;">Northwind Robotics</p>
+              <p class="cap">Senior Full-stack Engineer. Applied Oct 20, no reply for 9 days.</p>
+            </div>
+            <div style="display: flex; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Mark followed up</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open</a></div>
+          </div>
+          <div class="row">
+            <div style="flex: 1 1 260px; min-width: 0;">
+              <p style="font-weight: 600;">Caldera Energy</p>
+              <p class="cap">Senior Software Engineer, Platform. Last email from the recruiter Oct 21.</p>
+            </div>
+            <div style="display: flex; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Mark followed up</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open</a></div>
+          </div>
+          <div class="row">
+            <div style="flex: 1 1 260px; min-width: 0;">
+              <p style="font-weight: 600;">Halcyon Games</p>
+              <p class="cap">Senior Frontend Engineer. Applied Oct 22, no reply for 7 days.</p>
+            </div>
+            <div style="display: flex; gap: 4px;"><button type="button" class="btn btn-o btn-sm">Mark followed up</button><a class="btn btn-sm" href="ApplicationDetail.dc.html">Open</a></div>
+          </div>
+          <p class="cap" style="padding: 12px 20px 16px; border-top: 1px solid #dce1dc;">After 14 days without a reply, an application is marked Abandoned. A reply reopens it.</p>
+        </section>
+
+        <section class="paper" aria-labelledby="rv-h">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 20px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h2 id="rv-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Needs your review</h2>
+              <span class="chip" style="background: #fcefd8; color: #8f5400;">4</span>
+            </div>
+            <a href="Review.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none;">Open review queue</a>
+          </div>
+          <div class="row">
+            <div style="flex: 1 1 260px; min-width: 0;">
+              <p style="font-weight: 600;">Which Arbor Analytics application is this email about?</p>
+              <p class="cap">Email Oct 28, "Next steps for your application". Two open applications match.</p>
+            </div>
+            <a class="btn btn-o btn-sm" href="Review.dc.html">Review</a>
+          </div>
+          <div class="row">
+            <div style="flex: 1 1 260px; min-width: 0;">
+              <p style="font-weight: 600;">Rejection from Quarry AI?</p>
+              <p class="cap">Would change Assessment to Rejected. Confidence 64%, below your 80% threshold.</p>
+            </div>
+            <a class="btn btn-o btn-sm" href="Review.dc.html">Review</a>
+          </div>
+        </section>
+
+        <section class="paper" aria-labelledby="ld-h">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 20px;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <h2 id="ld-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Top new leads</h2>
+              <p class="cap">From this morning's 07:00 search and 2 job alerts</p>
+            </div>
+            <a href="Leads.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none;">See all 24</a>
+          </div>
+          <div class="row" style="align-items: flex-start;">
+            <div style="width: 44px; text-align: center;"><p style="font-size: 22px; line-height: 28px; font-weight: 800;">91</p><p class="cap">fit</p></div>
+            <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+              <p><span style="font-weight: 600;">Tidewater Labs</span> <span style="color: #4d5866;">Senior Product Engineer</span></p>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Verified posting</span><span class="chip" style="background: #fcefd8; color: #8f5400;">US$10–12k / month, estimate</span></div>
+              <p class="cap">React, TypeScript and Node match your CV; payments work like your last role. Gap: Go.</p>
+            </div>
+            <div style="display: flex; gap: 2px;">
+              <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+              <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+              <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+            </div>
+          </div>
+          <div class="row" style="align-items: flex-start;">
+            <div style="width: 44px; text-align: center;"><p style="font-size: 22px; line-height: 28px; font-weight: 800;">87</p><p class="cap">fit</p></div>
+            <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+              <p><span style="font-weight: 600;">Kittiwake Systems</span> <span style="color: #4d5866;">Senior Frontend Engineer, Dublin</span></p>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #f0eaf8; color: #6a46a8;">Relocation</span><span class="chip" style="background: #e2f1eb; color: #0a7356;">Verified posting</span><span class="chip" style="background: #eceff2; color: #545e6a;">€95–110k / year</span></div>
+              <p class="cap">Sponsorship and relocation stated in the posting. Accessibility and design-system work.</p>
+            </div>
+            <div style="display: flex; gap: 2px;">
+              <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+              <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+              <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+            </div>
+          </div>
+          <div class="row" style="align-items: flex-start;">
+            <div style="width: 44px; text-align: center;"><p style="font-size: 22px; line-height: 28px; font-weight: 800;">84</p><p class="cap">fit</p></div>
+            <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+              <p><span style="font-weight: 600;">Brightline Learning</span> <span style="color: #4d5866;">Senior Full-stack Engineer (.NET, React)</span></p>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;"><span class="chip" style="background: #e7edf9; color: #2f55a4;">Remote from MX</span><span class="chip" style="background: #eceff2; color: #545e6a;">Unverified posting</span></div>
+              <p class="cap">C#/.NET and React both required, which few candidates cover. From a LinkedIn job alert.</p>
+            </div>
+            <div style="display: flex; gap: 2px;">
+              <button type="button" class="btn btn-o btn-sm">Shortlist</button>
+              <button type="button" class="icon-btn" aria-label="Dismiss lead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+              <a class="icon-btn" href="https://example.com" aria-label="Open job posting"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <aside style="flex: 1 1 320px; min-width: 0;">
+        <section class="paper" aria-labelledby="iv-h">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 20px;">
+            <h2 id="iv-h" style="font-size: 18px; line-height: 24px; font-weight: 700;">Next 7 days</h2>
+            <a href="Interviews.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none;">All interviews</a>
+          </div>
+          <div style="padding: 14px 20px; border-top: 1px solid #dce1dc; display: flex; flex-direction: column; gap: 6px;">
+            <p class="cap" style="font-weight: 600;">Fri, Oct 30</p>
+            <p><span style="font-weight: 700;">10:00–11:00</span> Technical interview</p>
+            <p class="cap">Kestrel Pay, Senior Frontend Engineer, Payments</p>
+            <a href="https://example.com" style="font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"></rect><path d="M16 10l5-3v10l-5-3"></path></svg>Join video call</a>
+          </div>
+          <div style="padding: 14px 20px; border-top: 1px solid #dce1dc; display: flex; flex-direction: column; gap: 6px;">
+            <p class="cap" style="font-weight: 600;">Mon, Nov 2</p>
+            <p><span style="font-weight: 700;">16:30–17:00</span> Recruiter screen</p>
+            <p class="cap">Lumen Health, Senior Frontend Engineer</p>
+          </div>
+          <div style="padding: 14px 20px; border-top: 1px solid #dce1dc; display: flex; flex-direction: column; gap: 6px;">
+            <p class="cap" style="font-weight: 600;">Wed, Nov 4</p>
+            <p><span style="font-weight: 700;">12:00–13:30</span> System design</p>
+            <p class="cap">Arbor Analytics, Senior Product Engineer, Data</p>
+          </div>
+          <div style="padding: 14px 20px 18px; border-top: 1px solid #dce1dc; display: flex; flex-direction: column; gap: 6px; background: #fcefd8;">
+            <p style="font-size: 13px; line-height: 18px; font-weight: 600; color: #8f5400;">To schedule</p>
+            <p>Hiring manager interview</p>
+            <p class="cap" style="color: #5b3a00;">Meridian Freight, Tech Lead, Web</p>
+            <a href="https://example.com" style="font-size: 14px; font-weight: 600; text-decoration: none; color: #8f5400;">Pick a time</a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1360}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
