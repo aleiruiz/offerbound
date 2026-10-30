@@ -303,7 +303,7 @@ A message that fails in the apply stage (a stored extraction that no longer pars
 | `kind` | intake_batch_kind | no | |
 | `search_run_id` | uuid | yes | FK `search_run` |
 | `message_id` | text | yes | FK `gmail_message.id`, `on delete set null` |
-| `file_hash` | text | yes | **unique where not null** — SHA-256 of an imported file (AC-14.5) |
+| `file_hash` | text | yes | **unique where not null** — SHA-256 of an imported file (AC-14.5). Records only the first batch from a file (a later batch from the same file leaves it null); it no longer blocks re-imports |
 | `counts` | jsonb | no | `{ received, duplicates, suppressed, dead, accepted }` |
 | `created_at` | timestamptz | no | |
 | `finalized_at` | timestamptz | yes | set by `leads.finalize` |

@@ -599,7 +599,7 @@ Base path `/api/v1`. JSON in and out. Session cookie required (private). Mutatio
 | 401 | `unauthenticated` |
 | 403 | `not_owner`, `csrf_header_missing`, `demo_read_only` |
 | 404 | `not_found` |
-| 409 | `version_conflict`, `changed_since`, `already_running`, `duplicate_import`, `not_connected` |
+| 409 | `version_conflict`, `changed_since`, `already_running`, `not_connected` |
 | 413 | `too_large` |
 | 422 | `cv_no_text`, `unsupported_file` |
 | 429 | `rate_limited` |
