@@ -533,6 +533,27 @@ export const ReportPreviewSchema = z.object({
 });
 export type ReportPreview = z.infer<typeof ReportPreviewSchema>;
 
+/** The longest report the paste box takes, in characters (TECHNICAL_SPEC §7.6). */
+export const MAX_REPORT_CHARS = 50_000;
+
+/**
+ * `POST /leads/import/preview` request body. The length is not checked here: a longer text is a
+ * `413 too_large`, not a `400 validation_failed`, so the route compares it with `MAX_REPORT_CHARS`.
+ */
+export const ReportPreviewBodySchema = z.object({ text: z.string() });
+export type ReportPreviewBody = z.infer<typeof ReportPreviewBodySchema>;
+
+/** `POST /leads/import/commit` request body: the preview and the rows still checked. */
+export const ReportCommitBodySchema = z.object({
+  previewId: id,
+  keepRowIds: z.array(id).min(1),
+});
+export type ReportCommitBody = z.infer<typeof ReportCommitBodySchema>;
+
+/** The 202 body of `POST /leads/import/commit`. */
+export const ReportCommitResultSchema = z.object({ batchId: id });
+export type ReportCommitResult = z.infer<typeof ReportCommitResultSchema>;
+
 /** `{ items, nextCursor }` for every list endpoint. */
 export const PageSchema = <T extends z.ZodType>(item: T) =>
   z.object({ items: z.array(item), nextCursor: z.string().nullable() });

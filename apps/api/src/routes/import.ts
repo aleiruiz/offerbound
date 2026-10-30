@@ -2,12 +2,17 @@ import { createHash } from "node:crypto";
 import multipart from "@fastify/multipart";
 import type { FastifyInstance } from "fastify";
 import {
+  ReportCommitBodySchema,
+  ReportPreviewBodySchema,
   SheetCommitBodySchema,
   type ImportSummary,
+  type ReportCommitResult,
+  type ReportPreview,
   type SheetPreview,
 } from "@offerbound/contracts";
 import type { AppDeps } from "../deps.js";
 import { ApiError } from "../http/errors.js";
+import { commitReport, previewReport } from "../leads/report.js";
 import { commitSheet, MAX_SHEET_BYTES, parseSheetCsv, previewSheet } from "../import/sheet.js";
 
 /**
@@ -56,5 +61,18 @@ export async function registerImportRoutes(app: FastifyInstance, deps: AppDeps):
     const { previewId } = SheetCommitBodySchema.parse(request.body);
     const summary = await commitSheet({ ...deps, log: request.log }, previewId);
     return reply.code(201).send(summary);
+  });
+
+  // A pasted report (TECHNICAL_SPEC §7.6). The text is untrusted and never logged. A text over
+  // 50,000 characters is a 413 from the service; a body over Fastify's 1 MB limit is one too.
+  app.post("/leads/import/preview", async (request): Promise<ReportPreview> => {
+    const { text } = ReportPreviewBodySchema.parse(request.body);
+    return previewReport({ ...deps, log: request.log }, text);
+  });
+
+  app.post("/leads/import/commit", async (request, reply): Promise<ReportCommitResult> => {
+    const { previewId, keepRowIds } = ReportCommitBodySchema.parse(request.body);
+    const result = await commitReport({ ...deps, log: request.log }, previewId, keepRowIds);
+    return reply.code(202).send(result);
   });
 }
