@@ -50,32 +50,26 @@ const CSV_REJECTED = {
 } as const;
 
 /**
- * Stopgap until `POST /import/sheet/preview` exists (T7.5): today it answers 404, and the page
- * must not call that an expired preview. When T7.5 lands, narrow this to `not_found` or remove it,
- * so a transient preview failure doesn't tell the owner to skip.
+ * What to tell the owner when a call of the import fails. `phase` says which call it was: only a
+ * missing preview on *commit* means it expired. A header-less file comes back as
+ * `validation_failed` from the preview, and its message says what is wrong.
  */
-const IMPORT_UNAVAILABLE =
-  "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.";
-
-/** `phase` says which call failed: only a missing preview on *commit* means it expired. */
 function importErrorMessage(error: unknown, phase: "preview" | "commit"): string {
   if (error instanceof ApiClientError) {
-    const unavailable =
-      phase === "preview" &&
-      (error.code === "not_found" || error.code === "unexpected_response" || error.status >= 500);
-    if (unavailable) return IMPORT_UNAVAILABLE;
     switch (error.code) {
-      case "duplicate_import":
-        return "This file was already imported. Skip this step to keep your list as it is.";
+      case "validation_failed":
+        if (phase === "preview") return error.message;
+        break;
       case "too_large":
-        return CSV_REJECTED.too_large;
+        return "File is over 2 MB";
+      case "duplicate_import":
+        return "This file was already imported";
       case "not_found":
-        return "This preview expired. Add the file again.";
-      default:
-        return error.message;
+        if (phase === "commit") return "This preview expired. Add the file again.";
+        break;
     }
   }
-  return "The request didn't go through. Check your connection and try again.";
+  return "Couldn't import the file. Try again.";
 }
 
 function SkippedRows({ preview }: { preview: SheetPreview }) {

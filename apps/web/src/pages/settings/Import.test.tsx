@@ -76,6 +76,9 @@ describe("Settings, Import", () => {
         apiError(409, "duplicate_import", "Already imported."),
     });
     await user.upload(await screen.findByLabelText("Choose CSV file"), csv());
-    expect(await screen.findByRole("alert")).toHaveTextContent("This file was already imported.");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("This file was already imported");
+    // Nothing here is a step that can be skipped.
+    expect(alert).not.toHaveTextContent("Skip this step");
   });
 });

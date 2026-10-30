@@ -507,7 +507,7 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText(/This file was already imported\./)).toBeInTheDocument();
+      expect(await screen.findByText("This file was already imported")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Skip this step" })).toBeInTheDocument();
     });
 
@@ -561,7 +561,7 @@ describe("OnboardingPage", () => {
       expect(screen.getByText("Applications.csv")).toBeInTheDocument();
     });
 
-    it("says import isn't available yet on a server error from the preview", async () => {
+    it("shows a generic message on a server error from the preview", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
           apiError(500, "internal_error", "Something went wrong."),
@@ -571,13 +571,14 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+        "Couldn't import the file. Try again.",
       );
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
     });
 
-    it("keeps the commit's own message for a server error or an unreadable answer", async () => {
+    it("shows the generic message for a commit server error or an unreadable answer", async () => {
       let answer: MockHandler = () => apiError(500, "internal_error", "Something went wrong.");
-      const { user } = await toImport({
+      const { api, user } = await toImport({
         "POST /api/v1/import/sheet/commit": (req) => answer(req),
       });
       await user.upload(
@@ -585,16 +586,20 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText("Something went wrong.")).toBeVisible();
+      expect(await screen.findByText("Couldn't import the file. Try again.")).toBeVisible();
+      expect(screen.queryByText("Something went wrong.")).not.toBeInTheDocument();
       expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
 
       answer = () => new Response("<html>Bad gateway</html>", { status: 502 });
       await user.click(screen.getByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText("The server answered with status 502.")).toBeVisible();
-      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(callsTo(api, "POST", "/api/v1/import/sheet/commit")).toHaveLength(2),
+      );
+      expect(await screen.findByText("Couldn't import the file. Try again.")).toBeVisible();
+      expect(screen.queryByText("The server answered with status 502.")).not.toBeInTheDocument();
     });
 
-    it("says import isn't available yet, not 'expired', when the preview route is missing", async () => {
+    it("does not call a preview that is not found 'expired': only the commit can say that", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () => apiError(404, "not_found", "Not found."),
       });
@@ -603,9 +608,10 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+        "Couldn't import the file. Try again.",
       );
       expect(screen.queryByText(/expired/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
 
       // The way on stays open: Skip is visible and moves to the next step.
       await user.click(screen.getByRole("button", { name: "Skip this step" }));
@@ -615,7 +621,7 @@ describe("OnboardingPage", () => {
       expect(within(screen.getByLabelText("Setup steps")).getAllByText("Skipped")).toHaveLength(2);
     });
 
-    it("says the same when the preview call fails on the server or answers without the usual error body", async () => {
+    it("says the same when the preview answers without the usual error body, or never arrives", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
           new Response("<html>Bad gateway</html>", { status: 502 }),
@@ -625,9 +631,59 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet.",
+        "Couldn't import the file. Try again.",
       );
       expect(screen.getByRole("button", { name: "Skip this step" })).toBeVisible();
+    });
+
+    it("says the same when the request never reaches the server", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () => Promise.reject(new TypeError("Failed to fetch")),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't import the file. Try again.",
+      );
+    });
+
+    it("shows the server's message when the preview finds no header row", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () =>
+          apiError(
+            400,
+            "validation_failed",
+            "Offerbound couldn't find a header row with Company, Role and Status.",
+            { file: "no_header_row" },
+          ),
+      });
+      await user.upload(screen.getByLabelText("Choose CSV file"), file("notes.csv", "text/csv"));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Offerbound couldn't find a header row with Company, Role and Status.",
+      );
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    });
+
+    it("says a file the server finds too large is over 2 MB, and a repeated file was already imported", async () => {
+      let answer: MockHandler = () => apiError(413, "too_large", "Too large.");
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": (req) => answer(req),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent("File is over 2 MB");
+
+      answer = () => apiError(409, "duplicate_import", "Imported before.");
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByText("This file was already imported")).toBeVisible();
+      expect(screen.queryByText("File is over 2 MB")).not.toBeInTheDocument();
     });
 
     it("says the preview expired only when the commit can't find it, and Skip still works", async () => {
@@ -646,10 +702,10 @@ describe("OnboardingPage", () => {
       ).toBeVisible();
     });
 
-    it("shows the preview's error when the file can't be read", async () => {
+    it("shows the preview's own message when the file fails validation", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
-          apiError(422, "unsupported_file", "No Company, Role and Status columns were found."),
+          apiError(400, "validation_failed", "No Company, Role and Status columns were found."),
       });
       await user.upload(screen.getByLabelText("Choose CSV file"), file("other.csv", "text/csv"));
       expect(await screen.findByRole("alert")).toHaveTextContent(
