@@ -497,6 +497,56 @@ describe("runTriageBatch: R3 deferral for outgoing mail", () => {
     expect(await row("a-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
   });
 
+  it("does not wait for a message Gmail no longer has (skipped, still on the placeholder date)", async () => {
+    const ghost = mail("a-ghost", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const { ctx } = await setup([ghost, out], new FakeGmailClient([out]));
+    await runTriageBatch(ctx);
+    expect(await row("a-ghost")).toMatchObject({
+      state: "skipped",
+      internalDate: new Date(0),
+    });
+    expect(await row("b-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("does not wait for a message that failed with unknown metadata (failed, placeholder date)", async () => {
+    const bad = mail("a-bad", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const real = new FakeGmailClient([bad, out]);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) =>
+        id === "a-bad" ? Promise.reject(new GmailRequestError(400)) : real.getMetadata(id),
+    };
+    const { ctx } = await setup([bad, out], gmail);
+    // Its fifth failed attempt: the message is failed for good, and never read.
+    await prisma.gmailMessage.update({ where: { id: "a-bad" }, data: { attempts: 4 } });
+    await runTriageBatch(ctx);
+    expect(await row("a-bad")).toMatchObject({ state: "failed", internalDate: new Date(0) });
+    expect(await row("b-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("still waits for a message that failed an attempt but may yet be read", async () => {
+    const bad = mail("a-bad", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const real = new FakeGmailClient([bad, out]);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) =>
+        id === "a-bad" ? Promise.reject(new GmailRequestError(400)) : real.getMetadata(id),
+    };
+    const { ctx } = await setup([bad, out], gmail);
+    await runTriageBatch(ctx);
+    expect((await row("a-bad")).state).toBe("discovered");
+    expect((await row("b-out")).state).toBe("discovered");
+  });
+
   it("decides several waiting messages oldest first in one pass", async () => {
     const { ctx } = await setup([
       outgoing("b-out", "2026-10-07T10:00:00.000Z", "Stranger <someone@unknown.example>"),

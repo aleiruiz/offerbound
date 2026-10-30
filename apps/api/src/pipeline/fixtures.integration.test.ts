@@ -50,26 +50,79 @@ const lateArrivals = fixtures.filter((f) => f.expected.outcome === "skipped");
 const client = new FakeGmailClient(fixtures.filter((f) => !lateArrivals.includes(f)));
 
 /**
- * The fixtures label triage as the replay in the README does: one message at a time, each applied
- * before the next is triaged, so a thread's later messages are decided by rule R2 (and company
- * domains by R6) and carry no model verdict. The pipeline triages in batches of 25 before applying,
- * so some of those messages reach the model instead. The model says what the fixture expects.
+ * The fixtures that reach model triage when the whole mailbox is backfilled: every message the
+ * rules leave to the model (R9), and the messages rules R2 and R6 would have decided had the
+ * pipeline learned thread links and company domains first. A backfill triages the backlog before
+ * applying any of it, so it learns nothing in time. A test asserts this list exactly, so a change
+ * in rule routing (an R4/R5 sender, or outgoing mail, reaching the model) fails it.
+ */
+const REACHES_MODEL_TRIAGE = [
+  "ambiguous-driftwood-software",
+  "ambiguous-fairhaven-labs",
+  "assessment-arbor-analytics-takehome",
+  "assessment-tidewater-labs-exercise",
+  "cancel-ics-quarry-ai",
+  "cancel-text-ironbark-labs",
+  "confirm-company-tidewater-labs",
+  "decoy-bank-fernhill",
+  "decoy-calendar-dinner",
+  "decoy-family-delgado",
+  "decoy-linkedin-personal-message",
+  "decoy-receipt-corner-bean",
+  "decoy-social-pinboard",
+  "invite-ics-arbor-analytics-design",
+  "invite-ics-northwind-robotics-manager",
+  "invite-ics-quarry-ai-technical",
+  "invite-link-kestrel-pay",
+  "invite-relative-copperline-software",
+  "invite-screen-ironbark-labs",
+  "offer-arbor-analytics",
+  "offer-bramble-studio",
+  "outreach-agency-bluefin-talent",
+  "outreach-direct-wren-aerospace",
+  "outreach-linkedin-message-pinecrest-pharma",
+  "outreach-quarry-ai-research",
+  "reject-es-halyard-health",
+  "reject-lowconf-kittiwake-systems",
+  "reject-tidewater-labs",
+  "reschedule-ics-quarry-ai",
+  "reschedule-text-arbor-analytics",
+  "reschedule-text-copperline-software",
+];
+
+/**
+ * The fixture-backed model, plus a verdict for the messages that reach it with none. The fixtures
+ * label triage as the replay in the README does: one message at a time, each applied before the
+ * next is triaged, so a thread's later messages are decided by rule R2 (and company domains by
+ * R6) and carry `llm.triage: null`. In a backfill 14 of them reach the model (the members of
+ * {@link REACHES_MODEL_TRIAGE} that have no verdict), and the model says what the fixture expects:
+ * job-related. Nothing else is registered, so any other message that reaches the model gets the
+ * fixture's own verdict, or the fake's default.
+ *
+ * What this leaves unproven here: that rules R2 and R6 decide those 14 messages. The rule tests
+ * cover that. The routing of every other message is asserted by the list above.
  */
 function fakeModel(): FakeLlmProvider {
   const llm = FakeLlmProvider.fromFixtures({ emails: fixtures, leadBatches: loadLeadBatches() });
   for (const f of fixtures) {
-    if (f.llm.triage === null && f.expected.triage === "job_related") {
+    if (
+      f.llm.triage === null &&
+      f.expected.triage === "job_related" &&
+      REACHES_MODEL_TRIAGE.includes(f.id)
+    ) {
       llm.register("triage", { messageId: f.id }, { id: f.id, jobRelated: true, confidence: 0.95 });
     }
   }
   return llm;
 }
 
+const model = fakeModel();
+
 function buildCtx() {
   return testWorkerCtx({
     env: testEnv({ OWNER_EMAIL: FIXTURE_OWNER_EMAIL }),
     gmail: fakeGmailFactory(client),
-    llm: fakeModel(),
+    llm: model,
     fetchLink: verifiedPage,
   });
 }
@@ -155,6 +208,8 @@ async function interviewStarts(): Promise<Map<string, string | null>> {
  * The status each company's application ends in, worked out from the fixtures alone: its applied
  * messages in time order, each moving the status the way `targetStatusFor` and `decideTransition`
  * (TECHNICAL_SPEC §6.3) say. A transition that needs review leaves the status where it was.
+ * Only partly independent of the pipeline, which uses the same two functions; the interview,
+ * outcome and category checks do not share code with it.
  */
 function expectedFinalStatus(): Map<string, ApplicationStatus> {
   const status = new Map<string, ApplicationStatus>();
@@ -194,6 +249,20 @@ describe("whole-pipeline fixtures", () => {
     for (const f of lateArrivals) client.add(f);
     await runIncrementalSync(ctx);
     await drainPipeline(ctx);
+  });
+
+  it("only the expected fixtures reach model triage", () => {
+    const sent = model.calls
+      .filter((call) => call.purpose === "triage")
+      .flatMap((call) => (call.input as { id: string }[]).map((item) => item.id));
+    // Each message is sent to the model once, so rule-decided mail (R4/R5 senders, outgoing mail,
+    // promotions) is in neither list.
+    expect([...sent].sort()).toEqual([...REACHES_MODEL_TRIAGE].sort());
+    // The replay-labelled fixtures that reach it with no verdict: the accommodation's whole scope.
+    const unlabelled = REACHES_MODEL_TRIAGE.filter(
+      (id) => fixtures.find((f) => f.id === id)?.llm.triage === null,
+    );
+    expect(unlabelled).toHaveLength(14);
   });
 
   it("every fixture reaches its expected outcome", async () => {

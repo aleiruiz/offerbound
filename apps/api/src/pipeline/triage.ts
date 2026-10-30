@@ -217,8 +217,8 @@ const SETTLED_STATES = ["skipped", "triaged_out", "applied", "needs_review", "fa
  * During a backfill nothing has been applied when the first batches are triaged, so the owner's
  * own follow-ups would be dropped for good. Such a message therefore stays `discovered` while:
  * - some other message with an older date has not settled (see {@link SETTLED_STATES}), or
- * - some other message still has the placeholder date, because Gmail has not been read for it yet
- *   (it could turn out to be older).
+ * - some other message is still `discovered` on the placeholder date, because Gmail has not been
+ *   read for it yet (it could turn out to be older).
  * The next batch decides it again with whatever has been learned meanwhile. Only when every older
  * message has settled and R3 still fails is it `triaged_out`, with its content dropped.
  *
@@ -235,7 +235,10 @@ async function olderMessagesUnsettled(
     where: {
       id: { not: id },
       OR: [
-        { internalDate: UNKNOWN_DATE },
+        // Unread: still `discovered` on the placeholder date. A message Gmail no longer has, or one
+        // that failed for good before it was read, keeps that date but is `skipped` or `failed`
+        // and is never triaged again, so it must not hold anything back.
+        { internalDate: UNKNOWN_DATE, state: "discovered" },
         { internalDate: { lt: date }, state: { notIn: [...SETTLED_STATES] } },
       ],
     },
