@@ -258,7 +258,10 @@ export const SearchRunSchema = z.object({
 });
 export type SearchRun = z.infer<typeof SearchRunSchema>;
 
-/** `GET /search/runs` answers with the last 14 runs, newest first, as a plain list (§10.1). */
+/**
+ * `GET /search/runs` answers with the last 14 runs as a plain list (§10.1). The spec does not fix
+ * their order, so a reader that needs the newest run sorts by `startedAt`.
+ */
 export const SearchRunsSchema = z.array(SearchRunSchema);
 
 export const CompanySchema = z.object({

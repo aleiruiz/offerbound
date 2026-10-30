@@ -51,6 +51,8 @@ export const queryKeys = {
   reviewItems: ["review-items"] as const,
   /** Every leads query: lists and the counts behind the tabs. */
   leads: ["leads"] as const,
+  leadLists: ["leads", "list"] as const,
+  leadCounts: ["leads", "count"] as const,
   leadList: (filters: LeadFilters) => ["leads", "list", filters] as const,
   leadCount: (status: LeadStatus) => ["leads", "count", status] as const,
   searchRuns: ["search-runs"] as const,
@@ -309,15 +311,21 @@ export function useRunSearch(callbacks: MutationCallbacks<SearchRun, void> = {})
 // ---------------------------------------------------------------------------------------------
 // Leads
 
-/** Everything a change to a lead can alter: the lists and tab counts, Today and the badges. */
+/**
+ * Everything a change to a lead can alter: the lists, the tab counts, Today and the badges. The
+ * answer waits for the lists and Today, which the next press reads a version from; the tab counts
+ * and the badges are refreshed in the background so a snackbar never waits on them.
+ */
 export function useRefreshLeads() {
   const queryClient = useQueryClient();
-  return () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.navCounts });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
       queryClient.invalidateQueries({ queryKey: queryKeys.today }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
     ]);
+  };
 }
 
 /** `PATCH /leads/:id`: shortlist, dismiss or put a lead back to new. Sends the lead's `version`. */
@@ -472,8 +480,12 @@ export function useSearchRuns() {
   return useQuery({
     queryKey: queryKeys.searchRuns,
     queryFn: ({ signal }) => apiFetch("/search/runs", { schema: SearchRunsSchema, signal }),
+    // The spec does not fix the order of the list: newest first is made here.
+    select: (runs) => [...runs].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt)),
     refetchInterval: (query) =>
-      query.state.data?.[0]?.status === "running" ? SEARCH_RUNNING_POLL_MS : SEARCH_RUNS_POLL_MS,
+      query.state.data?.some((run) => run.status === "running")
+        ? SEARCH_RUNNING_POLL_MS
+        : SEARCH_RUNS_POLL_MS,
   });
 }
 
@@ -620,15 +632,17 @@ export function useUpdateApplication(
 /** `POST /events/:id/undo`: undo an automatic change (AC-4.3). Everything it touched is fetched again. */
 export function useUndoEvent(callbacks: MutationCallbacks<{ undone: true }, string> = {}) {
   const queryClient = useQueryClient();
-  const refresh = () =>
-    Promise.all([
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
+    return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
       queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems }),
-      // Undoing *Mark applied* puts the lead back where it was.
-      queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
+      // Undoing *Mark applied* puts the lead back where it was; the tab counts follow in the background.
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
       queryClient.invalidateQueries({ queryKey: queryKeys.today }),
       queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
     ]);
+  };
   return useMutation({
     mutationFn: (eventId: string) =>
       apiFetch(`/events/${encodeURIComponent(eventId)}/undo`, {

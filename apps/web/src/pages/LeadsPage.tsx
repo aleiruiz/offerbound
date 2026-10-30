@@ -18,6 +18,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useRef } from "react";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
+import { ApiClientError } from "../api/client";
 import {
   LEADS_COUNT_LIMIT,
   isApiError,
@@ -114,16 +115,22 @@ function countLabel(count: LeadCount | undefined): string | null {
   return count.atLeast ? `${LEADS_COUNT_LIMIT}+` : String(count.count);
 }
 
+/** Any 409: the lead changed elsewhere, whatever the code says. */
+function isConflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.status === 409;
+}
+
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // ---------------------------------------------------------------------------------------------
 // Search: caption and progress
 
-function RecentRunsLink() {
+/** A link into the Job search section of Settings. */
+function SearchSettingsLink({ children }: { children: string }) {
   const sx = useLinkSx({ fontSize: "inherit" });
   return (
     <Link component={RouterLink} to="/settings/search" sx={sx}>
-      Recent runs
+      {children}
     </Link>
   );
 }
@@ -151,7 +158,7 @@ function SearchCaption({
     return (
       <Typography variant="caption" color="text.secondary" component="p">
         {"The last search failed. Its error is listed under "}
-        <RecentRunsLink />
+        <SearchSettingsLink>Recent runs</SearchSettingsLink>
         {" in Settings."}
       </Typography>
     );
@@ -318,17 +325,18 @@ export function LeadsPage() {
   }, [latestId, latestStatus]);
 
   // --- actions ---
-  // One change at a time: a second press on the same lead would carry a stale version.
-  const busy = useRef(false);
-  const settle = () => {
-    busy.current = false;
+  // One change at a time per lead: a second press on the same lead would carry a stale version.
+  // Other leads stay free to act on.
+  const busy = useRef(new Set<string>());
+  const settle = (lead: Lead) => {
+    busy.current.delete(lead.id);
   };
   const failed = (verb: string, lead: Lead) => `Couldn't ${verb} ${lead.company.name}. Try again.`;
 
   const restore = useSetLeadStatus();
   const setStatus = useSetLeadStatus({
     onSuccess: (updated, { lead, status }) => {
-      settle();
+      settle(lead);
       // Undo goes back to where the lead was: New, or Shortlisted for a dismissed shortlisted lead.
       const before = lead.status === "shortlisted" ? "shortlisted" : "new";
       snackbar.show(
@@ -339,7 +347,7 @@ export function LeadsPage() {
       );
     },
     onError: (error, { lead, status }) => {
-      settle();
+      settle(lead);
       snackbar.show(
         isApiError(error, "version_conflict")
           ? CHANGED_ELSEWHERE
@@ -349,11 +357,11 @@ export function LeadsPage() {
   });
   const reconsiderDismissed = useSetLeadStatus({
     onSuccess: (_updated, { lead }) => {
-      settle();
+      settle(lead);
       snackbar.show(`Reconsidered ${lead.company.name}`);
     },
     onError: (error, { lead }) => {
-      settle();
+      settle(lead);
       snackbar.show(
         isApiError(error, "version_conflict") ? CHANGED_ELSEWHERE : failed("reconsider", lead),
       );
@@ -361,18 +369,18 @@ export function LeadsPage() {
   });
   const reconsiderSuppressed = useReconsiderLead({
     onSuccess: (_updated, lead) => {
-      settle();
+      settle(lead);
       snackbar.show(`Reconsidered ${lead.company.name}`);
     },
-    onError: (_error, lead) => {
-      settle();
-      snackbar.show(failed("reconsider", lead));
+    onError: (error, lead) => {
+      settle(lead);
+      snackbar.show(isConflict(error) ? CHANGED_ELSEWHERE : failed("reconsider", lead));
     },
   });
   const undo = useUndoEvent();
   const markApplied = useMarkLeadApplied({
-    onSuccess: (application) => {
-      settle();
+    onSuccess: (application, lead) => {
+      settle(lead);
       // The undo is the `lead_converted` event the conversion wrote (AC-9.6).
       const converted = application.timeline.find(
         (event) => event.type === "lead_converted" && event.undoable && event.undoneAt === null,
@@ -387,25 +395,28 @@ export function LeadsPage() {
       );
     },
     onError: (error, lead) => {
-      settle();
+      settle(lead);
+      // Mark applied sends no version; a 409 means the lead was converted or changed elsewhere.
       snackbar.show(
-        isApiError(error, "version_conflict")
+        isConflict(error)
           ? CHANGED_ELSEWHERE
           : `Couldn't mark ${lead.company.name} as applied. Try again.`,
       );
     },
   });
 
-  const act = (start: () => void) => {
-    if (busy.current) return;
-    busy.current = true;
+  const act = (lead: Lead, start: () => void) => {
+    if (busy.current.has(lead.id)) return;
+    busy.current.add(lead.id);
     start();
   };
-  const onShortlist = (lead: Lead) => act(() => setStatus.mutate({ lead, status: "shortlisted" }));
-  const onDismiss = (lead: Lead) => act(() => setStatus.mutate({ lead, status: "dismissed" }));
-  const onMarkApplied = (lead: Lead) => act(() => markApplied.mutate(lead));
+  const onShortlist = (lead: Lead) =>
+    act(lead, () => setStatus.mutate({ lead, status: "shortlisted" }));
+  const onDismiss = (lead: Lead) =>
+    act(lead, () => setStatus.mutate({ lead, status: "dismissed" }));
+  const onMarkApplied = (lead: Lead) => act(lead, () => markApplied.mutate(lead));
   const onReconsider = (lead: Lead) =>
-    act(() =>
+    act(lead, () =>
       lead.status === "suppressed"
         ? reconsiderSuppressed.mutate(lead)
         : reconsiderDismissed.mutate({ lead, status: "new" }),
@@ -439,9 +450,15 @@ export function LeadsPage() {
             : "No new leads. The daily search is off."
       }
       body={
-        searchEnabled === false
-          ? "Run a search now, or turn the daily search on in Settings."
-          : "You can also run a search now."
+        searchEnabled === false ? (
+          <>
+            {"Run a search now, or turn the daily search on in "}
+            <SearchSettingsLink>Settings</SearchSettingsLink>
+            {"."}
+          </>
+        ) : (
+          "You can also run a search now."
+        )
       }
       actions={
         <Button

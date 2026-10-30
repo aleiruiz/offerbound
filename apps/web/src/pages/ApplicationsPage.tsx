@@ -5,7 +5,6 @@ import {
 } from "@offerbound/contracts";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -30,10 +29,11 @@ import {
   type ApplicationSort,
 } from "../api/hooks";
 import { AddApplicationDialog } from "../components/AddApplicationDialog";
+import { FilterChip } from "../components/FilterChip";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { FlagChip, STATUS_LABEL, StatusChip } from "../components/StatusChip";
 import { formatDate, formatRelative, formatShortDate, formatTime } from "../lib/format";
-import { useLinkSx, usePhone } from "../lib/link-sx";
+import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
 
 /**
@@ -95,12 +95,11 @@ function StatusFilterChip({
   pressed: boolean;
   onToggle: () => void;
 }) {
-  const phone = usePhone();
   return (
-    <Chip
-      onClick={onToggle}
-      aria-pressed={pressed}
-      variant="outlined"
+    <FilterChip
+      pressed={pressed}
+      onToggle={onToggle}
+      label={count === undefined ? label : `${label} ${count}`}
       icon={
         status ? (
           <Box
@@ -119,21 +118,6 @@ function StatusFilterChip({
           />
         ) : undefined
       }
-      label={count === undefined ? label : `${label} ${count}`}
-      sx={(theme) => ({
-        height: phone ? "auto" : 32,
-        minHeight: phone ? 44 : undefined,
-        borderRadius: phone ? "22px" : "16px",
-        fontWeight: 600,
-        fontSize: 14,
-        px: status ? 0 : 0.5,
-        borderColor: pressed ? theme.palette.primary.main : theme.palette.text.secondary,
-        color: pressed ? theme.palette.primary.main : theme.palette.text.primary,
-        bgcolor: pressed ? theme.palette.tokens.routeTint : theme.palette.background.paper,
-        "&:hover": {
-          bgcolor: pressed ? theme.palette.tokens.routeTint : theme.palette.action.hover,
-        },
-      })}
     />
   );
 }

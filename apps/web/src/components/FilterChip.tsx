@@ -1,4 +1,5 @@
 import Chip from "@mui/material/Chip";
+import type { ReactElement } from "react";
 import { usePhone } from "../lib/link-sx";
 
 /**
@@ -9,10 +10,13 @@ export function FilterChip({
   label,
   pressed,
   onToggle,
+  icon,
 }: {
   label: string;
   pressed: boolean;
   onToggle: () => void;
+  /** A marker before the label, such as a status dot. */
+  icon?: ReactElement;
 }) {
   const phone = usePhone();
   return (
@@ -20,6 +24,7 @@ export function FilterChip({
       onClick={onToggle}
       aria-pressed={pressed}
       variant="outlined"
+      icon={icon}
       label={label}
       sx={(theme) => ({
         height: phone ? "auto" : 32,
@@ -27,7 +32,7 @@ export function FilterChip({
         borderRadius: phone ? "22px" : "16px",
         fontWeight: 600,
         fontSize: 14,
-        px: 0.5,
+        px: icon ? 0 : 0.5,
         borderColor: pressed ? theme.palette.primary.main : theme.palette.text.secondary,
         color: pressed ? theme.palette.primary.main : theme.palette.text.primary,
         bgcolor: pressed ? theme.palette.tokens.routeTint : theme.palette.background.paper,

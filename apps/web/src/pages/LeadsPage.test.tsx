@@ -477,6 +477,49 @@ describe("LeadsPage", () => {
       act(() => release({ ...TIDEWATER, status: "shortlisted", version: 2 }));
       expect(await screen.findByText("Shortlisted Tidewater Labs")).toBeInTheDocument();
     });
+
+    it("a slow change to one lead does not hold up another lead", async () => {
+      const { api, user } = setup({
+        "PATCH /api/v1/leads/l1": () => new Promise<Lead>(() => undefined),
+        "PATCH /api/v1/leads/l2": () => ({ ...KITTIWAKE, status: "shortlisted", version: 2 }),
+      });
+      await screen.findByText("Tidewater Labs");
+      await user.click(rowOf("Tidewater Labs").getByRole("button", { name: "Shortlist" }));
+      await user.click(rowOf("Kittiwake Systems").getByRole("button", { name: "Shortlist" }));
+      expect(await screen.findByText("Shortlisted Kittiwake Systems")).toBeInTheDocument();
+      expect(callsTo(api, "PATCH", "/api/v1/leads/l1")).toHaveLength(1);
+    });
+
+    it("the snackbar does not wait for the tab counts to be read again", async () => {
+      let hang = false;
+      const base = leadsHandler(() => ALL_LEADS);
+      const { user } = setup({
+        "GET /api/v1/leads": (req) =>
+          hang && new URL(req.url).searchParams.get("limit") === "200"
+            ? new Promise<Response>(() => undefined)
+            : base(req),
+        "PATCH /api/v1/leads/l1": () => ({ ...TIDEWATER, status: "shortlisted", version: 2 }),
+      });
+      await tab("New 2");
+      await screen.findByText("Tidewater Labs");
+      hang = true;
+      await user.click(rowOf("Tidewater Labs").getByRole("button", { name: "Shortlist" }));
+      expect(await screen.findByText("Shortlisted Tidewater Labs")).toBeInTheDocument();
+    });
+
+    it("a 409 on Mark applied says the lead changed elsewhere and refreshes the lists", async () => {
+      const { api, user } = setup({
+        "POST /api/v1/leads/l1/mark-applied": () =>
+          apiError(409, "changed_since", "The lead was already converted."),
+      });
+      await screen.findByText("Tidewater Labs");
+      const before = listCalls(api).length;
+      await user.click(rowOf("Tidewater Labs").getByRole("button", { name: "Mark applied" }));
+      expect(
+        await screen.findByText("Changes were made elsewhere. Leads have been refreshed."),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(listCalls(api).length).toBeGreaterThan(before));
+    });
   });
 
   describe("tabs other than New", () => {
@@ -600,6 +643,25 @@ describe("LeadsPage", () => {
       expect(open).not.toHaveBeenCalled();
     });
 
+    it("row keys do nothing while focus is in the Sort select or its menu, or on a button outside the list", async () => {
+      const { api, user } = setup();
+      await screen.findByText("Tidewater Labs");
+      await user.keyboard("j");
+      // Focus moves to the Sort select: s is not for the list now.
+      screen.getByRole("combobox", { name: "Sort" }).focus();
+      await user.keyboard("s");
+      await user.keyboard("d");
+      // The open menu is outside the list too.
+      await user.click(screen.getByRole("combobox", { name: "Sort" }));
+      await screen.findByRole("listbox");
+      await user.keyboard("a");
+      await user.keyboard("{Escape}");
+      screen.getByRole("button", { name: "All tracks" }).focus();
+      await user.keyboard("s");
+      expect(callsTo(api, "PATCH", "/api/v1/leads/l1")).toHaveLength(0);
+      expect(callsTo(api, "POST", "/api/v1/leads/l1/mark-applied")).toHaveLength(0);
+    });
+
     it("does not open a posting link that is not http(s)", async () => {
       const open = vi.spyOn(window, "open").mockReturnValue(null);
       const { user } = setup(
@@ -655,6 +717,18 @@ describe("LeadsPage", () => {
         "href",
         "/settings/search",
       );
+    });
+
+    it("takes the newest run whatever order the list arrives in", async () => {
+      setup({
+        "GET /api/v1/search/runs": () => [
+          { ...RUN, id: "old", startedAt: "2026-10-20T13:00:00Z", accepted: 3 },
+          { ...RUN, id: "new", startedAt: "2026-10-29T13:00:00Z", accepted: 24 },
+        ],
+      });
+      expect(
+        await screen.findByText(/The last search ran at 07:00: 24 new, 9 suppressed/),
+      ).toBeInTheDocument();
     });
 
     it("says no search has run yet when there are no runs", async () => {
@@ -802,6 +876,10 @@ describe("LeadsPage", () => {
         { leads: [] },
       );
       expect(await screen.findByText("No new leads. The daily search is off.")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
+        "href",
+        "/settings/search",
+      );
     });
 
     it.each([
