@@ -111,14 +111,15 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
   }
 
   if (!plan.autoApply || plan.review !== null) {
-    const review = plan.review;
+    const { review } = plan;
+    if (review === null) throw new Error("The planner left a plan unapplied without a review");
     await createReviewItem(tx, {
-      kind: review?.kind ?? "low_confidence",
+      kind: review.kind,
       messageId: message.id,
       confidence: plan.confidence,
       plan,
-      candidates: review?.candidates ?? [],
-      reasons: review?.reasons ?? [],
+      candidates: review.candidates,
+      reasons: review.reasons,
     });
     await move({ state: "needs_review" });
     return { kind: "done", messageId: message.id, state: "other" };
@@ -145,37 +146,56 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
   return { kind: "done", messageId: message.id, state: "applied" };
 }
 
-/** Fails a message the stage cannot apply, with one *Extraction failed* review item. */
-async function failMessage(ctx: WorkerCtx, messageId: string, code: string): Promise<void> {
-  const now = ctx.clock();
-  await withIntakeLock(ctx.prisma, async (tx) => {
-    const { count } = await tx.gmailMessage.updateMany({
-      where: { id: messageId, state: "extracted" },
-      data: { state: "failed", lastError: code, processedAt: now },
-    });
-    if (count === 0) return;
-    await tx.reviewItem.createMany({
-      data: [{ kind: "extraction_failed", messageId, reasons: ["apply_failed"] }],
-      skipDuplicates: true,
-    });
-  });
-}
-
-/** Counts one failed attempt outside the lock; returns whether the cap is reached. */
-async function countFailedAttempt(
+/**
+ * Records that a message could not be applied, in one short transaction under the intake lock
+ * (the failed apply transaction was rolled back, so nothing else is held). With `retry` the
+ * failure is counted in `attempts`, and the message is failed once {@link MAX_APPLY_ATTEMPTS} are
+ * used; without it the message is failed at once (`code` goes to `last_error`, one *Extraction
+ * failed* review item opens). Returns whether the message is now `failed`.
+ *
+ * This runs while the original error is being handled, so it never throws: if the database
+ * refuses, the caller still reports the original error, and the message stays `extracted` for the
+ * next sweep.
+ */
+async function recordFailure(
   ctx: WorkerCtx,
   messageId: string,
   code: string,
+  retry: boolean,
 ): Promise<boolean> {
-  await ctx.prisma.gmailMessage.updateMany({
-    where: { id: messageId, state: "extracted" },
-    data: { attempts: { increment: 1 }, lastError: code },
-  });
-  const row = await ctx.prisma.gmailMessage.findUnique({
-    where: { id: messageId },
-    select: { attempts: true, state: true },
-  });
-  return row !== null && row.state === "extracted" && row.attempts >= MAX_APPLY_ATTEMPTS;
+  const now = ctx.clock();
+  try {
+    return await withIntakeLock(ctx.prisma, async (tx) => {
+      if (retry) {
+        const { count } = await tx.gmailMessage.updateMany({
+          where: { id: messageId, state: "extracted" },
+          data: { attempts: { increment: 1 }, lastError: code },
+        });
+        if (count === 0) return false;
+        const row = await tx.gmailMessage.findUniqueOrThrow({
+          where: { id: messageId },
+          select: { attempts: true },
+        });
+        if (row.attempts < MAX_APPLY_ATTEMPTS) return false;
+      }
+      const { count } = await tx.gmailMessage.updateMany({
+        where: { id: messageId, state: "extracted" },
+        data: { state: "failed", lastError: code, processedAt: now },
+      });
+      if (count === 0) return false;
+      await tx.reviewItem.createMany({
+        data: [{ kind: "extraction_failed", messageId, reasons: ["apply_failed"] }],
+        skipDuplicates: true,
+      });
+      return true;
+    });
+  } catch (recordError) {
+    ctx.log.error(
+      { errorName: recordError instanceof Error ? recordError.name : "unknown" },
+      "could not record an apply failure",
+    );
+    return false;
+  }
 }
 
 /**
@@ -192,7 +212,7 @@ export async function applyEligibleMessages(ctx: WorkerCtx): Promise<{ applied: 
       step = await withIntakeLock(ctx.prisma, (tx) => applyNext(tx, ctx, current));
     } catch (error) {
       if (error instanceof VersionConflictError) {
-        ctx.log.info(
+        ctx.log.warn(
           "an owner edit changed a record mid-apply; the message waits for the next sweep",
         );
         break;
@@ -200,22 +220,18 @@ export async function applyEligibleMessages(ctx: WorkerCtx): Promise<{ applied: 
       const messageId = current.id;
       if (messageId === null) throw error;
       if (error instanceof ApplyFailure || error instanceof NotImplementedError) {
-        await failMessage(
-          ctx,
-          messageId,
-          error instanceof ApplyFailure ? error.code : "apply_not_implemented",
-        );
-        ctx.log.warn({ errorName: error.name }, "a message could not be applied and was failed");
-        continue;
+        const code = error instanceof ApplyFailure ? error.code : "apply_not_implemented";
+        if (await recordFailure(ctx, messageId, code, false)) {
+          ctx.log.warn({ errorName: error.name }, "a message could not be applied and was failed");
+          continue;
+        }
+        throw error;
       }
       ctx.log.error(
         { errorName: error instanceof Error ? error.name : "unknown" },
         "applying a message failed",
       );
-      if (await countFailedAttempt(ctx, messageId, "apply_error")) {
-        await failMessage(ctx, messageId, "apply_error");
-        continue;
-      }
+      if (await recordFailure(ctx, messageId, "apply_error", true)) continue;
       throw error;
     }
     if (step.kind === "none") break;

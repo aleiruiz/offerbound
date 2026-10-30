@@ -16,8 +16,9 @@ import { writeEvent, type ChangeSetEntry } from "../db/events.js";
  * is abandoned with {@link VersionConflictError}. The message then stays `extracted` and the
  * next sweep plans it again.
  *
- * One event is written per planned event, each with the plan's complete change set: undoing the
- * email undoes everything it did. A write that would change nothing (for example a reply that
+ * One event is written per planned event, each with only the change set of its own record (see
+ * {@link sliceChangeSet}): undo works per event, and undoing one leaves the plan's other events
+ * and records alone. A write that would change nothing (for example a reply that
  * finds `follow_up_due` already false) is skipped, so it neither bumps `version` nor appears in
  * the change set.
  *
@@ -419,6 +420,49 @@ async function incrementDailyFollowUps(tx: Tx, day: string, changes: ChangeSet):
   });
 }
 
+// --- per-event change sets -----------------------------------------------------------------------
+
+const INTERVIEW_EVENTS: readonly string[] = [
+  "interview_created",
+  "interview_updated",
+  "interview_cancelled",
+];
+
+/**
+ * Splits a plan's change set between its events, so undoing one event (TECHNICAL_SPEC §6.6)
+ * reverts only that event's own records and leaves the others alone:
+ * - an interview event carries the entries of the interview it names (`data.interview` or
+ *   `data.interviewId`);
+ * - everything else (the application, the company, contact, lead, thread link, message link and
+ *   daily count it changed or created) goes to the plan's first other event, the one that says
+ *   what happened to the application or lead. If every event is an interview event, the first.
+ * An event left with no entries has no change set and is not undoable.
+ *
+ * Undoing the event that created an application removes the interviews hanging off it too (they
+ * cascade with it); their own events go with them.
+ */
+function sliceChangeSet(
+  events: { type: string; data: object | undefined }[],
+  entries: ChangeSetEntry[],
+): ChangeSetEntry[][] {
+  const slices: ChangeSetEntry[][] = events.map(() => []);
+  if (events.length === 0) return slices;
+  const interviewOwner = new Map<string, number>();
+  for (const [index, event] of events.entries()) {
+    if (!INTERVIEW_EVENTS.includes(event.type)) continue;
+    const data = (event.data ?? {}) as { interview?: unknown; interviewId?: unknown };
+    for (const id of [data.interview, data.interviewId]) {
+      if (typeof id === "string" && !interviewOwner.has(id)) interviewOwner.set(id, index);
+    }
+  }
+  const primary = events.findIndex((event) => !INTERVIEW_EVENTS.includes(event.type));
+  for (const entry of entries) {
+    const owner = entry.entity === "interview" ? interviewOwner.get(entry.id) : undefined;
+    slices[owner ?? (primary === -1 ? 0 : primary)]?.push(entry);
+  }
+  return slices;
+}
+
 // --- the executor ----------------------------------------------------------------------------------
 
 export async function executePlan(
@@ -554,26 +598,33 @@ export async function executePlan(
     }
   }
 
-  const changeSet = changes.list();
+  const planned = plan.events.map((event) => ({
+    event,
+    data: event.data === null ? undefined : (refs.substitute(event.data) as object),
+  }));
+  const slices = sliceChangeSet(
+    planned.map(({ event, data }) => ({ type: event.type, data })),
+    changes.list(),
+  );
   const eventIds: string[] = [];
-  for (const planned of plan.events) {
-    const subjectId = refs.resolve(planned.subject);
+  for (const [index, { event, data }] of planned.entries()) {
+    const changeSet = slices[index] ?? [];
+    const subjectId = refs.resolve(event.subject);
     const owner =
-      planned.subjectType === "application"
+      event.subjectType === "application"
         ? await tx.application.findUnique({ where: { id: subjectId }, select: { companyId: true } })
         : await tx.lead.findUnique({ where: { id: subjectId }, select: { companyId: true } });
-    const data = planned.data === null ? undefined : (refs.substitute(planned.data) as object);
     eventIds.push(
       await writeEvent(tx, {
-        ...(planned.subjectType === "application"
+        ...(event.subjectType === "application"
           ? { applicationId: subjectId }
           : { leadId: subjectId }),
         ...(owner === null ? {} : { companyId: owner.companyId }),
-        type: planned.type,
+        type: event.type,
         actor: ctx.actor,
         occurredAt: ctx.occurredAt,
         ...(ctx.messageId === null ? {} : { messageId: ctx.messageId }),
-        summary: planned.summary,
+        summary: event.summary,
         ...(data === undefined ? {} : { data }),
         ...(changeSet.length === 0 ? {} : { changeSet }),
         undoable: changeSet.length > 0,

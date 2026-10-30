@@ -583,6 +583,44 @@ describe("applyEligibleMessages: failures", () => {
     });
   });
 
+  it("an error while recording a failure does not mask the original error", async () => {
+    await seed({ id: "poison", at: "2026-10-05T10:00:00.000Z", extraction: confirmation() });
+    const boom = interceptTx(ctx(), "company", "create", () => Promise.reject(new Error("boom")));
+    const broken = interceptTx(boom, "gmailMessage", "updateMany", (call, args) => {
+      const data = (args[0] as { data: { attempts?: unknown } }).data;
+      return data.attempts === undefined ? call() : Promise.reject(new Error("db down"));
+    });
+    await expect(applyEligibleMessages(broken)).rejects.toThrow("boom");
+    expect(await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "poison" } })).toMatchObject({
+      state: "extracted",
+      attempts: 0,
+    });
+  });
+
+  it("counts a failed attempt inside the intake lock", async () => {
+    await seed({ id: "poison", at: "2026-10-05T10:00:00.000Z", extraction: confirmation() });
+    let lockedWhenCounted: boolean | null = null;
+    const boom = interceptTx(ctx(), "company", "create", () => Promise.reject(new Error("boom")));
+    const spy = interceptTx(boom, "gmailMessage", "updateMany", async (call, args) => {
+      const data = (args[0] as { data: { attempts?: unknown } }).data;
+      if (data.attempts !== undefined) {
+        // A second connection cannot take the lock while this transaction holds it.
+        const other = await prisma.$transaction(
+          async (tx) => {
+            const rows = await tx.$queryRaw<{ got: boolean }[]>`
+              SELECT pg_try_advisory_xact_lock(hashtext('offerbound.intake')) AS got`;
+            return rows[0]?.got ?? null;
+          },
+          { timeout: 5_000 },
+        );
+        lockedWhenCounted = other === false;
+      }
+      return call();
+    });
+    await expect(applyEligibleMessages(spy)).rejects.toThrow("boom");
+    expect(lockedWhenCounted).toBe(true);
+  });
+
   it("an unexpected error is retried, and a message that keeps failing is failed so it cannot block the rest", async () => {
     await seed({ id: "poison", at: "2026-10-05T10:00:00.000Z", extraction: confirmation() });
     await seed({

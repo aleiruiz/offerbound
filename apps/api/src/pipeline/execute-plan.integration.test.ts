@@ -517,6 +517,236 @@ describe("executePlan", () => {
   });
 });
 
+describe("executePlan: per-event change sets", () => {
+  const entities = (changeSet: unknown) =>
+    (changeSet as { entity: string }[]).map((e) => e.entity).sort();
+
+  it("a plan that creates an application and an interview writes two events, each with only its own change set", async () => {
+    await run(
+      plan(
+        [
+          { op: "create_company", ref: "new:company", company: company() },
+          {
+            op: "create_application",
+            ref: "new:application",
+            company: { ref: "new:company" },
+            title: "Platform Engineer",
+            jobUrl: null,
+            jobKey: null,
+            status: "interviewing",
+            appliedAt: null,
+            lastCompanyActivityAt: AT,
+            source: "gmail",
+          },
+          {
+            op: "upsert_interview",
+            application: { ref: "new:application" },
+            interviewId: null,
+            expectedVersion: null,
+            ref: "new:interview",
+            fields: fields(),
+          },
+          {
+            op: "link_thread",
+            threadId: "thr-1",
+            application: { ref: "new:application" },
+            leadRef: null,
+          },
+          { op: "attach_message", application: { ref: "new:application" } },
+        ],
+        [
+          {
+            subject: { ref: "new:application" },
+            subjectType: "application",
+            type: "application_created",
+            summary: "Moved to Interviewing",
+            data: { toStatus: "interviewing" },
+          },
+          {
+            subject: { ref: "new:application" },
+            subjectType: "application",
+            type: "interview_created",
+            summary: "Interview scheduled",
+            data: { interview: "new:interview" },
+          },
+        ],
+      ),
+    );
+    const application = await prisma.application.findFirstOrThrow();
+    const interview = await prisma.interview.findFirstOrThrow();
+    const created = await prisma.event.findFirstOrThrow({ where: { type: "application_created" } });
+    const scheduled = await prisma.event.findFirstOrThrow({ where: { type: "interview_created" } });
+
+    expect(entities(created.changeSet)).toEqual([
+      "application",
+      "company",
+      "gmail_message",
+      "thread_link",
+    ]);
+    expect(entities(scheduled.changeSet)).toEqual(["interview"]);
+    expect(scheduled.changeSet).toMatchObject([
+      { id: interview.id, created: true, before: null, versionAfter: 1 },
+    ]);
+    expect((created.changeSet as { id: string }[]).map((e) => e.id)).not.toContain(interview.id);
+    expect((scheduled.changeSet as { id: string }[]).map((e) => e.id)).not.toContain(
+      application.id,
+    );
+    expect(created.undoable).toBe(true);
+    expect(scheduled.undoable).toBe(true);
+  });
+
+  it("undoing the interview event's change set leaves the application and its event alone", async () => {
+    await run(
+      plan(
+        [
+          { op: "create_company", ref: "new:company", company: company() },
+          {
+            op: "create_application",
+            ref: "new:application",
+            company: { ref: "new:company" },
+            title: "Platform Engineer",
+            jobUrl: null,
+            jobKey: null,
+            status: "interviewing",
+            appliedAt: null,
+            lastCompanyActivityAt: AT,
+            source: "gmail",
+          },
+          {
+            op: "upsert_interview",
+            application: { ref: "new:application" },
+            interviewId: null,
+            expectedVersion: null,
+            ref: "new:interview",
+            fields: fields(),
+          },
+          { op: "attach_message", application: { ref: "new:application" } },
+        ],
+        [
+          {
+            subject: { ref: "new:application" },
+            subjectType: "application",
+            type: "application_created",
+            summary: "Moved to Interviewing",
+            data: { toStatus: "interviewing" },
+          },
+          {
+            subject: { ref: "new:application" },
+            subjectType: "application",
+            type: "interview_created",
+            summary: "Interview scheduled",
+            data: { interview: "new:interview" },
+          },
+        ],
+      ),
+    );
+    const scheduled = await prisma.event.findFirstOrThrow({ where: { type: "interview_created" } });
+    // What an undo does with the created entries of one event: delete them (and that event).
+    for (const entry of scheduled.changeSet as { entity: string; id: string; created: boolean }[]) {
+      expect(entry.entity).toBe("interview");
+      await prisma.interview.delete({ where: { id: entry.id } });
+    }
+    await prisma.event.delete({ where: { id: scheduled.id } });
+
+    expect(await prisma.interview.count()).toBe(0);
+    expect(await prisma.application.count()).toBe(1);
+    expect(await prisma.company.count()).toBe(1);
+    expect(
+      (await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "m1" } })).applicationId,
+    ).not.toBeNull();
+    expect(await prisma.event.findMany()).toMatchObject([{ type: "application_created" }]);
+  });
+
+  it("a status change and an interview update on one application each carry only their own record", async () => {
+    const application = await seedApplication();
+    const interview = await prisma.interview.create({
+      data: { applicationId: application.id, kind: "technical", status: "scheduled", startsAt: AT },
+    });
+    await run(
+      plan(
+        [
+          {
+            op: "update_application",
+            application: { id: application.id },
+            expectedVersion: 1,
+            set: { status: "interviewing", lastCompanyActivityAt: AT },
+          },
+          {
+            op: "upsert_interview",
+            application: { id: application.id },
+            interviewId: interview.id,
+            expectedVersion: 1,
+            ref: interview.id,
+            fields: fields(),
+          },
+          { op: "attach_message", application: { id: application.id } },
+        ],
+        [
+          {
+            subject: { id: application.id },
+            subjectType: "application",
+            type: "status_changed",
+            summary: "Moved to Interviewing",
+            data: { fromStatus: "applied", toStatus: "interviewing" },
+          },
+          {
+            subject: { id: application.id },
+            subjectType: "application",
+            type: "interview_updated",
+            summary: "Interview rescheduled",
+            data: { interview: interview.id },
+          },
+        ],
+      ),
+    );
+    const status = await prisma.event.findFirstOrThrow({ where: { type: "status_changed" } });
+    const rescheduled = await prisma.event.findFirstOrThrow({
+      where: { type: "interview_updated" },
+    });
+    expect(entities(status.changeSet)).toEqual(["application", "gmail_message"]);
+    expect(entities(rescheduled.changeSet)).toEqual(["interview"]);
+  });
+
+  it("an interview event whose interview did not change has no change set and is not undoable", async () => {
+    const application = await seedApplication();
+    const interview = await prisma.interview.create({
+      data: {
+        applicationId: application.id,
+        kind: "technical",
+        status: "scheduled",
+        startsAt: new Date("2026-10-08T21:00:00.000Z"),
+      },
+    });
+    await run(
+      plan(
+        [
+          {
+            op: "upsert_interview",
+            application: { id: application.id },
+            interviewId: interview.id,
+            expectedVersion: 1,
+            ref: interview.id,
+            fields: fields(),
+          },
+          { op: "attach_message", application: { id: application.id } },
+        ],
+        [
+          {
+            subject: { id: application.id },
+            subjectType: "application",
+            type: "interview_updated",
+            summary: "Interview updated",
+            data: { interview: interview.id },
+          },
+        ],
+      ),
+      ctxFor({ messageId: null }),
+    );
+    const event = await prisma.event.findFirstOrThrow({ where: { type: "interview_updated" } });
+    expect(event).toMatchObject({ changeSet: null, undoable: false });
+  });
+});
+
 describe("writeEvent", () => {
   it("is idempotent on (message, type, record) and returns the first id", async () => {
     const application = await seedApplication();
