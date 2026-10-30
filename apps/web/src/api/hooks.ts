@@ -11,6 +11,7 @@ import {
   NavCountsSchema,
   PageSchema,
   SearchRunSchema,
+  SearchRunsSchema,
   SettingsSchema,
   SheetPreviewSchema,
   SyncStatusSchema,
@@ -24,12 +25,15 @@ import {
   type CvProfile,
   type DailyActivityBody,
   type Lead,
+  type SearchRun,
+  type LeadStatus,
   type Settings,
   type Today,
 } from "@offerbound/contracts";
 import {
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
   type QueryClient,
@@ -45,6 +49,11 @@ export const queryKeys = {
   applicationLists: ["applications", "list"] as const,
   application: (id: string) => ["applications", "detail", id] as const,
   reviewItems: ["review-items"] as const,
+  /** Every leads query: lists and the counts behind the tabs. */
+  leads: ["leads"] as const,
+  leadList: (filters: LeadFilters) => ["leads", "list", filters] as const,
+  leadCount: (status: LeadStatus) => ["leads", "count", status] as const,
+  searchRuns: ["search-runs"] as const,
   message: (id: string) => ["message", id] as const,
   syncStatus: ["sync-status"] as const,
   navCounts: ["nav-counts"] as const,
@@ -278,17 +287,47 @@ export function useMarkFollowedUp() {
 }
 
 /** `POST /search/run`: start a search now. `409 already_running` when one is under way. */
-export function useRunSearch() {
+export function useRunSearch(callbacks: MutationCallbacks<SearchRun, void> = {}) {
   const refresh = useRefreshToday();
+  const queryClient = useQueryClient();
+  // The Leads page shows the progress card as soon as the run is on record.
+  const refreshRuns = () => queryClient.invalidateQueries({ queryKey: queryKeys.searchRuns });
   return useMutation({
     mutationFn: () => apiFetch("/search/run", { method: "POST", schema: SearchRunSchema }),
-    onSuccess: () => refresh(),
+    onSuccess: async (run, variables) => {
+      await Promise.all([refresh(), refreshRuns()]);
+      callbacks.onSuccess?.(run, variables);
+    },
+    onError: async (error, variables) => {
+      // Someone else started it: show that run's progress.
+      if (isApiError(error, "already_running")) await refreshRuns();
+      callbacks.onError?.(error, variables);
+    },
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// Leads
+
+/** Everything a change to a lead can alter: the lists and tab counts, Today and the badges. */
+export function useRefreshLeads() {
+  const queryClient = useQueryClient();
+  return () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+    ]);
+}
+
 /** `PATCH /leads/:id`: shortlist, dismiss or put a lead back to new. Sends the lead's `version`. */
-export function useSetLeadStatus() {
-  const refresh = useRefreshToday();
+export function useSetLeadStatus(
+  callbacks: MutationCallbacks<
+    Lead,
+    { lead: Lead; status: "shortlisted" | "dismissed" | "new" }
+  > = {},
+) {
+  const refresh = useRefreshLeads();
   return useMutation({
     mutationFn: ({ lead, status }: { lead: Lead; status: "shortlisted" | "dismissed" | "new" }) =>
       apiFetch(`/leads/${encodeURIComponent(lead.id)}`, {
@@ -296,12 +335,145 @@ export function useSetLeadStatus() {
         body: { version: lead.version, status },
         schema: LeadSchema,
       }),
-    onSuccess: () => refresh(),
+    onSuccess: async (updated, variables) => {
+      await refresh();
+      callbacks.onSuccess?.(updated, variables);
+    },
     // 409 version_conflict: the lead changed elsewhere (a re-rank, say). Fetch the fresh record, so
     // the next try carries its version instead of the stale one.
-    onError: async (error) => {
+    onError: async (error, variables) => {
       if (error instanceof ApiClientError && error.code === "version_conflict") await refresh();
+      callbacks.onError?.(error, variables);
     },
+  });
+}
+
+/** `POST /leads/:id/mark-applied`: the lead becomes an application (AC-9.6); the answer is that application. */
+export function useMarkLeadApplied(callbacks: MutationCallbacks<ApplicationDetail, Lead> = {}) {
+  const queryClient = useQueryClient();
+  const refresh = useRefreshLeads();
+  return useMutation({
+    mutationFn: (lead: Lead) =>
+      apiFetch(`/leads/${encodeURIComponent(lead.id)}/mark-applied`, {
+        method: "POST",
+        schema: ApplicationDetailSchema,
+      }),
+    onSuccess: async (application, lead) => {
+      queryClient.setQueryData(queryKeys.application(application.id), application);
+      await Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.applicationLists }),
+      ]);
+      callbacks.onSuccess?.(application, lead);
+    },
+    onError: async (error, lead) => {
+      // Converted elsewhere in the meantime: show the lead as it is now.
+      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      callbacks.onError?.(error, lead);
+    },
+  });
+}
+
+/** `POST /leads/:id/reconsider`: a suppressed lead goes back to New (AC-9.7). */
+export function useReconsiderLead(callbacks: MutationCallbacks<Lead, Lead> = {}) {
+  const refresh = useRefreshLeads();
+  return useMutation({
+    mutationFn: (lead: Lead) =>
+      apiFetch(`/leads/${encodeURIComponent(lead.id)}/reconsider`, {
+        method: "POST",
+        schema: LeadSchema,
+      }),
+    onSuccess: async (updated, lead) => {
+      await refresh();
+      callbacks.onSuccess?.(updated, lead);
+    },
+    onError: async (error, lead) => {
+      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      callbacks.onError?.(error, lead);
+    },
+  });
+}
+
+/** How the lists are ordered: track priority then fit (AC-12.4, the default), or newest first. */
+export type LeadSort = "track_fit" | "newest";
+
+/** What the Leads list asks for (AC-9.2, AC-12.4). `track` is a configured track key. */
+export interface LeadFilters {
+  status: LeadStatus;
+  track: string | null;
+  sort: LeadSort;
+}
+
+export const LEADS_PAGE_SIZE = 25;
+/** The largest page; a tab count that reaches it reads "200+". */
+export const LEADS_COUNT_LIMIT = 200;
+
+function leadsQuery(filters: LeadFilters, cursor: string | null): string {
+  const params = new URLSearchParams({ status: filters.status });
+  if (filters.track !== null) params.set("track", filters.track);
+  if (filters.sort !== "track_fit") params.set("sort", filters.sort);
+  params.set("limit", String(LEADS_PAGE_SIZE));
+  if (cursor !== null) params.set("cursor", cursor);
+  return params.toString();
+}
+
+/** `GET /leads`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useLeads(filters: LeadFilters) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.leadList(filters),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      apiFetch(`/leads?${leadsQuery(filters, pageParam)}`, {
+        schema: PageSchema(LeadSchema),
+        signal,
+      }),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export interface LeadCount {
+  count: number;
+  /** True when there are more than `count` (the page limit was reached). */
+  atLeast: boolean;
+}
+
+/**
+ * The number behind each tab. `GET /leads` has no total, so each status is read at the largest page
+ * size and counted; a status with more than that reads "200+". Not filtered by track.
+ */
+export function useLeadCounts(): Record<LeadStatus, LeadCount | undefined> {
+  const statuses: LeadStatus[] = ["new", "shortlisted", "applied", "dismissed", "suppressed"];
+  const results = useQueries({
+    queries: statuses.map((status) => ({
+      queryKey: queryKeys.leadCount(status),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        apiFetch(`/leads?status=${status}&limit=${LEADS_COUNT_LIMIT}`, {
+          schema: PageSchema(LeadSchema),
+          signal,
+        }),
+      select: (page: { items: unknown[]; nextCursor: string | null }): LeadCount => ({
+        count: page.items.length,
+        atLeast: page.nextCursor !== null,
+      }),
+    })),
+  });
+  return Object.fromEntries(statuses.map((status, i) => [status, results[i]?.data])) as Record<
+    LeadStatus,
+    LeadCount | undefined
+  >;
+}
+
+const SEARCH_RUNS_POLL_MS = 30_000;
+/** While a search runs, its progress is read every 5 seconds. */
+export const SEARCH_RUNNING_POLL_MS = 5_000;
+
+/** `GET /search/runs`: the last 14 runs, newest first. Polls faster while one is running. */
+export function useSearchRuns() {
+  return useQuery({
+    queryKey: queryKeys.searchRuns,
+    queryFn: ({ signal }) => apiFetch("/search/runs", { schema: SearchRunsSchema, signal }),
+    refetchInterval: (query) =>
+      query.state.data?.[0]?.status === "running" ? SEARCH_RUNNING_POLL_MS : SEARCH_RUNS_POLL_MS,
   });
 }
 
@@ -452,6 +624,8 @@ export function useUndoEvent(callbacks: MutationCallbacks<{ undone: true }, stri
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
       queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems }),
+      // Undoing *Mark applied* puts the lead back where it was.
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
       queryClient.invalidateQueries({ queryKey: queryKeys.today }),
       queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
     ]);
