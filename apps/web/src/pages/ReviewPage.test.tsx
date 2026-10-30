@@ -384,6 +384,46 @@ describe("ReviewPage", () => {
       );
     });
 
+    it("a 409 with any other code (changed_since) also says changes were made elsewhere", async () => {
+      const { user } = setup({
+        "POST /api/v1/review-items/r-low_confidence/resolve": () =>
+          apiError(409, "changed_since", "The application changed."),
+      });
+      await user.click(
+        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+          name: "Apply change",
+        }),
+      );
+      expect(
+        await screen.findByText("Changes were made elsewhere. Review has been refreshed."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Couldn't save your choice. Try again.")).not.toBeInTheDocument();
+    });
+
+    it("in the Edit and apply dialog a 409 with any code closes the dialog and says so", async () => {
+      const { user } = setup({
+        "POST /api/v1/review-items/r-low_confidence/resolve": () =>
+          apiError(409, "changed_since", "The application changed."),
+      });
+      await user.click(
+        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+          name: "Edit and apply",
+        }),
+      );
+      const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
+      await user.type(
+        within(dialog).getByRole("textbox", { name: "Job link" }),
+        "https://x.example/1",
+      );
+      await user.click(within(dialog).getByRole("button", { name: "Apply with edits" }));
+      expect(
+        await screen.findByText("Changes were made elsewhere. Review has been refreshed."),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Edit and apply" })).not.toBeInTheDocument(),
+      );
+    });
+
     it("any other failure says the choice was not saved and keeps the item", async () => {
       const { user } = setup({
         "POST /api/v1/review-items/r-low_confidence/resolve": () =>
@@ -509,10 +549,14 @@ describe("ReviewPage", () => {
       expect(await within(dialog).findByText("Hello")).toBeInTheDocument();
     });
 
-    it("lays out on a phone with the actions wrapping", async () => {
+    it("on a phone the actions wrap and every button is at least 44px tall", async () => {
       setup({}, { width: 390 });
       const card = await cardOf("Is this a rejection from Quarry AI?");
-      expect(actionNames(card)).toEqual(["Apply change", "Edit and apply", "Dismiss"]);
+      const group = card.getByRole("group", { name: "Actions" });
+      expect(getComputedStyle(group).flexWrap).toBe("wrap");
+      for (const button of within(group).getAllByRole("button")) {
+        expect(parseFloat(getComputedStyle(button).minHeight)).toBeGreaterThanOrEqual(44);
+      }
     });
   });
 
@@ -595,6 +639,37 @@ describe("ReviewPage", () => {
   });
 
   describe("keyboard", () => {
+    it("after an item is resolved focus moves to the next card; after the last, to the heading", async () => {
+      let open = [LOW, FAILED];
+      const { user } = setup(
+        {
+          "GET /api/v1/review-items": reviewHandler(() => open),
+          "POST /api/v1/review-items/r-low_confidence/resolve": () => {
+            open = open.filter((i) => i.id !== "r-low_confidence");
+            return { ...LOW, state: "resolved" };
+          },
+          "POST /api/v1/review-items/r-extraction_failed/resolve": () => {
+            open = [];
+            return { ...FAILED, state: "dismissed" };
+          },
+        },
+        { items: [LOW, FAILED] },
+      );
+      await user.click(
+        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+          name: "Apply change",
+        }),
+      );
+      const next = screen.getByRole("heading", { name: "Offerbound couldn't read this email." });
+      await waitFor(() => expect(next.closest("li")).toHaveFocus());
+      await user.click(
+        within(next.closest("li") as HTMLElement).getByRole("button", { name: "Dismiss" }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("heading", { level: 1, name: "Review" })).toHaveFocus(),
+      );
+    });
+
     it("j moves to the first card and Enter shows its email", async () => {
       const { user } = setup({
         "GET /api/v1/messages/m2": () => makeMessage({ id: "m2", subject: "Quarry update" }),

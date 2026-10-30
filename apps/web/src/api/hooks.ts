@@ -381,7 +381,7 @@ export function useMarkLeadApplied(callbacks: MutationCallbacks<ApplicationDetai
     },
     onError: async (error, lead) => {
       // Converted elsewhere in the meantime: show the lead as it is now.
-      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      if (isConflict(error)) await refresh();
       callbacks.onError?.(error, lead);
     },
   });
@@ -401,7 +401,7 @@ export function useReconsiderLead(callbacks: MutationCallbacks<Lead, Lead> = {})
       callbacks.onSuccess?.(updated, lead);
     },
     onError: async (error, lead) => {
-      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      if (isConflict(error)) await refresh();
       callbacks.onError?.(error, lead);
     },
   });
@@ -568,6 +568,11 @@ export interface MutationCallbacks<TData, TVariables> {
 
 export function isApiError(error: unknown, code: string): boolean {
   return error instanceof ApiClientError && error.code === code;
+}
+
+/** Any 409: the record changed elsewhere, whatever code the API puts on it. */
+export function isConflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.status === 409;
 }
 
 /** Everything a change to an application can alter: the lists, Today and the navigation badges. */
@@ -749,7 +754,7 @@ export function useResolveReviewItem(
       callbacks.onSuccess?.(resolved, variables);
     },
     onError: async (error, variables) => {
-      if (error instanceof ApiClientError && error.status === 409) {
+      if (isConflict(error)) {
         await Promise.all([
           refreshReview(),
           queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),

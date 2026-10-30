@@ -18,10 +18,10 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useEffect, useMemo, useRef } from "react";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
-import { ApiClientError } from "../api/client";
 import {
   LEADS_COUNT_LIMIT,
   isApiError,
+  isConflict,
   useLeadCounts,
   useLeads,
   useMarkLeadApplied,
@@ -113,11 +113,6 @@ const nextParams =
 function countLabel(count: LeadCount | undefined): string | null {
   if (!count) return null;
   return count.atLeast ? `${LEADS_COUNT_LIMIT}+` : String(count.count);
-}
-
-/** Any 409: the lead changed elsewhere, whatever the code says. */
-function isConflict(error: unknown): boolean {
-  return error instanceof ApiClientError && error.status === 409;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -647,7 +642,12 @@ export function LeadsPage() {
                 variant="caption"
                 color="text.secondary"
                 component="p"
-                sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75 }}
+                sx={{
+                  display: { xs: "none", sm: "flex" },
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 0.75,
+                }}
               >
                 Keys: <Key>j</Key> <Key>k</Key> move, <Key>s</Key> shortlist, <Key>d</Key> dismiss,{" "}
                 <Key>a</Key> mark applied, <Key>o</Key> open posting, <Key>?</Key> all shortcuts

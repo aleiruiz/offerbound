@@ -12,7 +12,7 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useState } from "react";
 import { ApiClientError } from "../api/client";
-import { isApiError, useResolveReviewItem } from "../api/hooks";
+import { isConflict, useResolveReviewItem } from "../api/hooks";
 import { isHttpUrl } from "../lib/url";
 import { useUndoSnackbar } from "./UndoSnackbar";
 
@@ -36,7 +36,15 @@ const CATEGORIES: { value: EmailCategory; label: string }[] = [
 
 const CHANGED_ELSEWHERE = "Changes were made elsewhere. Review has been refreshed.";
 
-function Form({ item, onClose }: { item: Pick<ReviewItem, "id" | "kind">; onClose: () => void }) {
+function Form({
+  item,
+  onClose,
+  onResolved,
+}: {
+  item: Pick<ReviewItem, "id" | "kind">;
+  onClose: () => void;
+  onResolved: (id: string) => void;
+}) {
   const snackbar = useUndoSnackbar();
   const [category, setCategory] = useState<EmailCategory | "">("");
   const [jobUrl, setJobUrl] = useState("");
@@ -46,9 +54,11 @@ function Form({ item, onClose }: { item: Pick<ReviewItem, "id" | "kind">; onClos
     onSuccess: () => {
       snackbar.show("Applied your edits");
       onClose();
+      onResolved(item.id);
     },
     onError: (error) => {
-      if (isApiError(error, "version_conflict")) {
+      // Changed elsewhere (a 409 with any code): the lists were fetched again, so leave the dialog.
+      if (isConflict(error)) {
         snackbar.show(CHANGED_ELSEWHERE);
         onClose();
       }
@@ -110,7 +120,7 @@ function Form({ item, onClose }: { item: Pick<ReviewItem, "id" | "kind">; onClos
           helperText={urlError ?? undefined}
           fullWidth
         />
-        {resolve.isError && !isApiError(resolve.error, "version_conflict") ? (
+        {resolve.isError && !isConflict(resolve.error) ? (
           <Alert severity="error">
             {`Couldn't save your choice. ${resolve.error instanceof ApiClientError ? resolve.error.message : "Check your connection and try again."}`}
           </Alert>
@@ -132,10 +142,13 @@ function Form({ item, onClose }: { item: Pick<ReviewItem, "id" | "kind">; onClos
 export function ReviewEditDialog({
   item,
   onClose,
+  onResolved,
 }: {
   /** The item being edited; `null` keeps the dialog closed. */
   item: Pick<ReviewItem, "id" | "kind"> | null;
   onClose: () => void;
+  /** Called once the edited item has been applied. */
+  onResolved: (id: string) => void;
 }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
@@ -148,7 +161,7 @@ export function ReviewEditDialog({
       maxWidth="sm"
       aria-labelledby={TITLE_ID}
     >
-      {item ? <Form item={item} onClose={onClose} /> : null}
+      {item ? <Form item={item} onClose={onClose} onResolved={onResolved} /> : null}
     </Dialog>
   );
 }

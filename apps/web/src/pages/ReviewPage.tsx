@@ -11,10 +11,10 @@ import RadioGroup from "@mui/material/RadioGroup";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import {
-  isApiError,
+  isConflict,
   useNavCounts,
   useResolveReviewItem,
   useReviewItems,
@@ -299,6 +299,7 @@ function ReviewCard({
       component="li"
       variant="outlined"
       aria-labelledby={headingId}
+      data-review-id={item.id}
       {...rowProps}
       {...(focused ? { "aria-current": "true" } : {})}
       sx={{
@@ -402,6 +403,17 @@ export function ReviewPage() {
   const [emailId, setEmailId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ReviewItem | null>(null);
 
+  // When an item leaves the list, focus goes to the next card, or to the heading if none is left;
+  // otherwise it would fall to the page and a keyboard owner would start again from the top.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const itemsRef = useRef<ReviewItem[]>([]);
+  const [leaving, setLeaving] = useState<{ id: string; nextId: string | null } | null>(null);
+  const itemLeaves = (id: string) => {
+    const list = itemsRef.current;
+    const at = list.findIndex((i) => i.id === id);
+    setLeaving({ id, nextId: (list[at + 1] ?? list[at - 1])?.id ?? null });
+  };
+
   // One change at a time per item: a second press would answer an item that is already settled.
   const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
   const busy = useRef(new Set<string>());
@@ -414,10 +426,11 @@ export function ReviewPage() {
     onSuccess: (_resolved, { item, resolve: choice }) => {
       settle(item.id);
       snackbar.show(DONE[choice.action]);
+      itemLeaves(item.id);
     },
     onError: (error, { item }) => {
       settle(item.id);
-      snackbar.show(isApiError(error, "version_conflict") ? CHANGED_ELSEWHERE : NOT_SAVED);
+      snackbar.show(isConflict(error) ? CHANGED_ELSEWHERE : NOT_SAVED);
     },
   });
   const onResolve: CardProps["onResolve"] = (item, choice) => {
@@ -430,6 +443,20 @@ export function ReviewPage() {
   const items = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
   // One "now" per answer, so "Today, 07:08" versus "Oct 28" stays still while the owner reads.
   const now = useMemo(() => new Date(), [query.dataUpdatedAt]);
+  itemsRef.current = items;
+  useEffect(() => {
+    if (leaving === null || query.isFetching) return;
+    if (items.some((i) => i.id === leaving.id)) {
+      // Still listed (the choice kept it open): nothing left, nothing to move.
+      setLeaving(null);
+      return;
+    }
+    const next = leaving.nextId
+      ? document.querySelector<HTMLElement>(`[data-review-id="${CSS.escape(leaving.nextId)}"]`)
+      : null;
+    (next ?? heading.current)?.focus();
+    setLeaving(null);
+  }, [leaving, items, query.isFetching]);
   const { focusedIndex, getRowProps } = useListKeyboard(items, {
     // Enter shows the email behind the focused card.
     onOpen: (item) => {
@@ -463,7 +490,13 @@ export function ReviewPage() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
       <Box component="header" sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography variant="h4" component="h1">
+        <Typography
+          variant="h4"
+          component="h1"
+          ref={heading}
+          tabIndex={-1}
+          sx={{ outline: "none" }}
+        >
           Review
         </Typography>
         <Typography variant="caption" color="text.secondary" component="p">
@@ -568,7 +601,12 @@ export function ReviewPage() {
                 variant="caption"
                 color="text.secondary"
                 component="p"
-                sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75 }}
+                sx={{
+                  display: { xs: "none", sm: "flex" },
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 0.75,
+                }}
               >
                 Keys: <Key>j</Key> <Key>k</Key> move, <Key>Enter</Key> shows the email, <Key>?</Key>{" "}
                 all shortcuts
@@ -588,7 +626,7 @@ export function ReviewPage() {
       </Box>
 
       <EmailSheet messageId={emailId} onClose={() => setEmailId(null)} timezone={timezone} />
-      <ReviewEditDialog item={editing} onClose={() => setEditing(null)} />
+      <ReviewEditDialog item={editing} onClose={() => setEditing(null)} onResolved={itemLeaves} />
     </Box>
   );
 }
