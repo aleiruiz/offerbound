@@ -188,7 +188,8 @@ export function rfc2822(date: Date): string {
  * A fixture as if it arrived at `arrivesAt`. The message itself is dated `arrivesAt`; everything
  * it says about other times (interview and deadline in the extraction, the calendar file, dates
  * written in the text) moves by `deltaMs`, so an interview the email proposes still lies ahead.
- * `id` and `threadId` replace the fixture's own when given (a fixture delivered a second time).
+ * `id` replaces the fixture's own when given (a fixture delivered a second time); the thread stays,
+ * so the message still lands in the thread its first delivery linked.
  */
 export function deliverFixture(
   fixture: EmailFixture,
