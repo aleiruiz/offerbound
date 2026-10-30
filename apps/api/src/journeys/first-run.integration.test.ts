@@ -253,7 +253,14 @@ describe("the owner's first run", () => {
     expect(apps.get("Quarry AI")?.status).toBe("interviewing");
 
     const leads = await get("/leads?status=new&limit=100", page(LeadSchema));
-    expect(leads.items.length).toBeGreaterThan(0);
+    // The LinkedIn alert's five postings, each checked live and ranked.
+    expect(leads.items.map((l) => l.company.name).sort()).toEqual([
+      "Cedar Health",
+      "Foxglove Data",
+      "Lattice Mobility",
+      "Orbital Freight Labs",
+      "Pinecrest Pharma",
+    ]);
 
     // The bank email is not job mail: nothing came of it.
     expect(
@@ -346,7 +353,9 @@ describe("the owner's first run", () => {
   });
 
   it("12. a lead is shortlisted, then marked applied, and becomes an application", async () => {
-    const [lead] = (await get("/leads?status=new&limit=1", page(LeadSchema))).items as [Lead];
+    const leads = await get("/leads?status=new&limit=100", page(LeadSchema));
+    const lead = leads.items.find((l) => l.company.name === "Lattice Mobility") as Lead;
+    expect(lead).toBeDefined();
 
     const shortlisted = await send("PATCH", `/leads/${lead.id}`, {
       version: lead.version,
@@ -380,15 +389,16 @@ describe("the owner's first run", () => {
     await drainPipeline(worker);
 
     const kestrel = (await applicationsByCompany()).get("Kestrel Pay");
-    expect(kestrel?.status).toBe("rejected");
+    if (!kestrel) throw new Error("no Kestrel Pay application");
+    expect(kestrel.status).toBe("rejected");
 
-    const detail = await get(`/applications/${kestrel?.id}`, ApplicationDetailSchema);
+    const detail = await get(`/applications/${kestrel.id}`, ApplicationDetailSchema);
     const rejection = detail.timeline.find((entry) => entry.toStatus === "rejected");
     expect(rejection).toMatchObject({ messageId: "reject-lever-kestrel-pay", undoable: true });
     const undo = await send("POST", `/events/${rejection?.id}/undo`);
     expect(undo.statusCode, undo.body).toBe(200);
     expect((await applicationsByCompany()).get("Kestrel Pay")?.status).toBe("interviewing");
-    const after = await get(`/applications/${kestrel?.id}`, ApplicationDetailSchema);
+    const after = await get(`/applications/${kestrel.id}`, ApplicationDetailSchema);
     expect(after.timeline.find((entry) => entry.id === rejection?.id)?.undoneAt).not.toBeNull();
   });
 });
