@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from "@offerbound/contracts";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeSyncStatus } from "../../test/factories";
 import {
   apiError,
@@ -16,6 +16,7 @@ import lockupLight from "../assets/brand/lockup.svg";
 import { renderWithProviders } from "../../test/render";
 import { heavyIt, setValue } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
+import { ONBOARDING_STORAGE_KEY } from "../lib/onboardingProgress";
 import { OnboardingPage } from "./OnboardingPage";
 
 const PROFILE: CvProfile = {
@@ -65,11 +66,12 @@ const ME = {
 
 type Routes = Record<string, MockHandler>;
 
-function setup(routes: Routes = {}) {
+async function setup(routes: Routes = {}, { settled = true } = {}) {
   const api: MockApi = mockApi({
     "GET /api/v1/gmail/status": () =>
       makeSyncStatus({ connection: "active", started: false, lastSyncAt: null }),
     "GET /api/v1/settings": () => DEFAULT_SETTINGS,
+    "GET /api/v1/cv": () => null,
     ...routes,
   });
   const rendered = renderWithProviders(
@@ -79,6 +81,12 @@ function setup(routes: Routes = {}) {
     </Routes>,
     { route: "/onboarding" },
   );
+  // The page shows a skeleton until the CV, settings and sync status answers are in.
+  if (settled) {
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Loading your setup")).not.toBeInTheDocument(),
+    );
+  }
   // The operating system's picker can hand over any file despite `accept`, so tests bypass it too.
   return { api, ...rendered, user: userEvent.setup({ applyAccept: false, delay: null }) };
 }
@@ -118,7 +126,7 @@ describe("OnboardingPage", () => {
   heavyIt(
     "shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped",
     async () => {
-      const { user } = setup();
+      const { user } = await setup();
       expect(
         screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
       ).toBeInTheDocument();
@@ -154,7 +162,7 @@ describe("OnboardingPage", () => {
   );
 
   it("marks steps 1 to 3 Optional in the stepper until they are skipped, and never the last", async () => {
-    const { user } = setup();
+    const { user } = await setup();
     const steps = screen.getByLabelText("Setup steps");
     expect(within(steps).getAllByText("Optional")).toHaveLength(3);
     for (const name of ["Upload your CV", "Import your spreadsheet", "Write your search brief"]) {
@@ -173,7 +181,7 @@ describe("OnboardingPage", () => {
 
   describe("the CV step", () => {
     it("uploads to POST /cv and shows the profile summary", async () => {
-      const { api, user } = setup({
+      const { api, user } = await setup({
         "POST /api/v1/cv": () => jsonResponse(PROFILE, 201),
       });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
@@ -205,7 +213,7 @@ describe("OnboardingPage", () => {
     });
 
     it("accepts a file dropped on the drop zone, using the first of several", async () => {
-      const { api } = setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
+      const { api } = await setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
       const zone = screen.getByRole("group", { name: "CV drop zone" });
       expect(within(zone).getByRole("button", { name: "Choose CV file" })).toBeInTheDocument();
 
@@ -220,7 +228,7 @@ describe("OnboardingPage", () => {
     });
 
     it("gives a dropped file the same checks as a chosen one", async () => {
-      const { api } = setup();
+      const { api } = await setup();
       const zone = screen.getByRole("group", { name: "CV drop zone" });
       fireEvent.drop(zone, dropping(file("notes.txt", "text/plain")));
       expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -231,8 +239,8 @@ describe("OnboardingPage", () => {
       expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(0);
     });
 
-    it("shows a drag-over state while a file is dragged over the zone", () => {
-      setup();
+    it("shows a drag-over state while a file is dragged over the zone", async () => {
+      await setup();
       const zone = screen.getByRole("group", { name: "CV drop zone" });
       expect(zone).not.toHaveAttribute("data-drag-over");
       expect(within(zone).getByText("or drop a file here")).toBeInTheDocument();
@@ -251,7 +259,7 @@ describe("OnboardingPage", () => {
 
     it("shows the file, a progress bar and what to expect while the CV is read, and ignores drops meanwhile", async () => {
       const answer = deferred<Response>();
-      const { api, user } = setup({ "POST /api/v1/cv": () => answer.promise });
+      const { api, user } = await setup({ "POST /api/v1/cv": () => answer.promise });
       await user.upload(
         screen.getByLabelText("Choose CV file"),
         file("my-long-cv-file-name.pdf", "application/pdf"),
@@ -289,7 +297,7 @@ describe("OnboardingPage", () => {
 
     it("moves focus to the status region when the chooser that had it goes away", async () => {
       const answer = deferred<Response>();
-      setup({ "POST /api/v1/cv": () => answer.promise });
+      await setup({ "POST /api/v1/cv": () => answer.promise });
       const chooser = screen.getByLabelText("Choose CV file");
       // A browser leaves focus on the input after its picker closes.
       chooser.focus();
@@ -302,7 +310,7 @@ describe("OnboardingPage", () => {
     });
 
     it("says 'We couldn't read text from that file' on 422 cv_no_text", async () => {
-      const { user } = setup({
+      const { user } = await setup({
         "POST /api/v1/cv": () => apiError(422, "cv_no_text", "No text was found in this file."),
       });
       await user.upload(
@@ -318,7 +326,7 @@ describe("OnboardingPage", () => {
     });
 
     it("rejects a file over 5 MB without sending it", async () => {
-      const { api, user } = setup();
+      const { api, user } = await setup();
       await user.upload(
         screen.getByLabelText("Choose CV file"),
         file("big.pdf", "application/pdf", 5 * 1024 * 1024 + 1),
@@ -328,7 +336,7 @@ describe("OnboardingPage", () => {
     });
 
     it("rejects a file that is not a PDF or DOCX in the page, even when the picker allowed it", async () => {
-      const { api, user } = setup();
+      const { api, user } = await setup();
       await user.upload(screen.getByLabelText("Choose CV file"), file("notes.txt", "text/plain"));
       expect(await screen.findByRole("alert")).toHaveTextContent(
         "Offerbound reads PDF and DOCX files. Choose one of those.",
@@ -338,14 +346,14 @@ describe("OnboardingPage", () => {
     });
 
     it("accepts a DOCX by extension even when the browser reports no type", async () => {
-      const { user } = setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
+      const { user } = await setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.docx", ""));
       expect(await screen.findByRole("region", { name: "Your CV profile" })).toBeInTheDocument();
     });
 
     it("keeps showing the last good profile when a later upload fails", async () => {
       let answer: MockHandler = () => jsonResponse(PROFILE, 201);
-      const { user } = setup({ "POST /api/v1/cv": (req) => answer(req) });
+      const { user } = await setup({ "POST /api/v1/cv": (req) => answer(req) });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
       expect(await screen.findByText(PROFILE.headline)).toBeInTheDocument();
 
@@ -361,7 +369,7 @@ describe("OnboardingPage", () => {
 
     it("a 202 re-upload replaces the profile with the warning, since the new CV is the one on file", async () => {
       let status = 201;
-      const { user } = setup({
+      const { user } = await setup({
         "POST /api/v1/cv": () =>
           status === 201
             ? jsonResponse(PROFILE, 201)
@@ -377,7 +385,7 @@ describe("OnboardingPage", () => {
 
     it("keeps the 'profile isn't ready' warning when a later upload is rejected or fails", async () => {
       let answer: MockHandler = () => jsonResponse({ profileStatus: "failed", profile: null }, 202);
-      const { user } = setup({ "POST /api/v1/cv": (req) => answer(req) });
+      const { user } = await setup({ "POST /api/v1/cv": (req) => answer(req) });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
       expect(await screen.findByText(/its profile isn't ready/)).toBeInTheDocument();
 
@@ -393,7 +401,7 @@ describe("OnboardingPage", () => {
     });
 
     it("keeps going when the CV is saved but its profile failed", async () => {
-      const { user } = setup({
+      const { user } = await setup({
         "POST /api/v1/cv": () => jsonResponse({ profileStatus: "failed", profile: null }, 202),
       });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
@@ -406,7 +414,7 @@ describe("OnboardingPage", () => {
 
   describe("the import step", () => {
     async function toImport(routes: Routes = {}) {
-      const rendered = setup({
+      const rendered = await setup({
         "POST /api/v1/import/sheet/preview": () => PREVIEW,
         ...routes,
       });
@@ -740,7 +748,7 @@ describe("OnboardingPage", () => {
           ...DEFAULT_SETTINGS,
           search: { ...DEFAULT_SETTINGS.search, brief: "Old brief", enabled: true },
         };
-        const { api, user } = setup({
+        const { api, user } = await setup({
           "GET /api/v1/settings": () => settings,
           "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
         });
@@ -769,7 +777,7 @@ describe("OnboardingPage", () => {
     heavyIt(
       "after a successful save, coming back shows Continue and no Skip, whether or not the text was typed",
       async () => {
-        const { user } = setup({
+        const { user } = await setup({
           "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
         });
         await skipTo(user, 2);
@@ -795,7 +803,7 @@ describe("OnboardingPage", () => {
     );
 
     it("starts with an empty field instead of the shipped example text", async () => {
-      const { user } = setup();
+      const { user } = await setup();
       await skipTo(user, 2);
       const field = await screen.findByRole("textbox", { name: "Search brief" });
       expect(field).toHaveValue("");
@@ -803,7 +811,7 @@ describe("OnboardingPage", () => {
     });
 
     it("blocks a brief over 12,000 characters", async () => {
-      const { user } = setup();
+      const { user } = await setup();
       await skipTo(user, 2);
       const field = await screen.findByRole("textbox", { name: "Search brief" });
       setValue(field, "a".repeat(12_001));
@@ -814,7 +822,7 @@ describe("OnboardingPage", () => {
     });
 
     it("shows a failed save and keeps the text", async () => {
-      const { user } = setup({
+      const { user } = await setup({
         "PUT /api/v1/settings": () =>
           apiError(502, "upstream_error", "The database didn't answer."),
       });
@@ -832,7 +840,7 @@ describe("OnboardingPage", () => {
       "Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today",
       async () => {
         let status = makeSyncStatus({ started: false, lastSyncAt: null });
-        const { api, user, queryClient } = setup({
+        const { api, user, queryClient } = await setup({
           "GET /api/v1/gmail/status": () => status,
           "POST /api/v1/gmail/start": () => {
             status = makeSyncStatus({
@@ -873,7 +881,7 @@ describe("OnboardingPage", () => {
     );
 
     it("Go to Today finishes setup while the first sync is still running", async () => {
-      const { api, user } = setup({
+      const { api, user } = await setup({
         "GET /api/v1/gmail/status": () =>
           makeSyncStatus({
             started: true,
@@ -891,7 +899,7 @@ describe("OnboardingPage", () => {
     });
 
     it("offers Connect Gmail instead of Start syncing when Google stopped Gmail access", async () => {
-      const { api, user } = setup({
+      const { api, user } = await setup({
         "GET /api/v1/gmail/status": () =>
           makeSyncStatus({ connection: "missing_scope", started: false, lastSyncAt: null }),
       });
@@ -905,7 +913,7 @@ describe("OnboardingPage", () => {
     });
 
     it("says so when starting fails, and lets the owner try again", async () => {
-      const { user } = setup({
+      const { user } = await setup({
         "POST /api/v1/gmail/start": () => apiError(502, "upstream_error", "Google did not answer."),
       });
       await skipTo(user, 3);
@@ -915,7 +923,7 @@ describe("OnboardingPage", () => {
     });
 
     it("shows when the first sync stopped", async () => {
-      setup({
+      await setup({
         "GET /api/v1/gmail/status": () =>
           makeSyncStatus({
             started: true,
@@ -924,6 +932,197 @@ describe("OnboardingPage", () => {
       });
       expect(await screen.findByRole("alert")).toHaveTextContent("The first sync stopped");
       expect(screen.getByRole("button", { name: "Go to Today" })).toBeInTheDocument();
+    });
+  });
+  describe("resuming", () => {
+    const stored = (value: unknown) =>
+      window.localStorage.setItem(
+        ONBOARDING_STORAGE_KEY,
+        typeof value === "string" ? value : JSON.stringify(value),
+      );
+    const record = () => window.localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    const heading = (name: string) => screen.getByRole("heading", { level: 2, name });
+    const labelOf = (name: string) =>
+      within(screen.getByLabelText("Setup steps"))
+        .getByText(name)
+        .closest("[class*=MuiStepLabel-root]");
+    const withBrief = (brief: string): Settings => ({
+      ...DEFAULT_SETTINGS,
+      search: { ...DEFAULT_SETTINGS.search, brief },
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("opens on the first step that is neither completed nor skipped, with the earlier ones marked as before", async () => {
+      stored({ completed: [0], skipped: [1] });
+      const { user } = await setup();
+      expect(heading("Write your search brief")).toBeVisible();
+      expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+      expect(labelOf("Import your spreadsheet")).toHaveTextContent("Skipped");
+      expect(labelOf("Write your search brief")).toHaveTextContent("Optional");
+
+      // The earlier steps are mounted, so Back works.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(heading("Import your spreadsheet")).toBeVisible();
+    });
+
+    it("counts the CV as done when the server has a profile, and the brief when it has an owner brief", async () => {
+      await setup({
+        "GET /api/v1/cv": () => PROFILE,
+        "GET /api/v1/settings": () => withBrief("Remote senior roles"),
+      });
+      // The import has no server answer, so it is the first unfinished step.
+      expect(heading("Import your spreadsheet")).toBeVisible();
+      expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+      expect(labelOf("Write your search brief")).not.toHaveTextContent(/Optional|Skipped/);
+      expect(labelOf("Import your spreadsheet")).toHaveTextContent("Optional");
+    });
+
+    it("does not count a blank brief or the repo-shipped one as done", async () => {
+      await setup({ "GET /api/v1/settings": () => withBrief("   \n ") });
+      expect(heading("Upload your CV")).toBeVisible();
+      expect(labelOf("Write your search brief")).toHaveTextContent("Optional");
+    });
+
+    it("lets the server win over the record: a skipped CV that exists on the server shows as done", async () => {
+      stored({ completed: [], skipped: [0] });
+      await setup({ "GET /api/v1/cv": () => PROFILE });
+      expect(heading("Import your spreadsheet")).toBeVisible();
+      expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+    });
+
+    it("opens on the last step when the first sync already started, whatever the record says", async () => {
+      stored({ completed: [0], skipped: [] });
+      await setup({
+        "GET /api/v1/gmail/status": () =>
+          makeSyncStatus({
+            started: true,
+            lastSyncAt: null,
+            backfill: { state: "running", listed: 400, processed: 120 },
+          }),
+      });
+      expect(heading("Start syncing Gmail")).toBeVisible();
+      expect(screen.getByText(/120 of 400 checked\./)).toBeInTheDocument();
+    });
+
+    it("ignores and drops a record that is not valid, and opens on step 1", async () => {
+      for (const garbage of [
+        "not json{",
+        '"text"',
+        "null",
+        { completed: "0", skipped: [] },
+        { completed: [0] },
+        { completed: [9], skipped: [] },
+        { completed: [-1], skipped: [1.5] },
+      ]) {
+        window.localStorage.clear();
+        stored(garbage);
+        const { unmount } = await setup();
+        expect(heading("Upload your CV")).toBeVisible();
+        expect(record()).toBeNull();
+        unmount();
+      }
+    });
+
+    it("works when storage throws on every read and write", async () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+        throw new Error("blocked");
+      });
+      const { user } = await setup();
+      expect(heading("Upload your CV")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
+      expect(heading("Import your spreadsheet")).toBeVisible();
+    });
+
+    it("shows a placeholder, not step 1, until the CV, settings and sync answers are in", async () => {
+      const cv = deferred<Response>();
+      await setup({ "GET /api/v1/cv": () => cv.promise }, { settled: false });
+      expect(screen.getByLabelText("Loading your setup")).toBeInTheDocument();
+      await settle();
+      expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Setup steps")).not.toBeInTheDocument();
+
+      cv.resolve(jsonResponse(PROFILE));
+      expect(
+        await screen.findByRole("heading", { level: 2, name: "Import your spreadsheet" }),
+      ).toBeVisible();
+      expect(screen.queryByLabelText("Loading your setup")).not.toBeInTheDocument();
+    });
+
+    it("opens on step 1 when an answer fails, instead of waiting for it", async () => {
+      await setup({ "GET /api/v1/cv": () => apiError(500, "internal", "Boom.") });
+      expect(heading("Upload your CV")).toBeVisible();
+    });
+
+    it("writes the record when a step is completed or skipped", async () => {
+      const { user } = await setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
+      expect(record()).toBeNull();
+
+      await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
+      await user.click(await screen.findByRole("button", { name: "Continue" }));
+      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [0], skipped: [] });
+
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
+      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [0], skipped: [1] });
+    });
+
+    it("clears the record when onboarding completes", async () => {
+      stored({ completed: [0], skipped: [1, 2] });
+      const { api, user } = await setup({
+        "GET /api/v1/gmail/status": () =>
+          makeSyncStatus({
+            started: true,
+            lastSyncAt: null,
+            backfill: { state: "running", listed: 400, processed: 120 },
+          }),
+        "POST /api/v1/onboarding/complete": () => ME,
+      });
+      expect(record()).not.toBeNull();
+      await user.click(screen.getByRole("button", { name: "Go to Today" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
+      expect(record()).toBeNull();
+    });
+
+    it("keeps the record when finishing fails", async () => {
+      stored({ completed: [0], skipped: [] });
+      const { user } = await setup({
+        "GET /api/v1/gmail/status": () =>
+          makeSyncStatus({
+            started: true,
+            lastSyncAt: null,
+            backfill: { state: "running", listed: 400, processed: 120 },
+          }),
+        "POST /api/v1/onboarding/complete": () => apiError(500, "internal", "Boom."),
+      });
+      await user.click(screen.getByRole("button", { name: "Go to Today" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't finish setup.");
+      expect(record()).not.toBeNull();
+    });
+
+    it("does not override a step the owner chose when the sync status changes later", async () => {
+      let status = makeSyncStatus({ connection: "active", started: false, lastSyncAt: null });
+      const { user, queryClient } = await setup({ "GET /api/v1/gmail/status": () => status });
+      expect(heading("Upload your CV")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
+      expect(heading("Import your spreadsheet")).toBeVisible();
+
+      status = makeSyncStatus({
+        started: true,
+        backfill: { state: "running", listed: 400, processed: 120 },
+      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
+      await settle();
+      expect(heading("Import your spreadsheet")).toBeVisible();
+      expect(screen.queryByText(/120 of 400 checked\./)).not.toBeInTheDocument();
     });
   });
 });

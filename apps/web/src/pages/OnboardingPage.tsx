@@ -16,6 +16,7 @@ import { useNavigate } from "react-router";
 import { ApiClientError } from "../api/client";
 import {
   useCompleteOnboarding,
+  useCv,
   useSaveSettings,
   useSettings,
   useStartGmail,
@@ -38,11 +39,18 @@ import {
   rejectFile,
 } from "../lib/files";
 import { formatCount } from "../lib/format";
+import {
+  clearOnboardingProgress,
+  readOnboardingProgress,
+  writeOnboardingProgress,
+} from "../lib/onboardingProgress";
 
 /**
  * Onboarding (DESIGN_SPEC §5.8, TECHNICAL_SPEC §11): upload the CV, import the spreadsheet, write
  * the search brief, start syncing Gmail. Only the last step is required. Every step stays mounted
- * once the owner has been there, so going back shows what was already done.
+ * once the owner has been there, so going back shows what was already done. Progress is kept in
+ * this browser and read from the server (CV, brief), so the page reopens on the first unfinished
+ * step after a reload or a new sign-in.
  */
 
 const STEPS = [
@@ -62,40 +70,20 @@ const isOptional = (index: number) => index < LAST_STEP;
 // Page
 
 export function OnboardingPage() {
-  const [active, setActive] = useState(0);
-  const [visited, setVisited] = useState<ReadonlySet<number>>(new Set([0]));
-  const [completed, setCompleted] = useState<ReadonlySet<number>>(new Set());
-  const [skipped, setSkipped] = useState<ReadonlySet<number>>(new Set());
-  const touched = useRef(false);
+  const cv = useCv();
+  const settings = useSettings();
   const status = useSyncStatus();
 
-  const goTo = (step: number) => {
-    touched.current = true;
-    setActive(step);
-    setVisited((previous) => new Set(previous).add(step));
-  };
-
-  // Leaving and coming back while the first sync runs: open on the step that shows its progress.
-  const alreadyStarted = status.data?.started === true;
-  useEffect(() => {
-    if (alreadyStarted && !touched.current) {
-      setActive(LAST_STEP);
-      setVisited((previous) => new Set(previous).add(LAST_STEP));
-    }
-  }, [alreadyStarted]);
-
-  const advance = (from: number, outcome: "done" | "skipped") => {
-    const mark = (set: ReadonlySet<number>) => new Set(set).add(from);
-    const unmark = (set: ReadonlySet<number>) => {
-      const next = new Set(set);
-      next.delete(from);
-      return next;
-    };
-    setCompleted(outcome === "done" ? mark : unmark);
-    setSkipped(outcome === "skipped" ? mark : unmark);
-    goTo(from + 1);
-  };
-  const back = (from: number) => goTo(from - 1);
+  // The first step is chosen once, when the three answers are in (a failed one counts as unknown),
+  // so the page never opens on step 1 and then jumps.
+  const ready = !cv.isPending && !settings.isPending && !status.isPending;
+  const initial = useRef<{ serverDone: ReadonlySet<number>; started: boolean } | null>(null);
+  if (ready && initial.current === null) {
+    const done = new Set<number>();
+    if (cv.data) done.add(0);
+    if (hasOwnBrief(settings.data?.search.brief)) done.add(2);
+    initial.current = { serverDone: done, started: status.data?.started === true };
+  }
 
   return (
     <Box
@@ -124,62 +112,134 @@ export function OnboardingPage() {
             Four steps. Only the last one is required; you can come back to the others in Settings.
           </Typography>
         </Box>
-
-        <Stepper
-          activeStep={active}
-          aria-label="Setup steps"
-          sx={{ flexWrap: "wrap", rowGap: 1.5 }}
-        >
-          {STEPS.map((label, index) => (
-            <Step
-              key={label}
-              completed={completed.has(index)}
-              aria-current={index === active ? "step" : undefined}
-            >
-              <StepLabel
-                optional={
-                  skipped.has(index) ? (
-                    <Typography variant="caption">Skipped</Typography>
-                  ) : isOptional(index) && !completed.has(index) ? (
-                    <Typography variant="caption">Optional</Typography>
-                  ) : undefined
-                }
-              >
-                {label}
-              </StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-
-        <StepSection id="cv" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
-          <CvStep onContinue={() => advance(0, "done")} onSkip={() => advance(0, "skipped")} />
-        </StepSection>
-        <StepSection
-          id="import"
-          title={STEPS[1]}
-          active={active === 1}
-          visited={visited.has(1)}
-          optional
-        >
-          <ImportStep
-            onBack={() => back(1)}
-            onContinue={() => advance(1, "done")}
-            onSkip={() => advance(1, "skipped")}
-          />
-        </StepSection>
-        <StepSection id="brief" title={STEPS[2]} active={active === 2} visited={visited.has(2)}>
-          <BriefStep
-            active={active === 2}
-            onBack={() => back(2)}
-            onContinue={() => advance(2, "done")}
-            onSkip={() => advance(2, "skipped")}
-          />
-        </StepSection>
-        <StepSection id="gmail" title={STEPS[3]} active={active === 3} visited={visited.has(3)}>
-          <GmailStep active={active === 3} onBack={() => back(3)} />
-        </StepSection>
+        {initial.current ? (
+          <Steps serverDone={initial.current.serverDone} started={initial.current.started} />
+        ) : (
+          <Skeleton variant="rounded" height={240} aria-label="Loading your setup" />
+        )}
       </Box>
     </Box>
+  );
+}
+
+/** The brief step is done when the owner's own brief is on file, not the repo-shipped one. */
+function hasOwnBrief(brief: string | undefined): boolean {
+  return brief !== undefined && brief.trim() !== "" && brief !== DEFAULT_SETTINGS.search.brief;
+}
+
+/** The stepper and the steps. Starts on the first step that is neither completed nor skipped. */
+function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; started: boolean }) {
+  const [record] = useState(() => readOnboardingProgress(STEPS.length));
+  const [completed, setCompleted] = useState<ReadonlySet<number>>(
+    () => new Set([...record.completed, ...serverDone]),
+  );
+  const [skipped, setSkipped] = useState<ReadonlySet<number>>(
+    () => new Set(record.skipped.filter((step) => !serverDone.has(step))),
+  );
+  const [firstOpen] = useState(() => {
+    if (started) return LAST_STEP;
+    for (let step = 0; step < LAST_STEP; step += 1) {
+      if (!completed.has(step) && !skipped.has(step)) return step;
+    }
+    return LAST_STEP;
+  });
+  const [active, setActive] = useState(firstOpen);
+  // Every step up to the first open one has been passed, so each is mounted: going back works.
+  const [visited, setVisited] = useState<ReadonlySet<number>>(
+    () => new Set(Array.from({ length: firstOpen + 1 }, (_, step) => step)),
+  );
+  const touched = useRef(false);
+  const status = useSyncStatus();
+
+  const goTo = (step: number) => {
+    touched.current = true;
+    setActive(step);
+    setVisited((previous) => new Set(previous).add(step));
+  };
+
+  // Leaving and coming back while the first sync runs: open on the step that shows its progress.
+  const alreadyStarted = status.data?.started === true;
+  useEffect(() => {
+    if (alreadyStarted && !touched.current) {
+      setActive(LAST_STEP);
+      setVisited((previous) => new Set(previous).add(LAST_STEP));
+    }
+  }, [alreadyStarted]);
+
+  const advance = (from: number, requested: "done" | "skipped") => {
+    // The server already has this step's work (a CV, a brief), so skipping it changes nothing.
+    const outcome = requested === "skipped" && serverDone.has(from) ? "done" : requested;
+    const mark = (set: ReadonlySet<number>) => new Set(set).add(from);
+    const unmark = (set: ReadonlySet<number>) => {
+      const next = new Set(set);
+      next.delete(from);
+      return next;
+    };
+    const nextCompleted = outcome === "done" ? mark(completed) : unmark(completed);
+    const nextSkipped = outcome === "skipped" ? mark(skipped) : unmark(skipped);
+    setCompleted(nextCompleted);
+    setSkipped(nextSkipped);
+    // The server tells the CV and the brief by itself; the record keeps what only this browser knows.
+    writeOnboardingProgress({
+      completed: [...nextCompleted].filter((step) => !serverDone.has(step)),
+      skipped: [...nextSkipped],
+    });
+    goTo(from + 1);
+  };
+  const back = (from: number) => goTo(from - 1);
+
+  return (
+    <>
+      <Stepper activeStep={active} aria-label="Setup steps" sx={{ flexWrap: "wrap", rowGap: 1.5 }}>
+        {STEPS.map((label, index) => (
+          <Step
+            key={label}
+            completed={completed.has(index)}
+            aria-current={index === active ? "step" : undefined}
+          >
+            <StepLabel
+              optional={
+                skipped.has(index) ? (
+                  <Typography variant="caption">Skipped</Typography>
+                ) : isOptional(index) && !completed.has(index) ? (
+                  <Typography variant="caption">Optional</Typography>
+                ) : undefined
+              }
+            >
+              {label}
+            </StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      <StepSection id="cv" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
+        <CvStep onContinue={() => advance(0, "done")} onSkip={() => advance(0, "skipped")} />
+      </StepSection>
+      <StepSection
+        id="import"
+        title={STEPS[1]}
+        active={active === 1}
+        visited={visited.has(1)}
+        optional
+      >
+        <ImportStep
+          onBack={() => back(1)}
+          onContinue={() => advance(1, "done")}
+          onSkip={() => advance(1, "skipped")}
+        />
+      </StepSection>
+      <StepSection id="brief" title={STEPS[2]} active={active === 2} visited={visited.has(2)}>
+        <BriefStep
+          active={active === 2}
+          onBack={() => back(2)}
+          onContinue={() => advance(2, "done")}
+          onSkip={() => advance(2, "skipped")}
+        />
+      </StepSection>
+      <StepSection id="gmail" title={STEPS[3]} active={active === 3} visited={visited.has(3)}>
+        <GmailStep active={active === 3} onBack={() => back(3)} />
+      </StepSection>
+    </>
   );
 }
 
@@ -560,7 +620,13 @@ function GmailStep({ active, onBack }: { active: boolean; onBack: () => void }) 
 
   const finish = () => {
     finishing.current = true;
-    complete.mutate(undefined, { onSuccess: () => void navigate("/today", { replace: true }) });
+    complete.mutate(undefined, {
+      onSuccess: () => {
+        // Setup is over: the kept progress must not outlive it.
+        clearOnboardingProgress();
+        void navigate("/today", { replace: true });
+      },
+    });
   };
 
   // The first sync is done: setup is complete, so go to Today.
