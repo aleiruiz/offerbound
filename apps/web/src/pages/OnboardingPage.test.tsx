@@ -203,7 +203,13 @@ describe("OnboardingPage", () => {
       expect(
         screen.getByRole("heading", { level: 2, name: "Import your spreadsheet" }),
       ).toBeVisible();
-      expect(within(screen.getByLabelText("Setup steps")).queryByText("Skipped")).toBeNull();
+      const steps = screen.getByLabelText("Setup steps");
+      expect(within(steps).queryByText("Skipped")).toBeNull();
+      // A completed step shows no caption at all; the two steps still to do keep "Optional".
+      expect(
+        within(steps).getByText("Upload your CV").closest("[class*=MuiStepLabel-root]"),
+      ).not.toHaveTextContent(/Optional|Skipped/);
+      expect(within(steps).getAllByText("Optional")).toHaveLength(2);
     });
 
     it("accepts a file dropped on the drop zone, using the first of several", async () => {

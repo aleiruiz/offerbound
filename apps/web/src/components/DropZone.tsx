@@ -59,6 +59,7 @@ export function DropZone({
       role="group"
       aria-label={label}
       data-drag-over={over ? "true" : undefined}
+      data-disabled={disabled ? "true" : undefined}
       onDragEnter={enter}
       onDragOver={enter}
       onDragLeave={leave}
@@ -70,10 +71,16 @@ export function DropZone({
         gap: 1.5,
         p: 2,
         border: 1.5,
-        borderStyle: "dashed",
+        // A disabled zone takes no drops, so it loses the dashed "drop here" look.
+        borderStyle: disabled ? "solid" : "dashed",
         borderColor: over ? "primary.main" : "divider",
         borderRadius: 1,
-        bgcolor: over ? theme.palette.tokens.routeTint : "transparent",
+        bgcolor: disabled
+          ? theme.palette.action.disabledBackground
+          : over
+            ? theme.palette.tokens.routeTint
+            : "transparent",
+        color: disabled ? theme.palette.text.disabled : undefined,
         transition: "background-color 120ms, border-color 120ms",
       })}
     >

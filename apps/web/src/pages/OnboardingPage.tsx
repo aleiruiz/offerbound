@@ -63,7 +63,10 @@ const STEPS = [
   "Start syncing Gmail",
 ] as const;
 const LAST_STEP = STEPS.length - 1;
-/** Steps before the last one can be skipped; the stepper says so under their names. */
+/**
+ * Steps before the last one can be skipped; the stepper says so under their names until the step
+ * is completed or skipped.
+ */
 const isOptional = (index: number) => index < LAST_STEP;
 
 const MB = 1024 * 1024;
@@ -174,7 +177,7 @@ export function OnboardingPage() {
                 optional={
                   skipped.has(index) ? (
                     <Typography variant="caption">Skipped</Typography>
-                  ) : isOptional(index) ? (
+                  ) : isOptional(index) && !completed.has(index) ? (
                     <Typography variant="caption">Optional</Typography>
                   ) : undefined
                 }
