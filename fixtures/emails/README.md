@@ -59,7 +59,7 @@ The pipeline never creates a second application for a company, so the two ambigu
 | Decoys                    | 8     | Bank, careers newsletter, course marketing, family, receipt, social notification, personal LinkedIn message, unrelated calendar invite                                               |
 | Skipped                   | 2     | A spam-labelled message and one dated before the backfill start (rule R1)                                                                                                            |
 
-Nineteen fixtures carry `demo: true`, spread across categories.
+Twenty fixtures carry `demo: true`, spread across categories. The demo subset is self-contained: replaying only those fixtures through the triage rules gives the same decisions as the full set (a test checks it), so every thread link a demo fixture relies on comes from another demo fixture.
 
 ## Threads
 

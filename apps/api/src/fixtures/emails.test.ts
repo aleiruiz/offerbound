@@ -39,11 +39,13 @@ const count = (list: EmailFixture[], predicate: (f: EmailFixture) => boolean): n
  * order, and each one that is applied links its thread and teaches the pipeline its company's
  * domains (TECHNICAL_SPEC §6.2, §6.4). Seed applications are name-only, so they add no domains.
  */
-function replay(): { fixture: EmailFixture; lookups: TriageLookups }[] {
+function replay(
+  source: readonly EmailFixture[] = fixtures,
+): { fixture: EmailFixture; lookups: TriageLookups }[] {
   const linkedThreadIds = new Set<string>();
   const companyDomains = new Set<string>();
   const steps: { fixture: EmailFixture; lookups: TriageLookups }[] = [];
-  for (const fixture of fixtures) {
+  for (const fixture of source) {
     steps.push({
       fixture,
       lookups: {
@@ -64,6 +66,35 @@ function replay(): { fixture: EmailFixture; lookups: TriageLookups }[] {
     }
   }
   return steps;
+}
+
+/** Replays `source` in order and checks each fixture's llm.triage / expected.triage against the rules. */
+function expectTriageMatchesRules(source: readonly EmailFixture[]): void {
+  for (const { fixture: f, lookups } of replay(source)) {
+    const decision = triageByRules(
+      {
+        labelIds: f.labels,
+        internalDate: new Date(f.internalDate),
+        backfillSince: FIXTURE_BACKFILL_SINCE,
+        threadId: f.threadId,
+        from: f.headers.from,
+        to: f.headers.to,
+        cc: f.headers.cc ?? [],
+        ownerEmail: FIXTURE_OWNER_EMAIL,
+      },
+      lookups,
+    );
+    if (decision.decision === "llm") {
+      const triage = f.llm.triage;
+      expect(triage, `${f.id} needs an llm.triage`).not.toBeNull();
+      expect(triage?.id).toBe(f.id);
+      const proceeds = triage?.jobRelated === true || (triage?.confidence ?? 1) < 0.7;
+      expect(f.expected.triage, f.id).toBe(proceeds ? "job_related" : "triaged_out");
+    } else {
+      expect(f.llm.triage, `${f.id} is decided by ${decision.rule}`).toBeNull();
+      expect(f.expected.triage, f.id).toBe(decision.decision);
+    }
+  }
 }
 
 describe("email fixtures", () => {
@@ -181,31 +212,13 @@ describe("email fixtures", () => {
         expect(ExtractionSchema.safeParse(f.llm.extraction).success, f.id).toBe(true);
       }
     }
-    for (const { fixture: f, lookups } of replay()) {
-      const decision = triageByRules(
-        {
-          labelIds: f.labels,
-          internalDate: new Date(f.internalDate),
-          backfillSince: FIXTURE_BACKFILL_SINCE,
-          threadId: f.threadId,
-          from: f.headers.from,
-          to: f.headers.to,
-          cc: f.headers.cc ?? [],
-          ownerEmail: FIXTURE_OWNER_EMAIL,
-        },
-        lookups,
-      );
-      if (decision.decision === "llm") {
-        const triage = f.llm.triage;
-        expect(triage, `${f.id} needs an llm.triage`).not.toBeNull();
-        expect(triage?.id).toBe(f.id);
-        const proceeds = triage?.jobRelated === true || (triage?.confidence ?? 1) < 0.7;
-        expect(f.expected.triage, f.id).toBe(proceeds ? "job_related" : "triaged_out");
-      } else {
-        expect(f.llm.triage, `${f.id} is decided by ${decision.rule}`).toBeNull();
-        expect(f.expected.triage, f.id).toBe(decision.decision);
-      }
-    }
+    expectTriageMatchesRules(fixtures);
+  });
+
+  it("replaying only the demo fixtures matches their expected triage", () => {
+    const demo = fixtures.filter((f) => f.demo);
+    expect(demo.length).toBeGreaterThanOrEqual(12);
+    expectTriageMatchesRules(demo);
   });
 
   it("derives expected.jobKey from the fixture's job URL", () => {
