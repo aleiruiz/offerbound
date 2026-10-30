@@ -403,6 +403,111 @@ describe("runTriageBatch: what is stored", () => {
   });
 });
 
+describe("runTriageBatch: R3 deferral for outgoing mail", () => {
+  const outgoing = (id: string, date: string, to = "Maya <maya@quarry.example>") =>
+    mail(id, { labels: ["SENT"], from: "Owner <owner@example.com>", to: [to], date });
+  const confirmation = (id: string, date: string) =>
+    mail(id, { from: "Quarry AI <no-reply@ashbyhq.com>", date });
+
+  it("waits while an older message has not settled, never reaches the LLM, and is decided later", async () => {
+    const { ctx, llm } = await setup([
+      confirmation("confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("out", "2026-10-06T10:00:00.000Z"),
+    ]);
+
+    // The confirmation is job-related (R4) but not applied; the follow-up is not known yet.
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 1 });
+    expect(llm.calls).toEqual([]);
+    // Still discovered, but with its real date, so it no longer holds the apply watermark at the
+    // epoch: the older message can be applied. No attempt is counted, no content is stored.
+    const waiting = await row("out");
+    expect(waiting).toMatchObject({
+      state: "discovered",
+      attempts: 0,
+      lastError: null,
+      direction: "outbound",
+      internalDate: new Date("2026-10-06T10:00:00.000Z"),
+    });
+    expect(contentOf(waiting)).toEqual(NO_CONTENT);
+
+    // The older message is applied and the company's domain is learned.
+    await prisma.company.create({
+      data: {
+        name: "Quarry AI",
+        normalizedName: "quarry ai",
+        domains: ["quarry.example"],
+        createdSource: "gmail",
+      },
+    });
+    await prisma.gmailMessage.update({ where: { id: "confirm" }, data: { state: "applied" } });
+
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 1 });
+    expect(llm.calls).toEqual([]);
+    expect(await row("out")).toMatchObject({
+      state: "job_related",
+      triageRule: "R3",
+      triageMethod: "rule",
+      attempts: 0,
+    });
+  });
+
+  it("is triaged out, with no content, once every older message has settled", async () => {
+    const { ctx, llm } = await setup([
+      mail("old", { labels: ["SPAM"], date: "2026-10-05T10:00:00.000Z" }),
+      outgoing("out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 2 });
+    expect(llm.calls).toEqual([]);
+    const stored = await row("out");
+    expect(stored).toMatchObject({ state: "triaged_out", triageRule: "R3", direction: "outbound" });
+    expect(contentOf(stored)).toEqual(NO_CONTENT);
+  });
+
+  it("does not wait for a message that waits for the owner", async () => {
+    const { ctx } = await setup([
+      confirmation("review", "2026-10-05T10:00:00.000Z"),
+      outgoing("out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    await runTriageBatch(ctx);
+    // "review" is only job_related (unsettled), so the follow-up waits. Once that message waits for
+    // the owner (needs_review), the pipeline cannot hurry it, so the follow-up is decided.
+    expect((await row("out")).state).toBe("discovered");
+    await prisma.gmailMessage.update({ where: { id: "review" }, data: { state: "needs_review" } });
+    await runTriageBatch(ctx);
+    expect((await row("out")).state).toBe("triaged_out");
+  });
+
+  it("waits while a message has not been read from Gmail yet", async () => {
+    // 26 messages: the batch of 25 is the first 25 by discovery order; the 26th keeps its
+    // placeholder date and could be older than the follow-up.
+    const spam = Array.from({ length: 25 }, (_, i) =>
+      mail(`s${String(i).padStart(2, "0")}`, { labels: ["SPAM"] }),
+    );
+    const fixtures = [
+      outgoing("a-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+      ...spam.slice(0, 24),
+      mail("z-last", { labels: ["SPAM"], date: "2026-10-01T10:00:00.000Z" }),
+    ];
+    const { ctx, llm } = await setup(fixtures);
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 24 });
+    expect((await row("a-out")).state).toBe("discovered");
+    expect(llm.calls).toEqual([]);
+
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 2 });
+    expect(await row("a-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("decides several waiting messages oldest first in one pass", async () => {
+    const { ctx } = await setup([
+      outgoing("b-out", "2026-10-07T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+      outgoing("a-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    expect(await runTriageBatch(ctx)).toEqual({ processed: 2 });
+    expect((await row("a-out")).state).toBe("triaged_out");
+    expect((await row("b-out")).state).toBe("triaged_out");
+  });
+});
+
 describe("runTriageBatch: batches and failures", () => {
   it("takes up to 25 discovered messages, oldest first, and leaves the rest", async () => {
     const fixtures = Array.from({ length: 30 }, (_, i) =>

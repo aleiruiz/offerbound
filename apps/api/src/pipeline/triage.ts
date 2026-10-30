@@ -10,6 +10,7 @@ import {
 import type { WorkerCtx } from "../deps.js";
 import { withIntakeLock } from "../db/lock.js";
 import { GmailMessageNotFoundError, GmailRequestError } from "../gmail/client.js";
+import { UNKNOWN_DATE } from "../gmail/sync.js";
 import { QUEUES } from "../jobs/queues.js";
 import { toTriageInput } from "../llm/inputs.js";
 import { LlmError } from "../llm/provider.js";
@@ -95,6 +96,11 @@ type Decided = {
   direction: "inbound" | "outbound";
   confidence: number | null;
 };
+/**
+ * Outgoing mail that rule R3 would drop. It is decided only once the pipeline has had the chance
+ * to learn what R3 compares it with (see {@link decideDeferred}).
+ */
+type Deferrable = { row: Row; meta: MessageMetadata };
 /** Gmail has no such message any more (deleted between listing and fetching). */
 type Gone = { kind: "gone"; row: Row };
 /**
@@ -199,6 +205,91 @@ async function writeFailed(tx: Prisma.TransactionClient, f: Failed, now: Date): 
   return true;
 }
 
+/**
+ * States in which a message no longer waits for the pipeline: it has reached its outcome, or it
+ * waits for the owner (`needs_review`), which the pipeline cannot hurry.
+ */
+const SETTLED_STATES = ["skipped", "triaged_out", "applied", "needs_review", "failed"] as const;
+
+/**
+ * R3 deferral. Rule R3 drops outgoing mail whose recipients the pipeline does not know yet, but
+ * what it knows (company domains, contacts) is learned by applying the messages that came before.
+ * During a backfill nothing has been applied when the first batches are triaged, so the owner's
+ * own follow-ups would be dropped for good. Such a message therefore stays `discovered` while:
+ * - some other message with an older date has not settled (see {@link SETTLED_STATES}), or
+ * - some other message still has the placeholder date, because Gmail has not been read for it yet
+ *   (it could turn out to be older).
+ * The next batch decides it again with whatever has been learned meanwhile. Only when every older
+ * message has settled and R3 still fails is it `triaged_out`, with its content dropped.
+ *
+ * The real date is written on deferral, so the message no longer holds the apply watermark at the
+ * epoch: every older message stays below it and can still be applied, which is what ends the wait.
+ * A deferral is not a failed attempt and does not touch `attempts`, and it never reaches the model.
+ */
+async function olderMessagesUnsettled(
+  tx: Prisma.TransactionClient,
+  id: string,
+  date: Date,
+): Promise<boolean> {
+  const count = await tx.gmailMessage.count({
+    where: {
+      id: { not: id },
+      OR: [
+        { internalDate: UNKNOWN_DATE },
+        { internalDate: { lt: date }, state: { notIn: [...SETTLED_STATES] } },
+      ],
+    },
+  });
+  return count > 0;
+}
+
+/**
+ * Writes the deferrable messages, oldest first so each sees the decisions made before it. Returns
+ * how many left `discovered` and which are still deferred.
+ */
+async function decideDeferred(
+  tx: Prisma.TransactionClient,
+  deferrable: Deferrable[],
+  now: Date,
+): Promise<{ left: number; deferred: number }> {
+  const ordered = [...deferrable].sort(
+    (a, b) =>
+      a.meta.internalDate.getTime() - b.meta.internalDate.getTime() ||
+      (a.row.id < b.row.id ? -1 : 1),
+  );
+  // Real dates first: a message of this batch must not look like an unread one to the others.
+  for (const { row, meta } of ordered) {
+    await tx.gmailMessage.updateMany({
+      where: { id: row.id, state: "discovered" },
+      data: metadataColumns(meta, "outbound"),
+    });
+  }
+  let left = 0;
+  let deferred = 0;
+  for (const { row, meta } of ordered) {
+    if (await olderMessagesUnsettled(tx, row.id, meta.internalDate)) {
+      deferred += 1;
+      continue;
+    }
+    const written = await writeDecided(
+      tx,
+      {
+        kind: "decided",
+        row,
+        meta,
+        state: "triaged_out",
+        method: "rule",
+        rule: "R3",
+        direction: "outbound",
+        confidence: null,
+      },
+      now,
+    );
+    if (written) left += 1;
+  }
+  return { left, deferred };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The stage
 // ---------------------------------------------------------------------------------------------
@@ -227,6 +318,9 @@ function isFatalLlmError(error: unknown): boolean {
  * Triages up to {@link TRIAGE_BATCH_SIZE} `discovered` messages, oldest first, and sends
  * `email.extract` (key = message id) for each that is job-related. Returns how many messages left
  * `discovered`.
+ *
+ * Outgoing mail that rule R3 would drop may be left `discovered` for now (see
+ * {@link olderMessagesUnsettled}); it is not counted as processed, and the next sweep decides it.
  *
  * Failures:
  * - The LLM fails, or leaves a message out of its answer: each undecided message gets one failed
@@ -279,6 +373,7 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
   const lookups = await loadTriageLookups(prisma);
   const backfillSince = localMidnightUtc(env.gmailBackfillSince, env.userTimezone);
   const undecided: { row: Row; meta: MessageMetadata; direction: "inbound" | "outbound" }[] = [];
+  const deferrable: Deferrable[] = [];
   for (const { row, meta } of fetched) {
     const decision = triageByRules(
       {
@@ -295,6 +390,8 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
     );
     if (decision.decision === "llm") {
       undecided.push({ row, meta, direction: decision.direction });
+    } else if (decision.decision === "triaged_out" && decision.rule === "R3") {
+      deferrable.push({ row, meta });
     } else {
       outcomes.push({
         kind: "decided",
@@ -363,6 +460,8 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
       }
       if (left) processed += 1;
     }
+    // Written last, oldest first: they look at what the rest of the batch has just settled.
+    processed += (await decideDeferred(tx, deferrable, now)).left;
   });
 
   // After the commit. A send lost here is repeated by `resendPendingExtractions` on the next

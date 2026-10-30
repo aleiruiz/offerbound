@@ -314,3 +314,47 @@ describe("whole-pipeline fixtures", () => {
     }
   });
 });
+
+describe("outgoing mail in a backfill", () => {
+  const confirmation = fixtures.find((f) => f.id === "confirm-ashby-quarry-ai");
+  const followUp = fixtures.find((f) => f.id === "followup-out-quarry-ai");
+
+  async function backfill(emails: typeof fixtures) {
+    await resetDb(prisma);
+    await seedStartedConnection(prisma, {
+      email: FIXTURE_OWNER_EMAIL,
+      backfillSince: FIXTURE_BACKFILL_SINCE,
+    });
+    const own = testWorkerCtx({
+      env: testEnv({ OWNER_EMAIL: FIXTURE_OWNER_EMAIL }),
+      gmail: fakeGmailFactory(new FakeGmailClient(emails)),
+      llm: FakeLlmProvider.fromFixtures({ emails, leadBatches: [] }),
+      fetchLink: verifiedPage,
+    });
+    await drainPipeline(own);
+    return own;
+  }
+
+  it("a follow-up to a company created by an older confirmation in the same backfill is applied", async () => {
+    if (!confirmation || !followUp) throw new Error("fixtures missing");
+    await backfill([confirmation, followUp]);
+    const stored = await prisma.gmailMessage.findUniqueOrThrow({ where: { id: followUp.id } });
+    expect(stored).toMatchObject({
+      state: "applied",
+      category: "candidate_outbound",
+      triageRule: "R3",
+      triageMethod: "rule",
+      attempts: 0,
+    });
+    expect(stored.applicationId).not.toBeNull();
+  });
+
+  it("a follow-up to an unknown company is still dropped once everything older is applied", async () => {
+    if (!followUp) throw new Error("fixtures missing");
+    await backfill([followUp]);
+    const stored = await prisma.gmailMessage.findUniqueOrThrow({ where: { id: followUp.id } });
+    expect(stored).toMatchObject({ state: "triaged_out", triageRule: "R3", bodyText: null });
+    expect(stored.toEmails).toEqual([]);
+    expect(stored.subject).toBeNull();
+  });
+});
