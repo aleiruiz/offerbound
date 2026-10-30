@@ -1,0 +1,20 @@
+{
+  "id": "m-html",
+  "threadId": "t-m-html",
+  "labelIds": ["INBOX"],
+  "snippet": "Next steps",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "Content-Type",
+        "value": "text/html; charset=\"UTF-8\""
+      }
+    ],
+    "mimeType": "text/html",
+    "body": {
+      "size": 112,
+      "data": "PGh0bWw-PGJvZHk-PHA-SGkgU2FtLDwvcD48cD5BcHBseSBhdCA8YSBocmVmPSJodHRwczovL3F1YXJyeS5leGFtcGxlL2pvYnMvNDIiPm91ciBwb3J0YWw8L2E-LjwvcD48L2JvZHk-PC9odG1sPg"
+    }
+  }
+}

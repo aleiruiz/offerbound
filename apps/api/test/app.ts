@@ -4,8 +4,10 @@ import { buildApp, type BuildAppOptions } from "../src/app.js";
 import { loadEnv, type Env } from "../src/config/env.js";
 import type { AppDeps } from "../src/deps.js";
 import { createSession } from "../src/auth/sessions.js";
+import { FakeGmailClient, fakeGmailFactory } from "../src/gmail/fake-client.js";
 import { testPrisma } from "./db.js";
 import { FakeGoogleAuthClient } from "./fake-google.js";
+import { RecordingQueue } from "./queue.js";
 
 /** A complete private-mode environment with fictional values; logging is silent. */
 export function testEnv(overrides: Record<string, string> = {}): Env {
@@ -33,6 +35,19 @@ export function testEnv(overrides: Record<string, string> = {}): Env {
   });
 }
 
+/** The default test dependencies: fakes for Google, Gmail, the job queue and link fetching. */
+export function buildTestDeps(): AppDeps {
+  return {
+    env: testEnv(),
+    prisma: testPrisma(),
+    clock: () => new Date("2026-10-01T12:00:00.000Z"),
+    google: new FakeGoogleAuthClient(),
+    gmail: fakeGmailFactory(new FakeGmailClient([])),
+    queue: new RecordingQueue(),
+    fetchLink: () => Promise.reject(new Error("no network in tests: inject a fake fetchLink")),
+  };
+}
+
 export type TestAppOptions = { logStream?: Writable; onRoute?: BuildAppOptions["onRoute"] };
 
 /**
@@ -43,14 +58,7 @@ export async function buildTestApp(
   overrides: Partial<AppDeps> = {},
   options: TestAppOptions = {},
 ): Promise<{ app: FastifyInstance; deps: AppDeps }> {
-  const deps: AppDeps = {
-    env: testEnv(),
-    prisma: testPrisma(),
-    clock: () => new Date("2026-10-01T12:00:00.000Z"),
-    google: new FakeGoogleAuthClient(),
-    fetchLink: () => Promise.reject(new Error("no network in tests: inject a fake fetchLink")),
-    ...overrides,
-  };
+  const deps: AppDeps = { ...buildTestDeps(), ...overrides };
   const app = await buildApp(deps, {
     ...(options.logStream ? { logStream: options.logStream } : {}),
     ...(options.onRoute ? { onRoute: options.onRoute } : {}),

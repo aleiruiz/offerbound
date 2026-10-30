@@ -6,7 +6,7 @@ const READY_TIMEOUT_MS = 2_000;
 
 /**
  * `/health` is liveness: 200 while the process is up. `/ready` answers 200 only when the
- * database answers `SELECT 1` (AC-17.1). The job queue check joins it with the queue in T2.4.
+ * database answers `SELECT 1` and the job queue has started (AC-17.1, TECHNICAL_SPEC §16).
  */
 export function registerHealthRoutes(app: FastifyInstance, deps: AppDeps): void {
   app.get("/health", () => ({ status: "ok" }));
@@ -25,6 +25,10 @@ export function registerHealthRoutes(app: FastifyInstance, deps: AppDeps): void 
       throw new ApiError(503, "not_ready", "The service is not ready.");
     } finally {
       clearTimeout(timer);
+    }
+    if (!deps.queue.isReady()) {
+      request.log.warn("readiness check failed: job queue not started");
+      throw new ApiError(503, "not_ready", "The service is not ready.");
     }
     return { status: "ready" };
   });

@@ -4,6 +4,7 @@ import { encryptToken } from "../auth/crypto.js";
 import { GMAIL_READONLY_SCOPE } from "../auth/google.js";
 import { createSession, deleteSession } from "../auth/sessions.js";
 import type { AppDeps } from "../deps.js";
+import { resumeGmailJobs } from "../gmail/control.js";
 import { ApiError } from "../http/errors.js";
 import { clearSessionCookie, sessionCookieOf, setSessionCookie } from "../http/session-guard.js";
 import { getOnboardingCompletedAt } from "../settings/service.js";
@@ -189,6 +190,13 @@ export async function registerAuthRoutes(root: FastifyInstance, deps: AppDeps): 
         create: { id: 1, ...fields, backfillSince: new Date(env.gmailBackfillSince) },
         update: fields,
       });
+      // Signing in again after "needs reconnection" picks syncing up from the stored history id
+      // (AC-2.6). Failing to reach the queue must not fail the sign-in.
+      try {
+        await resumeGmailJobs(deps);
+      } catch (error) {
+        request.log.warn({ errorName: (error as Error).name }, "could not resume gmail jobs");
+      }
 
       const session = await createSession(prisma, request.headers["user-agent"] ?? null, now);
       setSessionCookie(reply, session.cookieValue);

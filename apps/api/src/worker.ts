@@ -1,34 +1,40 @@
 import { pathToFileURL } from "node:url";
-import type { FastifyBaseLogger } from "fastify";
 import pino from "pino";
 import { LOG_REDACT_PATHS } from "./app.js";
 import { EnvError, loadEnv } from "./config/env.js";
-import { createDeps, type AppDeps } from "./deps.js";
+import { createDeps, type WorkerCtx } from "./deps.js";
+import { resumeGmailJobs } from "./gmail/control.js";
 import { createBoss } from "./jobs/boss.js";
+import { registerHandlers } from "./jobs/handlers.js";
+import { PgBossQueue } from "./jobs/queues.js";
 
-/** Everything a background job needs: the app dependencies plus a logger. */
-export type WorkerCtx = AppDeps & { log: FastifyBaseLogger };
+export type { WorkerCtx } from "./deps.js";
 
 /** Jobs get this long to finish after SIGTERM; compose gives the container a little longer. */
 const STOP_TIMEOUT_MS = 30_000;
 
 /**
- * Starts pg-boss and the job handlers (none yet; later tasks register them here). The worker
+ * Starts pg-boss, creates the queues, registers the job handlers and picks up where the last
+ * run stopped (a running backfill continues, the sync schedule is registered again). The jobs
+ * send further jobs through the worker's own queue, so `ctx.queue` is replaced by it. The worker
  * stops gracefully, letting running jobs finish, on SIGTERM or SIGINT or when `stop()` is called.
  */
-export async function startWorker(ctx: WorkerCtx): Promise<{ stop: () => Promise<void> }> {
-  const boss = createBoss(ctx.env.databaseUrl);
-  boss.on("error", (error) => {
-    ctx.log.error({ errorName: error.name }, "pg-boss error");
+export async function startWorker(base: WorkerCtx): Promise<{ stop: () => Promise<void> }> {
+  const queue = new PgBossQueue(createBoss(base.env.databaseUrl, "worker"), (info) => {
+    base.log.error(info, "pg-boss error");
   });
-  await boss.start();
+  const boss = queue.boss;
+  const ctx: WorkerCtx = { ...base, queue };
+  await queue.start();
+  await registerHandlers(boss, ctx);
+  await resumeGmailJobs(ctx);
 
   let stopping: Promise<void> | undefined;
   const stop = (): Promise<void> => {
     stopping ??= (async () => {
       process.off("SIGTERM", onSigterm);
       process.off("SIGINT", onSigint);
-      await boss.stop({ graceful: true, timeout: STOP_TIMEOUT_MS });
+      await queue.stop({ graceful: true, timeout: STOP_TIMEOUT_MS });
       ctx.log.info("worker stopped");
     })();
     return stopping;
