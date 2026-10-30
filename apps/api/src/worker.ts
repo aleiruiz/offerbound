@@ -71,7 +71,7 @@ async function main(): Promise<void> {
     level: env.logLevel,
     redact: { paths: LOG_REDACT_PATHS, censor: "[redacted]" },
   });
-  const deps = createDeps(env);
+  const deps = createDeps(env, log);
   const worker = await startWorker({ ...deps, log });
 
   // Resolves after the first SIGTERM/SIGINT has finished stopping pg-boss.

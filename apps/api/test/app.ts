@@ -5,6 +5,7 @@ import { loadEnv, type Env } from "../src/config/env.js";
 import type { AppDeps } from "../src/deps.js";
 import { createSession } from "../src/auth/sessions.js";
 import { FakeGmailClient, fakeGmailFactory } from "../src/gmail/fake-client.js";
+import { FakeLlmProvider } from "../src/llm/fake-provider.js";
 import { testPrisma } from "./db.js";
 import { FakeGoogleAuthClient } from "./fake-google.js";
 import { RecordingQueue } from "./queue.js";
@@ -35,7 +36,7 @@ export function testEnv(overrides: Record<string, string> = {}): Env {
   });
 }
 
-/** The default test dependencies: fakes for Google, Gmail, the job queue and link fetching. */
+/** The default test dependencies: fakes for Google, Gmail, the job queue, link fetching and the LLM. */
 export function buildTestDeps(): AppDeps {
   return {
     env: testEnv(),
@@ -45,6 +46,7 @@ export function buildTestDeps(): AppDeps {
     gmail: fakeGmailFactory(new FakeGmailClient([])),
     queue: new RecordingQueue(),
     fetchLink: () => Promise.reject(new Error("no network in tests: inject a fake fetchLink")),
+    llm: FakeLlmProvider.fromFixtures({ emails: [], leadBatches: [] }),
   };
 }
 
