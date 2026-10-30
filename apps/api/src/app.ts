@@ -8,6 +8,7 @@ import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
 import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerEventRoutes } from "./routes/events.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
 import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCvRoutes } from "./routes/cv.js";
@@ -99,6 +100,7 @@ export async function buildApp(
         registerMeRoutes(guarded, deps);
         registerGmailRoutes(guarded, deps);
         registerOnboardingRoutes(guarded, deps);
+        registerEventRoutes(guarded, deps);
         await registerCvRoutes(guarded, deps);
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
