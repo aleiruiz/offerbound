@@ -2,16 +2,17 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import {
   ApplicationStatusSchema,
+  LeadsQuerySchema,
   type ApplicationStatus,
   type ApplicationSummary,
   type InterviewWithApplication,
-  type Lead,
   type ReviewItem,
   type Today,
 } from "@offerbound/contracts";
 import { dayRangeUtc, ownerLocalDay } from "@offerbound/domain";
 import type { AppDeps } from "../deps.js";
 import { getSyncStatus } from "../gmail/sync.js";
+import { listLeads } from "../leads/owner-actions.js";
 import { getSettings } from "../settings/service.js";
 import { nextInterviewAtByApplication, toApplicationSummary, toInterview } from "./interviews.js";
 
@@ -34,8 +35,6 @@ const SCREENING_OR_LATER: ApplicationStatus[] = [
   "offer",
   "accepted",
 ];
-/** Leads without a track come after every configured track. */
-const NO_TRACK_RANK = 1000;
 
 export type TodayCtx = Pick<AppDeps, "prisma" | "env">;
 
@@ -74,7 +73,7 @@ export async function getToday(ctx: TodayCtx, now: Date): Promise<Today> {
     }),
     followUpsDue(prisma, now),
     upcomingInterviews(prisma, now),
-    topNewLeads(prisma),
+    listLeads(prisma, LeadsQuerySchema.parse({ status: "new", limit: TOP_LEADS })),
     prisma.reviewItem.count({ where: { state: "open" } }),
     prisma.reviewItem.findMany({
       where: { state: "open" },
@@ -98,7 +97,7 @@ export async function getToday(ctx: TodayCtx, now: Date): Promise<Today> {
     },
     followUpsDue: followUps,
     upcomingInterviews: interviews,
-    topLeads: topLeads.leads,
+    topLeads: topLeads.items,
     review: { open: reviewOpen, first: reviewFirst.map(toReviewItem) },
     sync,
     pipeline,
@@ -149,88 +148,6 @@ async function upcomingInterviews(
 }
 
 // --- leads ----------------------------------------------------------------------------------------
-
-/**
- * The first 5 New leads that are ready, in the order of the New list (AC-12.4): track priority
- * from the owner's settings (no track last), then fit score descending (unranked last), then
- * found date newest first.
- */
-async function topNewLeads(prisma: PrismaClient): Promise<{ leads: Lead[] }> {
-  const { tracks } = (await getSettings(prisma)).search;
-  const rank =
-    tracks.length === 0
-      ? Prisma.sql`${NO_TRACK_RANK}::int`
-      : Prisma.sql`case l.track ${Prisma.join(
-          tracks.map((t) => Prisma.sql`when ${t.key} then ${t.priority}::int`),
-          " ",
-        )} else ${NO_TRACK_RANK}::int end`;
-  const keys = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT l.id::text AS id
-    FROM lead l
-    WHERE l.status = 'new'::lead_status AND l.pipeline_state = 'ready'::lead_pipeline_state
-    ORDER BY ${rank} ASC, coalesce(l.fit_score, -1) DESC, l.found_at DESC, l.id DESC
-    LIMIT ${TOP_LEADS}`;
-  const rows = await prisma.lead.findMany({
-    where: { id: { in: keys.map((k) => k.id) } },
-    include: { company: { select: { id: true, name: true } } },
-  });
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  return {
-    leads: keys.flatMap(({ id }) => {
-      const row = byId.get(id);
-      return row === undefined ? [] : [toLead(row)];
-    }),
-  };
-}
-
-type LeadRow = Prisma.LeadGetPayload<{
-  include: { company: { select: { id: true; name: true } } };
-}>;
-
-const iso = (date: Date | null): string | null => (date === null ? null : date.toISOString());
-
-function toLead(row: LeadRow): Lead {
-  return {
-    id: row.id,
-    version: row.version,
-    company: { id: row.company.id, name: row.company.name },
-    title: row.title,
-    jobUrl: row.jobUrl,
-    locationText: row.locationText,
-    country: row.country,
-    workMode: row.workMode,
-    remoteFromHomeCountry: row.remoteFromHomeCountry,
-    sponsorship: row.sponsorship,
-    relocation: row.relocation,
-    sponsorshipText: row.sponsorshipText,
-    eligible: row.eligible,
-    eligibilityReason: row.eligibilityReason,
-    compensationText: row.compensationText,
-    compensation: {
-      min: row.compMin === null ? null : row.compMin.toNumber(),
-      max: row.compMax === null ? null : row.compMax.toNumber(),
-      currency: row.compCurrency,
-      period: row.compPeriod,
-      isEstimate: row.compIsEstimate,
-      basis: row.compBasis,
-    },
-    seniority: row.seniority,
-    track: row.track,
-    fitScore: row.fitScore,
-    fitReason: row.fitReason,
-    gaps: row.gaps,
-    status: row.status,
-    suppressedReason: row.suppressedReason,
-    dismissedReason: row.dismissedReason,
-    companySeenBefore: row.companySeenBefore,
-    verification: row.verification,
-    source: row.source,
-    foundAt: row.foundAt.toISOString(),
-    postedAt: iso(row.postedAt),
-    applicationId: row.applicationId,
-    notes: row.notes,
-  };
-}
 
 // --- review ---------------------------------------------------------------------------------------
 
