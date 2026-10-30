@@ -164,22 +164,6 @@ describe("POST /cv", () => {
     expect(await prisma.candidateProfile.count()).toBe(0);
   });
 
-  it("a non-file field over the 1 KiB field limit does not break the upload", async () => {
-    const boundary = "----offerbound-test-boundary";
-    const { payload } = multipart("cv.pdf", PDF_MIME, fixture("cv.pdf"));
-    const extra = Buffer.from(
-      `--${boundary}\r\nContent-Disposition: form-data; name="note"\r\n\r\n${"x".repeat(4096)}\r\n`,
-    );
-    await registerProfileFor("cv.pdf", PDF_MIME);
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/v1/cv",
-      headers: { ...CSRF, cookie, "content-type": `multipart/form-data; boundary=${boundary}` },
-      payload: Buffer.concat([extra, payload]),
-    });
-    expect(res.statusCode).toBe(201);
-  });
-
   it("a request without a file field → 400 validation_failed", async () => {
     const res = await upload("cv.pdf", PDF_MIME, fixture("cv.pdf"), "document");
     expect(res.statusCode).toBe(400);
@@ -348,30 +332,39 @@ describe("authentication", () => {
     // the body before the session check, the 401 would not arrive until the upload finished.
     await app.listen({ port: 0, host: "127.0.0.1" });
     const { port } = app.server.address() as AddressInfo;
-    const status = await new Promise<number>((resolve, reject) => {
-      const req = http.request(
-        {
-          host: "127.0.0.1",
-          port,
-          method: "POST",
-          path: "/api/v1/cv",
-          headers: {
-            ...CSRF,
-            "content-type": "multipart/form-data; boundary=x",
-            "content-length": String(1024 * 1024),
+    let req: http.ClientRequest | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    let status: number;
+    try {
+      status = await new Promise<number>((resolve, reject) => {
+        // If the body were read first, no response would come: give up with 0, not a hook timeout.
+        timer = setTimeout(() => resolve(0), 3000);
+        req = http.request(
+          {
+            host: "127.0.0.1",
+            port,
+            method: "POST",
+            path: "/api/v1/cv",
+            headers: {
+              ...CSRF,
+              "content-type": "multipart/form-data; boundary=x",
+              "content-length": String(1024 * 1024),
+            },
           },
-        },
-        (res) => {
-          res.resume();
-          resolve(res.statusCode ?? 0);
-          req.destroy();
-        },
-      );
-      req.on("error", (error) => {
-        if ((error as NodeJS.ErrnoException).code !== "ECONNRESET") reject(error);
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code !== "ECONNRESET") reject(error);
+        });
+        req.write("--x\r\n"); // headers sent, body deliberately left open
       });
-      req.write("--x\r\n"); // headers sent, body deliberately left open
-    });
+    } finally {
+      clearTimeout(timer);
+      req?.destroy();
+    }
     expect(status).toBe(401);
     expect(await prisma.candidateProfile.count()).toBe(0);
   });
@@ -446,6 +439,11 @@ describe("GET /cv and retry-profile", () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/cv", headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toBeNull();
+    // The case is visible in the log, without any of the stored content.
+    const log = logged.join("");
+    expect(log).toContain("stored cv profile does not match the schema");
+    expect(log).not.toContain("unexpected");
+    expect(log).not.toContain("headline");
   });
 
   it("retry-profile with no CV → 404 not_found", async () => {

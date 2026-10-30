@@ -155,11 +155,19 @@ export async function storeCv(
  * stored profile no longer matches the schema (treated like a failed profile: *Retry profile*
  * regenerates it, rather than the read failing).
  */
-export async function getActiveProfile(prisma: PrismaClient): Promise<CvProfile | null> {
+export async function getActiveProfile(
+  prisma: PrismaClient,
+  log?: CvLogger,
+): Promise<CvProfile | null> {
   const row = await prisma.candidateProfile.findFirst({ where: { isActive: true } });
   if (!row || row.profile === null) return null;
   const parsed = CvProfileSchema.safeParse(row.profile);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) {
+    // Name only: the stored profile is personal content.
+    log?.warn({ errorName: "ZodError" }, "stored cv profile does not match the schema");
+    return null;
+  }
+  return parsed.data;
 }
 
 /** Re-runs the profile step on the active CV's stored text (*Retry profile*). */

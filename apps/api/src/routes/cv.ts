@@ -29,7 +29,9 @@ export async function registerCvRoutes(app: FastifyInstance, deps: AppDeps): Pro
     },
   });
 
-  app.get("/cv", async (): Promise<CvProfile | null> => getActiveProfile(deps.prisma));
+  app.get("/cv", async (request): Promise<CvProfile | null> =>
+    getActiveProfile(deps.prisma, request.log),
+  );
 
   app.post("/cv", async (request, reply): Promise<CvProfile | CvUploadFailed> => {
     if (!request.isMultipart()) {

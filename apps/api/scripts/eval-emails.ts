@@ -12,7 +12,13 @@
  *   OPENAI_REASONING_EFFORT_TRIAGE / OPENAI_REASONING_EFFORT_EXTRACT (default low),
  *   AI_PRICING (optional JSON, as in .env.example) to print a cost, USER_TIMEZONE (optional).
  *
- * Output holds fixture ids, categories and counts only: no email text, names or keys.
+ * Before any model call the label rules run (R1 skip labels, R3 outgoing mail, R8 Promotions and
+ * Forums; SECURITY §3), so mail they decide is never sent to OpenAI. Triage and extraction figures
+ * are measured on the messages that pass them. The sender and thread rules (R2, R4 to R7) need
+ * mailbox state and are not applied, so the model also sees mail those would decide.
+ *
+ * Output holds fixture ids, categories and counts only: no email text, names or keys. In a private
+ * set, give the fixtures opaque ids, since failures are listed by id.
  */
 import { loadEmailFixtures } from "../src/fixtures/emails.js";
 import { formatReport, meetsBar, scoreEval, type EvalReport } from "../src/llm/eval.js";
@@ -87,6 +93,21 @@ function buildConfig(apiKey: string): LlmConfig {
   };
 }
 
+/**
+ * What went wrong reading the fixtures, without quoting them: the loader's messages can echo a
+ * snippet of the file. Names the file and the kind of problem only.
+ */
+function describeLoadError(error: unknown): string {
+  if ((error as NodeJS.ErrnoException | null)?.code === "ENOENT") return "folder not found";
+  const message = error instanceof Error ? error.message : "";
+  const file = /^Invalid email fixture (\S+?):/.exec(message)?.[1];
+  if (file === undefined) return "unreadable";
+  const kind = message.includes("not valid JSON")
+    ? "not valid JSON"
+    : "does not match the fixture schema";
+  return `${file} ${kind}`;
+}
+
 function summarise(report: EvalReport, failed: number): string {
   return `${formatReport(report)}\n\nProvider failures: ${failed}`;
 }
@@ -109,8 +130,7 @@ async function main(): Promise<void> {
   try {
     fixtures = loadEmailFixtures(dir);
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    fail(`could not read ${dir}: ${reason}`);
+    fail(`could not read ${dir}: ${describeLoadError(error)}`);
   }
   if (fixtures.length === 0) fail(`no fixtures found in ${dir}.`);
 
@@ -128,6 +148,13 @@ async function main(): Promise<void> {
   const run = await runEvalCases(llm, fixtures, { ownerTimezone: tz });
   const report = scoreEval(run.cases);
 
+  const r = run.rules;
+  console.log(
+    `\nRules ran before the model: ${r.skipped} skipped (R1), ${r.dropped} dropped (R3 outgoing, R8 Promotions/Forums), ` +
+      `${r.outgoingKept} outgoing kept as linked (R3); none of these went to OpenAI. ` +
+      `${r.triaged} went to model triage. Triage and extraction figures are measured on the rule-passed set; ` +
+      "sender and thread rules (R2, R4-R7) were not applied.",
+  );
   console.log(`\n${summarise(report, run.failedIds.length)}`);
 
   const misses = run.cases.filter((c) => {

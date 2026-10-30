@@ -10,7 +10,10 @@ import { normalizeCompanyName } from "@offerbound/domain";
 /** One fixture and what the pipeline's two model steps made of it. */
 export type EvalCase = {
   fixture: EmailFixture;
-  /** Whether triage let the message through to extraction (`jobRelated`, or confidence < 0.70). */
+  /**
+   * Whether the message got past triage to extraction (`jobRelated`, or confidence < 0.70; or a
+   * rule that keeps it). False when triage or a rule dropped it.
+   */
   triageJobRelated: boolean;
   /** The extraction, or null when the message was not extracted or extraction failed. */
   extraction: Extraction | null;
@@ -36,7 +39,10 @@ export type EvalReport = {
   /** Fixtures scored. Messages the rules skip before any model call (`skipped`) are left out. */
   scored: number;
   perCategory: CategoryScore[];
-  /** Of the messages labelled job-related, the share that triage passed on to extraction. */
+  /**
+   * Of the messages labelled job-related, the share the pipeline keeps: triage passes it on and
+   * extraction does not call it `not_job_related` (which would drop it again).
+   */
   jobRelatedRecall: Rate;
   /** Of the messages labelled job-related, the share extracted with the right category. */
   categoryAccuracy: Rate;
@@ -99,7 +105,8 @@ export function scoreEval(cases: EvalCase[]): EvalReport {
 
   const jobRelated = scoredCases.filter((c) => c.fixture.expected.triage === "job_related");
   const jobRelatedRecall = rate(
-    jobRelated.filter((c) => c.triageJobRelated).length,
+    jobRelated.filter((c) => c.triageJobRelated && c.extraction?.category !== "not_job_related")
+      .length,
     jobRelated.length,
   );
   const categoryAccuracy = rate(

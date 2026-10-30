@@ -146,6 +146,23 @@ describe("scoreEval", () => {
     expect(report.categoryAccuracy).toEqual({ hits: 2, total: 4, rate: 0.5 });
   });
 
+  it("counts a job email as recalled only if triage passes it and extraction keeps it", () => {
+    const job = (id: string, pass: boolean, ex: Extraction | null): EvalCase => ({
+      fixture: fixture(id),
+      triageJobRelated: pass,
+      extraction: ex,
+    });
+    const report = scoreEval([
+      job("kept", true, extraction("rejection")),
+      job("dropped-by-triage", false, null),
+      // Extraction calls it "not job-related": the pipeline drops the message again.
+      job("dropped-by-extraction", true, extraction("not_job_related")),
+      // A failed extraction call is a review item in the pipeline, not a lost message.
+      job("extraction-failed", true, null),
+    ]);
+    expect(report.jobRelatedRecall).toEqual({ hits: 2, total: 4, rate: 0.5 });
+  });
+
   it("compares company names after normalizeCompanyName", () => {
     const named = (id: string, name: string | null) => ({
       fixture: fixture(id, { company: "Northwind Example" }),
@@ -251,7 +268,9 @@ describe("runEvalCases", () => {
 
     expect(run.failedIds).toEqual([]);
     expect(run.cases.some((c) => c.fixture.expected.triage === "skipped")).toBe(false);
-    expect(llm.calls.filter((c) => c.purpose === "triage")).toHaveLength(2); // 48 messages, batches of 25
+    // 48 scored; 2 Promotions/Forums decoys and 2 outgoing follow-ups never go to triage: 44 in 2 batches.
+    expect(run.rules).toEqual({ skipped: 2, dropped: 2, outgoingKept: 2, triaged: 44 });
+    expect(llm.calls.filter((c) => c.purpose === "triage")).toHaveLength(2);
     expect(llm.calls.filter((c) => c.purpose === "extract")).toHaveLength(40);
     expect(report.scored).toBe(48);
     expect(meetsBar(report)).toBe(true);
@@ -276,5 +295,105 @@ describe("runEvalCases", () => {
     expect(run.failedIds).toHaveLength(1);
     expect(run.cases.filter((c) => c.extraction === null)).toHaveLength(1);
     expect(scoreEval(run.cases).categoryAccuracy.hits).toBe(2);
+  });
+});
+
+describe("runEvalCases: rules before the model", () => {
+  const mail = (id: string, labels: string[], expected: Partial<EmailFixture["expected"]> = {}) =>
+    fixture(id, expected, { labels, bodyText: "Body of the message." });
+
+  function recorder(): FakeLlmProvider {
+    return FakeLlmProvider.fromFixtures({ emails: [], leadBatches: [] });
+  }
+
+  it("never sends a message the label rules decide to the provider", async () => {
+    const decided = [
+      mail("promo", ["INBOX", "CATEGORY_PROMOTIONS"], { triage: "triaged_out", category: null }),
+      mail("forum", ["INBOX", "CATEGORY_FORUMS"], { triage: "triaged_out", category: null }),
+      // Labelled job-related, but the rules still drop Promotions: a recall miss, as in production.
+      mail("promo-job", ["INBOX", "CATEGORY_PROMOTIONS"]),
+      mail("sent-other", ["SENT"], { triage: "triaged_out", category: null }),
+      // The author's label is not trusted to keep mail the Gmail labels skip.
+      mail("spam", ["INBOX", "SPAM"]),
+      mail("trash", ["TRASH"]),
+      mail("draft", ["DRAFT"]),
+      mail("chat", ["CHAT"]),
+      mail("skipped", ["INBOX"], { triage: "skipped", category: null }),
+    ];
+    const llm = recorder();
+
+    const run = await runEvalCases(llm, decided, { ownerTimezone: FIXTURE_TIMEZONE });
+
+    expect(llm.calls).toEqual([]);
+    expect(run.rules).toEqual({ skipped: 5, dropped: 4, outgoingKept: 0, triaged: 0 });
+    // Rule-dropped mail stays in the scores, as dropped; skipped mail does not.
+    expect(run.cases.map((c) => c.fixture.id).sort()).toEqual([
+      "forum",
+      "promo",
+      "promo-job",
+      "sent-other",
+    ]);
+    expect(run.cases.every((c) => !c.triageJobRelated && c.extraction === null)).toBe(true);
+    expect(scoreEval(run.cases).jobRelatedRecall).toEqual({ hits: 0, total: 1, rate: 0 });
+  });
+
+  it("sends outgoing mail to extraction only when labelled job-related, and never to triage", async () => {
+    const llm = recorder();
+    llm.register("triage", { messageId: "in" }, { id: "in", jobRelated: true, confidence: 0.9 });
+
+    const run = await runEvalCases(llm, [mail("out-linked", ["SENT"]), mail("in", ["INBOX"])], {
+      ownerTimezone: FIXTURE_TIMEZONE,
+    });
+
+    expect(run.rules).toMatchObject({ outgoingKept: 1, triaged: 1 });
+    const triaged = llm.calls.filter((c) => c.purpose === "triage");
+    expect(JSON.stringify(triaged)).not.toContain("out-linked");
+    expect(llm.calls.filter((c) => c.purpose === "extract")).toHaveLength(2);
+    expect(run.cases.every((c) => c.triageJobRelated)).toBe(true);
+  });
+
+  it("passes at confidence 0.69 when not job-related, drops at 0.70", async () => {
+    const llm = recorder();
+    const items = [
+      { id: "a", jobRelated: false, confidence: 0.69 },
+      { id: "b", jobRelated: false, confidence: 0.7 },
+      { id: "c", jobRelated: true, confidence: 0.1 },
+    ];
+    for (const item of items) llm.register("triage", { messageId: item.id }, item);
+    const run = await runEvalCases(
+      llm,
+      items.map((i) => mail(i.id, ["INBOX"])),
+      {
+        ownerTimezone: FIXTURE_TIMEZONE,
+      },
+    );
+    const passed = Object.fromEntries(run.cases.map((c) => [c.fixture.id, c.triageJobRelated]));
+    expect(passed).toEqual({ a: true, b: false, c: true });
+  });
+
+  it("counts a failed triage batch, and a message the model leaves out, as dropped", async () => {
+    const llm = recorder();
+    llm.failNext("triage", new LlmError("upstream", "boom", { retryable: true }));
+    const first = await runEvalCases(llm, [mail("x", ["INBOX"]), mail("y", ["INBOX"])], {
+      ownerTimezone: FIXTURE_TIMEZONE,
+    });
+    expect(first.failedIds).toEqual(["x", "y"]);
+    expect(first.cases.every((c) => !c.triageJobRelated)).toBe(true);
+    expect(llm.calls.filter((c) => c.purpose === "extract")).toHaveLength(0);
+
+    // A provider that answers for only one of two ids.
+    const partial = recorder();
+    const real = partial.triage.bind(partial);
+    partial.triage = async (batch, ctx) => {
+      const result = await real(batch, ctx);
+      return { ...result, output: { results: result.output.results.slice(0, 1) } };
+    };
+    partial.register("triage", { messageId: "p" }, { id: "p", jobRelated: true, confidence: 0.9 });
+    partial.register("triage", { messageId: "q" }, { id: "q", jobRelated: true, confidence: 0.9 });
+    const second = await runEvalCases(partial, [mail("p", ["INBOX"]), mail("q", ["INBOX"])], {
+      ownerTimezone: FIXTURE_TIMEZONE,
+    });
+    const passed = Object.fromEntries(second.cases.map((c) => [c.fixture.id, c.triageJobRelated]));
+    expect(passed).toEqual({ p: true, q: false });
   });
 });
