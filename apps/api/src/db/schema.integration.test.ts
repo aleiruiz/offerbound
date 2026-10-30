@@ -179,6 +179,25 @@ describe("schema constraints", () => {
     await prisma.event.create({ data: noMessage });
   });
 
+  it("frees the event slot once the event is undone", async () => {
+    const company = await makeCompany();
+    const application = await makeApplication(company.id);
+    const message = await makeMessage();
+    const event = {
+      applicationId: application.id,
+      messageId: message.id,
+      type: "status_changed",
+      actor: "system",
+      summary: "Moved to Interviewing",
+      undoable: true,
+    } as const;
+    const first = await prisma.event.create({ data: event });
+    await prisma.event.update({ where: { id: first.id }, data: { undoneAt: new Date() } });
+    await prisma.event.create({ data: event });
+    // The new live event blocks a third.
+    await expectConstraint(prisma.event.create({ data: event }), UNIQUE);
+  });
+
   it("rejects a duplicate lead-only event but allows a lead and an application event for one message", async () => {
     const base = await makeLeadBase();
     const lead = await makeLead(base);

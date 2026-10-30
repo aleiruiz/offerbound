@@ -772,6 +772,127 @@ describe("undoEvent", () => {
   });
 });
 
+describe("undo frees the idempotency slot", () => {
+  it("undo, then the same email's event again, then a second undo works", async () => {
+    const application = await seedApplication();
+    const first = await runStatusChange(application.id, 1);
+    await undoEvent(prisma, first, NOW);
+    // The undo bumped the version to 3; the email is planned again (reprocess) and writes the same
+    // (message, type, record) event, which the undone one no longer blocks.
+    const again = await runStatusChange(application.id, 3);
+    expect(again).not.toBe(first);
+    expect(await prisma.event.count({ where: { type: "status_changed" } })).toBe(2);
+
+    await undoEvent(prisma, again, new Date("2026-10-07T09:00:00.000Z"));
+
+    expect(
+      await prisma.application.findUniqueOrThrow({ where: { id: application.id } }),
+    ).toMatchObject({ status: "applied" });
+    expect(await prisma.event.findMany({ where: { type: "status_changed" } })).toMatchObject([
+      { id: first, undoneAt: NOW },
+      { id: again, undoneAt: new Date("2026-10-07T09:00:00.000Z") },
+    ]);
+  });
+
+  it("a live event still blocks a duplicate", async () => {
+    const application = await seedApplication();
+    const first = await runStatusChange(application.id, 1);
+    const second = await withIntakeLock(prisma, (tx) =>
+      writeEvent(tx, {
+        applicationId: application.id,
+        type: "status_changed",
+        actor: "system",
+        occurredAt: AT,
+        messageId: "m1",
+        summary: "Moved to Interviewing",
+        undoable: true,
+      }),
+    );
+    expect(second).toBe(first);
+    expect(await prisma.event.count({ where: { type: "status_changed" } })).toBe(1);
+  });
+});
+
+describe("undoing a created lead", () => {
+  const leadPlan = () =>
+    plan([
+      {
+        op: "create_leads",
+        source: "gmail_recruiter",
+        leads: [
+          {
+            ref: "new:lead:0",
+            order: 0,
+            source: "gmail_recruiter",
+            companyName: "Sable Robotics",
+            companyDomain: null,
+            title: "Staff Engineer",
+            jobUrl: "https://boards.greenhouse.io/sable/jobs/900",
+            locationText: null,
+            country: null,
+            workMode: "remote",
+            compensationText: null,
+            sponsorshipText: null,
+            postedAt: null,
+            seniority: null,
+            ranking: null,
+            verification: null,
+            pageExcerpt: null,
+            sheetStatus: null,
+            notes: null,
+            contactEmail: null,
+          },
+        ],
+      },
+    ]);
+
+  it("still deletes a lead that the link check and rank bumped to a later version", async () => {
+    const result = await run(leadPlan());
+    const lead = await prisma.lead.findFirstOrThrow();
+    // What leads.check and leads.rank do to a lead: they bump the version, owner or not.
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { pipelineState: "ready", version: { increment: 2 }, fitScore: 80 },
+    });
+
+    await undoEvent(prisma, result.eventIds[0] ?? "", NOW);
+
+    expect(await prisma.lead.count()).toBe(0);
+    expect(await prisma.company.count()).toBe(0);
+  });
+
+  it("refuses when the owner acted on the lead (shortlisted)", async () => {
+    const result = await run(leadPlan());
+    const lead = await prisma.lead.findFirstOrThrow();
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { status: "shortlisted", version: { increment: 1 } },
+    });
+    await expectApiError(undoEvent(prisma, result.eventIds[0] ?? "", NOW), 409, "changed_since");
+    expect(await prisma.lead.count()).toBe(1);
+  });
+
+  it("refuses when the lead already became an application", async () => {
+    const result = await run(leadPlan());
+    const lead = await prisma.lead.findFirstOrThrow();
+    const app = await prisma.application.create({
+      data: {
+        companyId: lead.companyId,
+        title: "Staff Engineer",
+        status: "applied",
+        statusChangedAt: AT,
+        source: "manual",
+      },
+    });
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { applicationId: app.id, status: "applied" },
+    });
+    await expectApiError(undoEvent(prisma, result.eventIds[0] ?? "", NOW), 409, "changed_since");
+    expect(await prisma.lead.count()).toBe(1);
+  });
+});
+
 describe("POST /events/:id/undo", () => {
   const apps: FastifyInstance[] = [];
   afterEach(async () => {
