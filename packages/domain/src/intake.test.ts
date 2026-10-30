@@ -212,6 +212,31 @@ describe("planIntake", () => {
     expect(paste.suppressedReason).toBe("company_already_seen");
   });
 
+  it("the company-seen rule is skipped by source alone and by batch kind alone", () => {
+    const seen = new Set(["c1"]);
+    const run = (source: IncomingLead["source"], batchKind: IntakeContext["batchKind"]) =>
+      stored(
+        one(
+          lead({ source, companyName: "Northwind Labs" }),
+          ctx({ batchKind, seenCompanyIds: seen }),
+        ),
+      );
+    // A skipping source in an ordinary batch.
+    expect(run("sheet_import", "search_run").suppressedReason).toBeNull();
+    expect(run("manual", "search_run").suppressedReason).toBeNull();
+    // An ordinary source in a skipping batch.
+    expect(run("gmail_alert", "sheet_import").suppressedReason).toBeNull();
+    expect(run("gmail_alert", "manual").suppressedReason).toBeNull();
+    // Neither: the rule applies.
+    expect(run("gmail_alert", "search_run").suppressedReason).toBe("company_already_seen");
+  });
+
+  it("a lead with a blank company name is stored with company kind none for the executor to skip", () => {
+    const d = stored(one(lead({ companyName: "", companyDomain: null, jobUrl: null })));
+    expect(d.company).toEqual({ kind: "none" });
+    expect(d).toMatchObject({ status: "new", pipelineState: "checking", jobKey: null });
+  });
+
   it("two leads of a new company in one batch are both stored; finalize decides between them", () => {
     const decisions = planIntake(
       [lead({ companyName: "Contoso Robotics" }), lead({ companyName: "Contoso Robotics" })],

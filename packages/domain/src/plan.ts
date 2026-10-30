@@ -48,6 +48,10 @@ export type ApplicationSet = Partial<{
   followUpDoneAt: Date;
 }>;
 
+/**
+ * On an update, a null `meetingUrl`, `schedulingUrl` or `location`, an empty `interviewers` list
+ * and a null `timezoneHint` mean "not provided": the executor keeps the existing value.
+ */
 export type InterviewFields = {
   kind: InterviewKind;
   status: InterviewStatus;

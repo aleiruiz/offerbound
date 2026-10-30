@@ -80,8 +80,16 @@ export type IntakeDecision = { ref: string } & (
     }
 );
 
-/** Sources and batches that are history or owner-entered and so skip the company-seen rule. */
-const SKIPS_COMPANY_SEEN: ReadonlySet<string> = new Set(["sheet_import", "manual"]);
+/** Sources that are history or owner-entered and so skip the company-seen rule. */
+const SOURCES_SKIPPING_COMPANY_SEEN: ReadonlySet<LeadSource> = new Set<LeadSource>([
+  "sheet_import",
+  "manual",
+]);
+/** Batch kinds that are history or owner-entered and so skip the company-seen rule. */
+const BATCHES_SKIPPING_COMPANY_SEEN: ReadonlySet<IntakeBatchKind> = new Set<IntakeBatchKind>([
+  "sheet_import",
+  "manual",
+]);
 
 function seenWithGroups(ctx: IntakeContext): Set<string> {
   const seen = new Set<string>();
@@ -155,7 +163,8 @@ export function planIntake(incoming: IncomingLead[], ctx: IntakeContext): Intake
     // 4. Company (or a company of its group) already has a lead or application.
     let companySeenBefore = false;
     const checksSeen =
-      !SKIPS_COMPANY_SEEN.has(lead.source) && !SKIPS_COMPANY_SEEN.has(ctx.batchKind);
+      !SOURCES_SKIPPING_COMPANY_SEEN.has(lead.source) &&
+      !BATCHES_SKIPPING_COMPANY_SEEN.has(ctx.batchKind);
     if (checksSeen && company.kind === "existing" && seen.has(company.companyId)) {
       if (lead.source !== "gmail_recruiter") {
         decisions.set(

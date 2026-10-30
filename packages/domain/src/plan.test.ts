@@ -982,6 +982,16 @@ describe("planChanges", () => {
     expect(p.review?.reasons).toEqual(["Confidence 79% is below the 80% threshold"]);
   });
 
+  it("when whole percentages tie, the low-confidence reason shows two decimals", () => {
+    const p = planChanges(
+      snap({ apps: [{ id: "a1" }] }),
+      msg(),
+      ext({ category: "rejection", confidence: 0.801 }),
+      { autoApplyMinConfidence: 0.805 },
+    );
+    expect(p.review?.reasons).toEqual(["Confidence 80.1% is below the 80.5% threshold"]);
+  });
+
   it("does not link a thread that is already linked to the application", () => {
     const p = plan(
       snap({
