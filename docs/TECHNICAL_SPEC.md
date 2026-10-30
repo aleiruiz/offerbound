@@ -775,7 +775,7 @@ Routes: `/login`, `/onboarding` (steps: start syncing → CV → sheet import �
 - **Order:** effects are applied in Gmail `internal_date` order behind the watermark (§5.6).
 - **Freshness:** a new email reaches its record within sync interval + pipeline time (target ≤ 7 minutes at normal volume).
 - **One record per posting:** `job_key` is unique across leads and across applications.
-- **Sheet before Gmail:** sync starts only on *Start syncing*, after the optional import, so backfilled emails attach to imported records.
+- **Gmail before sheet (DECISIONS I-8):** onboarding starts with *Start syncing*; a later sheet import skips rows matching a record Gmail already created (canonical link, or same company and a similar role, AC-14.5).
 
 ## 15. Testing strategy
 
