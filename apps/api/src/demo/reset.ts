@@ -1,40 +1,52 @@
+import type { Prisma } from "@prisma/client";
 import type { WorkerCtx } from "../deps.js";
 import { withIntakeLock } from "../db/lock.js";
 import { FakeLlmProvider } from "../llm/fake-provider.js";
 import { FakeMailbox } from "./fake-mailbox.js";
 import { loadSeed, storeSeed, type Seed } from "./seed.js";
 
+type ResetCtx = Pick<WorkerCtx, "env" | "prisma" | "llm" | "gmail">;
+
 /**
- * `demo.reset` (TECHNICAL_SPEC §9, §12), hourly and at worker start: empties every application
- * table, stores `fixtures/demo/seed.json` with each timestamp moved by `now − seedAnchor` so the
- * data looks current, and starts the fake mailbox and the search batches over. The whole swap is
- * one transaction under the intake lock, so a visitor sees the old data or the new, never half.
- *
- * It deletes everything, so it refuses to run anywhere but a demo instance.
+ * The swap itself, inside the caller's transaction (which must hold the intake lock): empties
+ * every application table and stores the seed with each timestamp moved by `now − seed.anchor`.
+ * Nothing is committed here; `resetDemoMemory` follows once the transaction has.
  */
-export async function resetDemo(
-  ctx: Pick<WorkerCtx, "env" | "prisma" | "llm" | "gmail">,
+export async function resetDemoTables(
+  tx: Prisma.TransactionClient,
+  timezone: string,
   now: Date,
-  seed: Seed = loadSeed(),
+  seed: Seed,
 ): Promise<void> {
-  if (ctx.env.mode !== "demo") throw new Error("The demo reset only runs in demo mode.");
-  const deltaMs = now.getTime() - Date.parse(seed.anchor);
+  // Every table of the application, found in the catalog so later migrations are covered.
+  // pg-boss keeps its tables in its own schema and is not touched.
+  const tables = await tx.$queryRaw<{ tablename: string }[]>`
+    select tablename from pg_tables
+    where schemaname = 'public' and tablename <> '_prisma_migrations'`;
+  if (tables.length > 0) {
+    const list = tables.map((t) => `"public"."${t.tablename.replaceAll('"', '""')}"`).join(", ");
+    await tx.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+  }
+  await storeSeed(tx, seed, now.getTime() - Date.parse(seed.anchor), timezone);
+}
 
-  await withIntakeLock(ctx.prisma, async (tx) => {
-    // Every table of the application, found in the catalog so later migrations are covered.
-    // pg-boss keeps its tables in its own schema and is not touched.
-    const tables = await tx.$queryRaw<{ tablename: string }[]>`
-      select tablename from pg_tables
-      where schemaname = 'public' and tablename <> '_prisma_migrations'`;
-    if (tables.length > 0) {
-      const list = tables.map((t) => `"public"."${t.tablename.replaceAll('"', '""')}"`).join(", ");
-      await tx.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
-    }
-    await storeSeed(tx, seed, deltaMs, ctx.env.userTimezone);
-  });
-
-  // In-memory cursors of this process.
+/** The in-memory cursors of this process: search batches and mailbox deliveries. */
+export async function resetDemoMemory(ctx: Pick<WorkerCtx, "llm" | "gmail">): Promise<void> {
   if (ctx.llm instanceof FakeLlmProvider) ctx.llm.resetSearch();
   const mailbox = await ctx.gmail();
   if (mailbox instanceof FakeMailbox) mailbox.reset();
+}
+
+/**
+ * `demo.reset` (TECHNICAL_SPEC §9, §12), hourly and at worker start, and when a visitor has used
+ * up the simulated emails (`simulateEmail`): the data is emptied and seeded again, moved to look
+ * current, and the fake mailbox and the search batches start over. The whole swap is one
+ * transaction under the intake lock, so a visitor sees the old data or the new, never half.
+ *
+ * It deletes everything, so it refuses to run anywhere but a demo instance.
+ */
+export async function resetDemo(ctx: ResetCtx, now: Date, seed: Seed = loadSeed()): Promise<void> {
+  if (ctx.env.mode !== "demo") throw new Error("The demo reset only runs in demo mode.");
+  await withIntakeLock(ctx.prisma, (tx) => resetDemoTables(tx, ctx.env.userTimezone, now, seed));
+  await resetDemoMemory(ctx);
 }
