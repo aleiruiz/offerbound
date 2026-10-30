@@ -34,6 +34,8 @@ export type IngestResult = {
   leadIds: string[];
   /** The stored leads that wait for `leads.check`; the caller sends the jobs after commit. */
   checkIds: string[];
+  /** Companies this batch created, for the undo change set (deleted only if nothing else uses them). */
+  createdCompanyIds: string[];
   /** Incoming `ref` → stored lead id, for plan operations that point at a new lead. */
   refs: Record<string, string>;
   counts: IntakeCounts;
@@ -46,24 +48,6 @@ export const BATCHES_WITHOUT_FINALIZE: ReadonlySet<IntakeBatchKind> = new Set<In
 ]);
 
 const COUNT_KEYS = ["received", "duplicates", "suppressed", "dead", "accepted"] as const;
-
-/**
- * Takes the intake lock for the rest of the transaction (TECHNICAL_SPEC §6.8). Same statement as
- * `withIntakeLock` in `db/lock.ts`; the lead jobs use this one until that module is on main.
- */
-export async function withLeadsLock<T>(
-  prisma: PrismaClient,
-  fn: (tx: Tx) => Promise<T>,
-): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('offerbound.intake'))`;
-      return fn(tx);
-    },
-    // The wait for the lock counts against the transaction clock; nothing slow runs inside.
-    { maxWait: 10_000, timeout: 60_000 },
-  );
-}
 
 /**
  * Adds `delta` to the batch's counts in one statement, so check and rank jobs that finish at the
@@ -225,8 +209,9 @@ export async function ingestLeads(
     // A blank company name leaves nothing to attach the lead to.
     if (decision.company.kind === "none") return;
     kept.push({ lead, decision });
+    // A dismissed row (a cancelled sheet row) is history: neither suppressed nor accepted.
     if (decision.status === "suppressed") counts.suppressed += 1;
-    else counts.accepted += 1;
+    else if (decision.status === "new") counts.accepted += 1;
   });
 
   const created = await tx.intakeBatch.create({
@@ -241,6 +226,7 @@ export async function ingestLeads(
 
   const trackKeys = ctx.settings.search.tracks.map((t) => t.key);
   const companyIds = new Map<string, string>();
+  const createdCompanyIds: string[] = [];
   const refs: Record<string, string> = {};
   const leadIds: string[] = [];
   const checkIds: string[] = [];
@@ -268,6 +254,7 @@ export async function ingestLeads(
           },
         });
         companyIds.set(resolution.company.normalizedName, company.id);
+        createdCompanyIds.push(company.id);
         companyId = company.id;
       }
     } else {
@@ -318,15 +305,18 @@ export async function ingestLeads(
     if (decision.pipelineState === "checking") checkIds.push(row.id);
   }
 
-  return { batchId: created.id, leadIds, checkIds, refs, counts };
+  return { batchId: created.id, leadIds, checkIds, createdCompanyIds, refs, counts };
 }
 
 /** Sends `leads.check` for every stored lead that waits for one. Call it after the commit. */
 export async function enqueueLeadChecks(
   queue: Pick<JobQueue, "send">,
-  result: Pick<IngestResult, "checkIds">,
+  result: Pick<IngestResult, "checkIds" | "batchId">,
 ): Promise<void> {
-  for (const leadId of result.checkIds) await queue.send(QUEUES.leadsCheck, { leadId });
+  // The batch id lets a redelivered job find its batch even after its lead is gone (a dead lead).
+  for (const leadId of result.checkIds) {
+    await queue.send(QUEUES.leadsCheck, { leadId, batchId: result.batchId });
+  }
 }
 
 /**
@@ -350,4 +340,30 @@ export async function sendFinalizeIfSettled(
   });
   if (pending > 0) return;
   await ctx.queue.send(QUEUES.leadsFinalize, { batchId }, { singletonKey: batchId });
+}
+
+/** Batch kinds whose finalize is driven by the lead jobs (search runs finalize themselves). */
+const SWEPT_KINDS: IntakeBatchKind[] = ["gmail_message", "paste_report"];
+
+/**
+ * Sends `leads.finalize` for every batch the lead jobs drive that has leads, is not
+ * finalized and has no lead left in `checking` or `ranking`. Idempotent (the job is keyed by the
+ * batch and finalize runs once), so a job that is re-delivered after its state was committed can
+ * call it to send what the first run did not get to send.
+ */
+export async function sendPendingFinalizes(ctx: {
+  prisma: PrismaClient;
+  queue: Pick<JobQueue, "send">;
+}): Promise<void> {
+  const batches = await ctx.prisma.intakeBatch.findMany({
+    where: {
+      finalizedAt: null,
+      kind: { in: SWEPT_KINDS },
+      leads: { some: {}, none: { pipelineState: { in: ["checking", "ranking"] } } },
+    },
+    select: { id: true },
+  });
+  for (const { id } of batches) {
+    await ctx.queue.send(QUEUES.leadsFinalize, { batchId: id }, { singletonKey: id });
+  }
 }

@@ -1,6 +1,7 @@
 import { finalizeBatch, type BatchLead } from "@offerbound/domain";
 import type { WorkerCtx } from "../deps.js";
-import { BATCHES_WITHOUT_FINALIZE, bumpBatchCounts, withLeadsLock } from "./intake.js";
+import { withIntakeLock } from "../db/lock.js";
+import { BATCHES_WITHOUT_FINALIZE, bumpBatchCounts } from "./intake.js";
 
 /**
  * `leads.finalize` (TECHNICAL_SPEC §7.1): once no lead of the batch is still `checking` or
@@ -10,7 +11,7 @@ import { BATCHES_WITHOUT_FINALIZE, bumpBatchCounts, withLeadsLock } from "./inta
  */
 export async function runFinalize(ctx: WorkerCtx, batchId: string): Promise<void> {
   const now = ctx.clock();
-  await withLeadsLock(ctx.prisma, async (tx) => {
+  await withIntakeLock(ctx.prisma, async (tx) => {
     const batch = await tx.intakeBatch.findUnique({ where: { id: batchId } });
     if (batch === null || batch.finalizedAt !== null || BATCHES_WITHOUT_FINALIZE.has(batch.kind)) {
       return;
@@ -32,7 +33,7 @@ export async function runFinalize(ctx: WorkerCtx, batchId: string): Promise<void
     }));
     const { suppressIds } = finalizeBatch(candidates);
     if (suppressIds.length > 0) {
-      await tx.lead.updateMany({
+      const { count } = await tx.lead.updateMany({
         where: { id: { in: suppressIds }, status: "new" },
         data: {
           status: "suppressed",
@@ -42,10 +43,7 @@ export async function runFinalize(ctx: WorkerCtx, batchId: string): Promise<void
           version: { increment: 1 },
         },
       });
-      await bumpBatchCounts(tx, batchId, {
-        suppressed: suppressIds.length,
-        accepted: -suppressIds.length,
-      });
+      await bumpBatchCounts(tx, batchId, { suppressed: count, accepted: -count });
     }
     await tx.intakeBatch.update({ where: { id: batchId }, data: { finalizedAt: now } });
   });

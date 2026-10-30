@@ -9,7 +9,7 @@ import { loadEmailFixtures } from "../fixtures/emails.js";
 import { HANDLERS, type JobInfo } from "../jobs/handlers.js";
 import { QUEUES } from "../jobs/queues.js";
 import type { RecordingQueue } from "../../test/queue.js";
-import type { LlmUsage } from "../llm/provider.js";
+import { LlmError, type LlmUsage } from "../llm/provider.js";
 import { runLeadCheck } from "./check.js";
 import { runFinalize } from "./finalize.js";
 import { enqueueLeadChecks, ingestLeads, type IngestResult } from "./intake.js";
@@ -242,14 +242,16 @@ describe("lead intake, check, rank and finalize", () => {
     // LinkedIn needs a login: nothing was requested.
     expect(requested).toEqual([]);
     // The batch settled once, after the last rank; the finalize is keyed by the batch.
+    // (Rank jobs that find nothing left to rank send it again; the key makes that harmless.)
     const finalizes = sentTo(ctx, QUEUES.leadsFinalize);
-    expect(finalizes).toEqual([
-      {
+    expect(finalizes.length).toBeGreaterThanOrEqual(1);
+    for (const sent of finalizes) {
+      expect(sent).toEqual({
         name: "leads.finalize",
         data: { batchId: result.batchId },
         opts: { singletonKey: result.batchId },
-      },
-    ]);
+      });
+    }
     expect((await batchOf(result.batchId)).finalizedAt).toEqual(NOW);
     expect((await batchOf(result.batchId)).counts).toEqual(result.counts);
   });
@@ -321,7 +323,7 @@ describe("lead intake, check, rank and finalize", () => {
     expect(sentTo(ctx, QUEUES.leadsRank)).toEqual([]);
     // Sheet batches never finalize.
     expect(sentTo(ctx, QUEUES.leadsFinalize)).toEqual([]);
-    expect((await batchOf(result.batchId)).counts).toMatchObject({ dead: 0, accepted: 1 });
+    expect((await batchOf(result.batchId)).counts).toMatchObject({ dead: 0, accepted: 0 });
   });
 
   it("ranking stores track, fit score, reason, gaps, seniority, work mode, tri-states and compensation with isEstimate", async () => {
@@ -559,7 +561,7 @@ describe("lead intake, check, rank and finalize", () => {
     expect(ctx.queue.sent).toEqual([
       {
         name: "leads.check",
-        data: { leadId: byTitle.get("runnerUp")!.id },
+        data: { leadId: byTitle.get("runnerUp")!.id, batchId: result.batchId },
         opts: {},
       },
     ]);
@@ -706,13 +708,14 @@ describe("lead intake, check, rank and finalize", () => {
 
   it("one company named by several leads of a batch is created once", async () => {
     const { ctx } = workerCtx();
-    await ingest(ctx, [
+    const result = await ingest(ctx, [
       incoming({ ref: "1", order: 0, companyName: "Sandpiper AI" }),
       incoming({ ref: "2", order: 1, companyName: "Sandpiper AI, Inc." }),
     ]);
     const companies = await prisma.company.findMany();
     expect(companies.map((c) => c.name)).toEqual(["Sandpiper AI"]);
     expect(companies[0]).toMatchObject({ normalizedName: "sandpiper ai", createdSource: "gmail" });
+    expect(result.createdCompanyIds).toEqual([companies[0]!.id]);
     expect(await prisma.lead.count({ where: { companyId: companies[0]!.id } })).toBe(2);
   });
 
@@ -767,7 +770,9 @@ describe("lead intake, check, rank and finalize", () => {
     await runLeadCheck(ctx, id);
     await runLeadCheck(ctx, "00000000-0000-4000-8000-000000000000");
     expect(requested).toEqual([]);
-    expect(ctx.queue.sent).toEqual([]);
+    // Nothing to check or rank (a settled batch may send its finalize again).
+    expect(sentTo(ctx, QUEUES.leadsCheck)).toEqual([]);
+    expect(sentTo(ctx, QUEUES.leadsRank)).toEqual([]);
     expect((await prisma.lead.findUniqueOrThrow({ where: { id } })).verification).toBe("pending");
   });
 
@@ -874,6 +879,181 @@ describe("lead intake, check, rank and finalize", () => {
         expect(lead.sourceMessageId, fixture.id).toBe(fixture.id);
       }
     }
+  });
+});
+
+describe("redelivered and failing jobs", () => {
+  const job = (data: Record<string, unknown>, retryCount = 0): JobInfo => ({
+    data,
+    retryCount,
+    retryLimit: 3,
+  });
+  const upstream = () => new LlmError("upstream", "upstream", { retryable: true });
+
+  it("a check run again after its sends were dropped sends leads.rank again", async () => {
+    const { ctx } = workerCtx();
+    const result = await ingest(ctx, [incoming({ ref: "a" })]);
+    const id = result.leadIds[0]!;
+    await runLeadCheck(ctx, id, result.batchId);
+    expect(sentTo(ctx, QUEUES.leadsRank)).toHaveLength(1);
+
+    ctx.queue.sent.length = 0; // the worker died before the sends reached the queue
+    await runLeadCheck(ctx, id, result.batchId);
+    expect(sentTo(ctx, QUEUES.leadsRank)).toHaveLength(1);
+    expect(await prisma.lead.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      pipelineState: "ranking",
+      verification: "verified",
+    });
+  });
+
+  it("a dead lead's check run again after its sends were dropped checks the lead that replaced it", async () => {
+    const keptUrl = "https://careers.example/kept";
+    const pages: Record<string, Page> = {};
+    const { ctx } = workerCtx(pages);
+    stubRank(ctx, (lead) => ({ fitScore: lead.title === "kept" ? 90 : 80 }));
+    const result = await ingest(ctx, [
+      incoming({ ref: "kept", order: 0, title: "kept", jobUrl: keptUrl }),
+      incoming({ ref: "runnerUp", order: 1, title: "runnerUp" }),
+    ]);
+    await drain(ctx);
+    const kept = (await leadsOf(result.batchId)).find((l) => l.title === "kept")!;
+    pages[keptUrl] = { status: 404 };
+    await prisma.lead.update({ where: { id: kept.id }, data: { pipelineState: "checking" } });
+    ctx.queue.sent.length = 0;
+    await runLeadCheck(ctx, kept.id, result.batchId);
+    const runnerUp = (await leadsOf(result.batchId)).find((l) => l.title === "runnerUp")!;
+    expect(runnerUp.pipelineState).toBe("checking");
+
+    ctx.queue.sent.length = 0; // dropped
+    await runLeadCheck(ctx, kept.id, result.batchId); // the lead is gone now
+    expect(ctx.queue.sent).toEqual([
+      { name: "leads.check", data: { leadId: runnerUp.id, batchId: result.batchId }, opts: {} },
+    ]);
+  });
+
+  it("a rank run again after its finalize was dropped sends leads.finalize, and the batch finishes", async () => {
+    const { ctx } = workerCtx();
+    stubRank(ctx);
+    const result = await ingest(ctx, [incoming({ ref: "a" })]);
+    await runLeadCheck(ctx, result.leadIds[0]!, result.batchId);
+    await runRankBatch(ctx);
+    expect(sentTo(ctx, QUEUES.leadsFinalize)).toHaveLength(1);
+
+    ctx.queue.sent.length = 0; // dropped
+    await runRankBatch(ctx); // re-delivered: nothing is left to rank
+    expect(sentTo(ctx, QUEUES.leadsFinalize)).toEqual([
+      {
+        name: "leads.finalize",
+        data: { batchId: result.batchId },
+        opts: { singletonKey: result.batchId },
+      },
+    ]);
+    await runFinalize(ctx, result.batchId);
+    expect((await batchOf(result.batchId)).finalizedAt).toEqual(NOW);
+
+    // Finalized: a further re-delivery has nothing left to send.
+    ctx.queue.sent.length = 0;
+    await runRankBatch(ctx);
+    await runLeadCheck(ctx, result.leadIds[0]!, result.batchId);
+    expect(ctx.queue.sent).toEqual([]);
+  });
+
+  it("a check run again after its finalize was dropped sends leads.finalize", async () => {
+    const { ctx } = workerCtx();
+    const result = await ingest(ctx, [incoming({ ref: "a" })]);
+    const id = result.leadIds[0]!;
+    await runLeadCheck(ctx, id, result.batchId);
+    await prisma.lead.update({ where: { id }, data: { pipelineState: "ready", rankedAt: NOW } });
+    ctx.queue.sent.length = 0;
+    await runLeadCheck(ctx, id, result.batchId);
+    expect(sentTo(ctx, QUEUES.leadsFinalize)).toHaveLength(1);
+  });
+
+  it("a failing model call leaves leads waiting while retries remain", async () => {
+    const { ctx } = workerCtx();
+    vi.spyOn(ctx.llm, "rank").mockRejectedValue(upstream());
+    const result = await ingest(ctx, [incoming({ ref: "a" })]);
+    await runLeadCheck(ctx, result.leadIds[0]!, result.batchId);
+    ctx.queue.sent.length = 0;
+    await expect(HANDLERS[QUEUES.leadsRank]!(ctx, job({}, 2))).rejects.toThrow("upstream");
+    expect((await leadsOf(result.batchId))[0]?.pipelineState).toBe("ranking");
+    expect(ctx.queue.sent).toEqual([]);
+  });
+
+  it("when ranking fails on its last attempt the leads move on unranked and the batch finishes", async () => {
+    const { ctx } = workerCtx();
+    vi.spyOn(ctx.llm, "rank").mockRejectedValue(upstream());
+    const result = await ingest(ctx, [
+      incoming({ ref: "a", order: 0, companyName: "Company A" }),
+      incoming({ ref: "b", order: 1, companyName: "Company B" }),
+    ]);
+    for (const id of result.checkIds) await runLeadCheck(ctx, id, result.batchId);
+    ctx.queue.sent.length = 0;
+
+    await expect(HANDLERS[QUEUES.leadsRank]!(ctx, job({}, 3))).rejects.toThrow("upstream");
+    const stored = await leadsOf(result.batchId);
+    for (const lead of stored) {
+      expect(lead).toMatchObject({
+        status: "new",
+        pipelineState: "ready",
+        fitScore: null,
+        rankedAt: null,
+      });
+    }
+    expect(sentTo(ctx, QUEUES.leadsFinalize)).toEqual([
+      {
+        name: "leads.finalize",
+        data: { batchId: result.batchId },
+        opts: { singletonKey: result.batchId },
+      },
+    ]);
+    await runFinalize(ctx, result.batchId);
+    const batch = await batchOf(result.batchId);
+    expect(batch.finalizedAt).toEqual(NOW);
+    expect(batch.counts).toMatchObject({ accepted: 2, suppressed: 0 });
+  });
+
+  it("a lead the model keeps leaving out moves on unranked on the last attempt, the rest keep their rank", async () => {
+    const { ctx } = workerCtx();
+    vi.spyOn(ctx.llm, "rank").mockImplementation((input) =>
+      Promise.resolve({
+        output: {
+          rankings: input.leads
+            .filter((l) => l.company !== "Company B")
+            .map((l) => baseRanking(l.leadRef)),
+        },
+        usage: USAGE,
+      }),
+    );
+    const result = await ingest(ctx, [
+      incoming({ ref: "a", order: 0, companyName: "Company A" }),
+      incoming({ ref: "b", order: 1, companyName: "Company B" }),
+    ]);
+    for (const id of result.checkIds) await runLeadCheck(ctx, id, result.batchId);
+    ctx.queue.sent.length = 0;
+
+    // Not the last attempt: the job fails and no job of its own is sent for the omitted lead.
+    await expect(HANDLERS[QUEUES.leadsRank]!(ctx, job({}, 0))).rejects.toThrow(/did not rank/);
+    expect(sentTo(ctx, QUEUES.leadsRank)).toEqual([]);
+
+    await HANDLERS[QUEUES.leadsRank]!(ctx, job({}, 3));
+    const stored = await leadsOf(result.batchId);
+    expect(stored.map((l) => l.pipelineState)).toEqual(["ready", "ready"]);
+    expect(stored.map((l) => l.fitScore)).toEqual([70, null]);
+    expect(sentTo(ctx, QUEUES.leadsFinalize).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("the page text sent for ranking is capped at 8,000 characters", async () => {
+    const { ctx } = workerCtx();
+    const rank = stubRank(ctx);
+    const result = await ingest(ctx, [incoming({ ref: "a", pageExcerpt: "p".repeat(20_000) })]);
+    // A stored excerpt longer than the link check allows (written by another path).
+    await prisma.lead.update({
+      where: { id: result.leadIds[0]! },
+      data: { pipelineState: "ranking", pageExcerpt: "p".repeat(20_000) },
+    });
+    await runRankBatch(ctx);
+    expect(rank.mock.calls[0]![0].leads[0]?.pageExcerpt).toHaveLength(8000);
   });
 });
 

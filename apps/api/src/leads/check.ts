@@ -1,6 +1,7 @@
 import { finalizeBatch } from "@offerbound/domain";
 import type { WorkerCtx } from "../deps.js";
-import { bumpBatchCounts, sendFinalizeIfSettled, withLeadsLock, type LeadsTx } from "./intake.js";
+import { withIntakeLock } from "../db/lock.js";
+import { bumpBatchCounts, sendFinalizeIfSettled, type LeadsTx } from "./intake.js";
 import { checkLink, type LinkCheckResult } from "./link-check.js";
 import { QUEUES } from "../jobs/queues.js";
 
@@ -11,7 +12,11 @@ type Outcome = { batchId: string; rank: boolean; recheck: string[] };
 
 /**
  * `leads.check` for one lead (TECHNICAL_SPEC §7.1, §7.2, AC-9.8). Skips a lead that is not in
- * `checking`, so a repeated job does nothing.
+ * `checking`, so a repeated job changes nothing; it does send again whatever the first run may not
+ * have got to send (`leads.rank` for a lead waiting in `ranking`, the checks of a batch whose lead
+ * is gone, `leads.finalize` for a settled batch), because the first run commits before it sends.
+ * The sends are idempotent: a second `leads.rank` finds nothing to rank, a second check skips,
+ * and `leads.finalize` is keyed by the batch. `batchId` is the batch the job was sent for.
  *
  * - Dead: the lead is deleted, so its company does not count as reported, and the batch's `dead`
  *   count goes up. A `sheet_import` lead is history and becomes `dismissed` with `posting_closed`.
@@ -28,17 +33,24 @@ type Outcome = { batchId: string; rank: boolean; recheck: string[] };
  * The page is fetched before the lock is taken; nothing slow runs while it is held. Nothing here
  * logs a URL or page text.
  */
-export async function runLeadCheck(ctx: WorkerCtx, leadId: string): Promise<void> {
+export async function runLeadCheck(
+  ctx: WorkerCtx,
+  leadId: string,
+  batchId?: string,
+): Promise<void> {
   const lead = await ctx.prisma.lead.findUnique({
     where: { id: leadId },
     select: { pipelineState: true, jobUrl: true },
   });
-  if (lead === null || lead.pipelineState !== "checking") return;
+  if (lead === null || lead.pipelineState !== "checking") {
+    await resendFollowUps(ctx, leadId, batchId);
+    return;
+  }
 
   const result = lead.jobUrl === null ? NO_LINK : await checkLink(lead.jobUrl, ctx.fetchLink);
   const now = ctx.clock();
 
-  const outcome = await withLeadsLock(ctx.prisma, async (tx): Promise<Outcome | null> => {
+  const outcome = await withIntakeLock(ctx.prisma, async (tx): Promise<Outcome | null> => {
     const current = await tx.lead.findUnique({ where: { id: leadId } });
     if (current === null || current.pipelineState !== "checking") return null;
     const base = { batchId: current.intakeBatchId, rank: false, recheck: [] as string[] };
@@ -56,6 +68,9 @@ export async function runLeadCheck(ctx: WorkerCtx, leadId: string): Promise<void
             version: { increment: 1 },
           },
         });
+        // History: kept, but no longer one of the leads the batch accepted.
+        if (current.status === "new")
+          await bumpBatchCounts(tx, current.intakeBatchId, { accepted: -1 });
         return base;
       }
       await tx.lead.delete({ where: { id: leadId } });
@@ -81,11 +96,39 @@ export async function runLeadCheck(ctx: WorkerCtx, leadId: string): Promise<void
     });
     return { ...base, rank: !ranked };
   });
-  if (outcome === null) return;
+  if (outcome === null) {
+    await resendFollowUps(ctx, leadId, batchId);
+    return;
+  }
 
   if (outcome.rank) await ctx.queue.send(QUEUES.leadsRank, {});
-  for (const id of outcome.recheck) await ctx.queue.send(QUEUES.leadsCheck, { leadId: id });
+  for (const id of outcome.recheck) {
+    await ctx.queue.send(QUEUES.leadsCheck, { leadId: id, batchId: outcome.batchId });
+  }
   await sendFinalizeIfSettled(ctx, outcome.batchId);
+}
+
+/**
+ * The follow-ups of a check that has already happened (see `runLeadCheck`). A lead that is gone
+ * was dead: the lead brought back in its place, if any, is the batch's lead in `checking`.
+ */
+async function resendFollowUps(ctx: WorkerCtx, leadId: string, batchHint?: string): Promise<void> {
+  const lead = await ctx.prisma.lead.findUnique({
+    where: { id: leadId },
+    select: { pipelineState: true, intakeBatchId: true },
+  });
+  const batchId = lead?.intakeBatchId ?? batchHint;
+  if (batchId === undefined) return;
+  if (lead === null) {
+    const waiting = await ctx.prisma.lead.findMany({
+      where: { intakeBatchId: batchId, pipelineState: "checking" },
+      select: { id: true },
+    });
+    for (const { id } of waiting) await ctx.queue.send(QUEUES.leadsCheck, { leadId: id, batchId });
+  } else if (lead.pipelineState === "ranking") {
+    await ctx.queue.send(QUEUES.leadsRank, {});
+  }
+  await sendFinalizeIfSettled(ctx, batchId);
 }
 
 /**
