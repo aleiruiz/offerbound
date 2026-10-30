@@ -1,5 +1,9 @@
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
+import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
+import Accordion from "@mui/material/Accordion";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import AccordionSummary from "@mui/material/AccordionSummary";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -40,8 +44,10 @@ import {
 } from "../api/hooks";
 import { GOOGLE_START_PATH } from "../api/paths";
 import { CvProfileSummary } from "../components/CvProfileSummary";
+import { DropZone } from "../components/DropZone";
 import { FilePicker } from "../components/FilePicker";
 import { ErrorState } from "../components/States";
+import { FlagChip } from "../components/StatusChip";
 
 /**
  * Onboarding (DESIGN_SPEC §5.8, TECHNICAL_SPEC §11): upload the CV, import the spreadsheet, write
@@ -56,6 +62,8 @@ const STEPS = [
   "Start syncing Gmail",
 ] as const;
 const LAST_STEP = STEPS.length - 1;
+/** Steps before the last one can be skipped; the stepper says so under their names. */
+const isOptional = (index: number) => index < LAST_STEP;
 
 const MB = 1024 * 1024;
 const CV_MAX_BYTES = 5 * MB;
@@ -169,6 +177,8 @@ export function OnboardingPage() {
                 optional={
                   skipped.has(index) ? (
                     <Typography variant="caption">Skipped</Typography>
+                  ) : isOptional(index) ? (
+                    <Typography variant="caption">Optional</Typography>
                   ) : undefined
                 }
               >
@@ -181,7 +191,13 @@ export function OnboardingPage() {
         <StepSection id="cv" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
           <CvStep onContinue={() => advance(0, "done")} onSkip={() => advance(0, "skipped")} />
         </StepSection>
-        <StepSection id="import" title={STEPS[1]} active={active === 1} visited={visited.has(1)}>
+        <StepSection
+          id="import"
+          title={STEPS[1]}
+          active={active === 1}
+          visited={visited.has(1)}
+          optional
+        >
           <ImportStep
             onBack={() => back(1)}
             onContinue={() => advance(1, "done")}
@@ -210,12 +226,15 @@ function StepSection({
   title,
   active,
   visited,
+  optional = false,
   children,
 }: {
   id: string;
   title: string;
   active: boolean;
   visited: boolean;
+  /** Shows an Optional label beside the heading (outside the `h2`, so its name stays the title). */
+  optional?: boolean;
   children: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
@@ -237,16 +256,27 @@ function StepSection({
       aria-labelledby={`step-${id}`}
       sx={{ p: 3, display: active ? "flex" : "none", flexDirection: "column", gap: 2.5 }}
     >
-      <Typography
-        id={`step-${id}`}
-        ref={heading}
-        tabIndex={-1}
-        variant="h6"
-        component="h2"
-        sx={{ fontWeight: 700, outline: "none" }}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          columnGap: 1.5,
+          rowGap: 0.5,
+        }}
       >
-        {title}
-      </Typography>
+        <Typography
+          id={`step-${id}`}
+          ref={heading}
+          tabIndex={-1}
+          variant="h6"
+          component="h2"
+          sx={{ fontWeight: 700, outline: "none" }}
+        >
+          {title}
+        </Typography>
+        {optional ? <FlagChip tone="neutral" label="Optional" size="small" /> : null}
+      </Box>
       {children}
     </Paper>
   );
@@ -311,6 +341,20 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
   const [profile, setProfile] = useState<CvProfile | null>(null);
   const [saved, setSaved] = useState(false);
   const [profileFailed, setProfileFailed] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const zone = useRef<HTMLDivElement>(null);
+  const statusRegion = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
+
+  // The chooser unmounts while the CV is read. If it had focus, move focus to the status region
+  // (the next Tab reaches Skip or Continue) instead of letting it fall back to the page.
+  const reading = upload.isPending;
+  useEffect(() => {
+    if (reading && refocus.current) {
+      refocus.current = false;
+      statusRegion.current?.focus();
+    }
+  }, [reading]);
 
   const choose = (file: File) => {
     const reason = !hasAllowedType(file, CV_ACCEPT)
@@ -323,6 +367,8 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
       upload.reset();
       return;
     }
+    setFileName(file.name);
+    refocus.current = zone.current?.contains(document.activeElement) ?? false;
     upload.mutate(file, {
       onSuccess: (outcome) => {
         setSaved(true);
@@ -339,21 +385,38 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
         Add your CV as a PDF or DOCX, up to 5 MB. Offerbound reads its text to rank leads against
         your skills. The file itself isn't kept, only the text and the profile built from it.
       </Typography>
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
-        <FilePicker
-          label={saved ? "Replace CV" : "Choose CV file"}
-          accept={CV_ACCEPT}
-          onFile={choose}
-          disabled={upload.isPending}
-        />
-        <Box role="status" aria-live="polite">
+      <DropZone ref={zone} label="CV drop zone" onFile={choose} disabled={upload.isPending}>
+        {upload.isPending ? null : (
+          <FilePicker
+            label={saved ? "Replace CV" : "Choose CV file"}
+            accept={CV_ACCEPT}
+            onFile={choose}
+          />
+        )}
+        <Box
+          ref={statusRegion}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          sx={{ flex: "1 1 280px", minWidth: 0, outline: "none" }}
+        >
           {upload.isPending ? (
-            <Typography variant="body2" color="text.secondary">
-              Reading your CV
-            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {fileName ? (
+                <Typography noWrap title={fileName} sx={{ fontWeight: 600 }}>
+                  {fileName}
+                </Typography>
+              ) : null}
+              <LinearProgress aria-label="Reading your CV" />
+              <Typography variant="body2" color="text.secondary">
+                {/* The file name is on the line above; repeating it would not wrap on a phone. */}
+                Reading your CV and building your profile. This usually takes under a minute; keep
+                this page open.
+              </Typography>
+            </Box>
           ) : null}
         </Box>
-      </Box>
+      </DropZone>
       {rejected ? (
         <Alert severity="error" role="alert">
           {cvErrorMessage(new ApiClientError({ status: 422, code: rejected, message: "" }))}
@@ -417,8 +480,21 @@ const CSV_REJECTED = {
   too_large: "That file is larger than 2 MB. Export only the Applications tab and try again.",
 } as const;
 
-function importErrorMessage(error: unknown): string {
+/**
+ * Stopgap until `POST /import/sheet/preview` exists (T7.5): today it answers 404, and the page
+ * must not call that an expired preview. When T7.5 lands, narrow this to `not_found` or remove it,
+ * so a transient preview failure doesn't tell the owner to skip.
+ */
+const IMPORT_UNAVAILABLE =
+  "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.";
+
+/** `phase` says which call failed: only a missing preview on *commit* means it expired. */
+function importErrorMessage(error: unknown, phase: "preview" | "commit"): string {
   if (error instanceof ApiClientError) {
+    const unavailable =
+      phase === "preview" &&
+      (error.code === "not_found" || error.code === "unexpected_response" || error.status >= 500);
+    if (unavailable) return IMPORT_UNAVAILABLE;
     switch (error.code) {
       case "duplicate_import":
         return "This file was already imported. Skip this step to keep your list as it is.";
@@ -467,6 +543,63 @@ function SkippedRows({ preview }: { preview: SheetPreview }) {
   );
 }
 
+const EXPECTATIONS: readonly { lead: string; text: string }[] = [
+  {
+    lead: "What it reads:",
+    text: "the Applications tab exported as CSV. Offerbound finds the header row by itself; it needs Company, Role and Status. It also uses Country, City or modality, Date applied, Salary, Sponsorship or relocation, Job link and Notes when they are there.",
+  },
+  {
+    lead: "How statuses become records:",
+    text: "To research becomes a new lead. Applied, Interview and Rejected become applications. Cancelled becomes a dismissed lead. Any other status is reported and skipped.",
+  },
+  {
+    lead: "What you see first:",
+    text: "a preview with counts, rows with errors and duplicates in the file. Nothing is saved until you press Import.",
+  },
+  {
+    lead: "Duplicates:",
+    text: "rows that match records you already have are skipped, and the same file can't be imported twice.",
+  },
+  { lead: "Your spreadsheet:", text: "it isn't changed." },
+];
+
+/** AC-14.1-14.6 in plain words. Open by default; folds away so a phone isn't left with a long card. */
+function ImportExpectations() {
+  return (
+    <Accordion
+      defaultExpanded
+      disableGutters
+      elevation={0}
+      sx={{
+        maxWidth: 680,
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        "&:before": { display: "none" },
+      }}
+    >
+      <AccordionSummary expandIcon={<ExpandMoreOutlined />}>
+        <Typography sx={{ fontWeight: 600 }}>What to expect</Typography>
+      </AccordionSummary>
+      <AccordionDetails sx={{ pt: 0 }}>
+        <Box
+          component="ul"
+          sx={{ m: 0, pl: 2.5, display: "flex", flexDirection: "column", gap: 1 }}
+        >
+          {EXPECTATIONS.map((item) => (
+            <Typography key={item.lead} component="li" variant="body2">
+              <Box component="span" sx={{ fontWeight: 700 }}>
+                {item.lead}
+              </Box>{" "}
+              {item.text}
+            </Typography>
+          ))}
+        </Box>
+      </AccordionDetails>
+    </Accordion>
+  );
+}
+
 function ImportStep({
   onBack,
   onContinue,
@@ -508,55 +641,59 @@ function ImportStep({
         values. Add that file here. Offerbound imports it once; from then on it keeps your list
         current from Gmail.
       </Typography>
+      <Typography sx={{ maxWidth: 680, fontWeight: 600 }}>
+        If you don't track your applications in a spreadsheet, skip this step. Gmail sync builds
+        your list from your emails.
+      </Typography>
+      <ImportExpectations />
 
-      {data && fileName ? (
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 1.5,
-            px: 1.75,
-            py: 1.5,
-            border: 1,
-            borderColor: "divider",
-            borderRadius: 1,
-          }}
-        >
-          <DescriptionOutlined sx={{ color: "text.secondary" }} aria-hidden />
-          <Box sx={{ flex: "1 1 260px", minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 600, wordBreak: "break-word" }}>{fileName}</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {`${rowsLabel(data.totalRows)} found under the title rows`}
-            </Typography>
+      <DropZone label="CSV drop zone" onFile={choose} disabled={picking || imported}>
+        {data && fileName ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 1.5,
+              flex: "1 1 auto",
+              minWidth: 0,
+            }}
+          >
+            <DescriptionOutlined sx={{ color: "text.secondary" }} aria-hidden />
+            <Box sx={{ flex: "1 1 260px", minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 600, wordBreak: "break-word" }}>{fileName}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {`${rowsLabel(data.totalRows)} found under the title rows`}
+              </Typography>
+            </Box>
+            {!imported ? (
+              <FilePicker
+                label="Replace file"
+                accept={CSV_ACCEPT}
+                onFile={choose}
+                disabled={picking}
+                variant="text"
+              />
+            ) : null}
           </Box>
-          {!imported ? (
+        ) : (
+          <>
             <FilePicker
-              label="Replace file"
+              label="Choose CSV file"
               accept={CSV_ACCEPT}
               onFile={choose}
               disabled={picking}
-              variant="text"
             />
-          ) : null}
-        </Box>
-      ) : (
-        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
-          <FilePicker
-            label="Choose CSV file"
-            accept={CSV_ACCEPT}
-            onFile={choose}
-            disabled={picking}
-          />
-          <Box role="status" aria-live="polite">
-            {preview.isPending ? (
-              <Typography variant="body2" color="text.secondary">
-                Reading your file
-              </Typography>
-            ) : null}
-          </Box>
-        </Box>
-      )}
+            <Box role="status" aria-live="polite">
+              {preview.isPending ? (
+                <Typography variant="body2" color="text.secondary">
+                  Reading your file
+                </Typography>
+              ) : null}
+            </Box>
+          </>
+        )}
+      </DropZone>
 
       {rejected ? (
         <Alert severity="error" role="alert">
@@ -565,7 +702,7 @@ function ImportStep({
       ) : null}
       {preview.isError ? (
         <Alert severity="error" role="alert">
-          {importErrorMessage(preview.error)}
+          {importErrorMessage(preview.error, "preview")}
         </Alert>
       ) : null}
 
@@ -608,7 +745,7 @@ function ImportStep({
 
       {commit.isError ? (
         <Alert severity="error" role="alert">
-          {importErrorMessage(commit.error)}
+          {importErrorMessage(commit.error, "commit")}
         </Alert>
       ) : null}
       {summary ? (
