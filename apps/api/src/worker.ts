@@ -7,6 +7,7 @@ import { resumeGmailJobs } from "./gmail/control.js";
 import { createBoss, registerSchedules } from "./jobs/boss.js";
 import { HANDLERS, registerHandlers } from "./jobs/handlers.js";
 import { PgBossQueue, type QueueName } from "./jobs/queues.js";
+import { markStaleRuns, registerSearchSchedule } from "./leads/search.js";
 import { getSettings } from "./settings/service.js";
 
 export type { WorkerCtx } from "./deps.js";
@@ -38,6 +39,13 @@ export async function startWorker(base: WorkerCtx): Promise<{ stop: () => Promis
     new Set(Object.keys(HANDLERS) as QueueName[]),
   );
   await resumeGmailJobs(ctx);
+  // Search: close runs lost with the previous worker, then register the daily run (private mode;
+  // the demo has no search of its own). `PUT /settings` calls `registerSearchSchedule` on changes.
+  await markStaleRuns(ctx.prisma, ctx.clock());
+  if (ctx.env.mode === "private") {
+    const { search } = await getSettings(ctx.prisma);
+    await registerSearchSchedule(queue, search, ctx.env.userTimezone);
+  }
 
   let stopping: Promise<void> | undefined;
   const stop = (): Promise<void> => {
