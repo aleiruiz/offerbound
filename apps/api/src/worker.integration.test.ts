@@ -1,21 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import pino from "pino";
-import { createDisabledGoogleClient } from "./auth/google.js";
 import { createBoss } from "./jobs/boss.js";
-import { startWorker, type WorkerCtx } from "./worker.js";
+import { startWorker } from "./worker.js";
 import { testPrisma } from "../test/db.js";
 import { testEnv } from "../test/app.js";
-
-function workerCtx(): WorkerCtx {
-  return {
-    env: testEnv(),
-    prisma: testPrisma(),
-    clock: () => new Date(),
-    google: createDisabledGoogleClient(),
-    fetchLink: () => Promise.reject(new Error("no network in tests")),
-    log: pino({ level: "silent" }),
-  };
-}
+import { testWorkerCtx } from "../test/worker.js";
 
 const stops: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -30,7 +18,7 @@ describe("worker", () => {
   });
 
   it("starts pg-boss, creating its schema, and stops cleanly", async () => {
-    const worker = await startWorker(workerCtx());
+    const worker = await startWorker(testWorkerCtx());
     stops.push(worker.stop);
     const prisma = testPrisma();
     const rows = await prisma.$queryRaw<Array<{ n: bigint }>>`
@@ -42,7 +30,7 @@ describe("worker", () => {
 
   it("stops gracefully on SIGTERM and removes its signal listeners", async () => {
     const before = process.listenerCount("SIGTERM");
-    const worker = await startWorker(workerCtx());
+    const worker = await startWorker(testWorkerCtx());
     stops.push(worker.stop);
     expect(process.listenerCount("SIGTERM")).toBe(before + 1);
     process.emit("SIGTERM");

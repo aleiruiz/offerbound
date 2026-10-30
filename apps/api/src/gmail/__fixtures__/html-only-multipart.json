@@ -1,0 +1,51 @@
+{
+  "id": "m-html-mp",
+  "threadId": "t-m-html-mp",
+  "labelIds": ["INBOX"],
+  "snippet": "Next steps",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"Ana Pérez\" <ana@quarry.example>"
+      },
+      {
+        "name": "To",
+        "value": "Sam Rivera <sam@owner.example>"
+      },
+      {
+        "name": "Cc",
+        "value": "hiring@quarry.example, Lee Chen <lee@quarry.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "Next steps"
+      },
+      {
+        "name": "Date",
+        "value": "Tue, 27 Oct 2026 10:00:00 -0600"
+      },
+      {
+        "name": "List-Id",
+        "value": "<jobs.quarry.example>"
+      }
+    ],
+    "mimeType": "multipart/alternative",
+    "parts": [
+      {
+        "mimeType": "text/html",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/html; charset=\"UTF-8\""
+          }
+        ],
+        "body": {
+          "size": 248,
+          "data": "PGh0bWw-PGhlYWQ-PHN0eWxlPnB7Y29sb3I6cmVkfTwvc3R5bGU-PC9oZWFkPjxib2R5PjxzY3JpcHQ-YWxlcnQoMSk8L3NjcmlwdD48aDE-SW50ZXJ2aWV3PC9oMT48cD5Cb29rIGEgc2xvdDogPGEgaHJlZj0iaHR0cHM6Ly9jYWwucXVhcnJ5LmV4YW1wbGUvYW5hIj5waWNrIGEgdGltZTwvYT4gb3IgPGEgaHJlZj0iaHR0cHM6Ly9xdWFycnkuZXhhbXBsZSI-aHR0cHM6Ly9xdWFycnkuZXhhbXBsZTwvYT48L3A-PC9ib2R5PjwvaHRtbD4"
+        }
+      }
+    ]
+  }
+}

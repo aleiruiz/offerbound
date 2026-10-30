@@ -1,0 +1,65 @@
+{
+  "id": "m-icsatt",
+  "threadId": "t-m-icsatt",
+  "labelIds": ["INBOX"],
+  "snippet": "Interview details",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"Ana Pérez\" <ana@quarry.example>"
+      },
+      {
+        "name": "To",
+        "value": "Sam Rivera <sam@owner.example>"
+      },
+      {
+        "name": "Cc",
+        "value": "hiring@quarry.example, Lee Chen <lee@quarry.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "Interview details"
+      },
+      {
+        "name": "Date",
+        "value": "Tue, 27 Oct 2026 10:00:00 -0600"
+      },
+      {
+        "name": "List-Id",
+        "value": "<jobs.quarry.example>"
+      }
+    ],
+    "mimeType": "multipart/mixed",
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"UTF-8\""
+          }
+        ],
+        "body": {
+          "size": 31,
+          "data": "U2VlIHRoZSBhdHRhY2hlZCBjYWxlbmRhciBmaWxlLg"
+        }
+      },
+      {
+        "mimeType": "application/ics",
+        "filename": "invite.ics",
+        "headers": [
+          {
+            "name": "Content-Disposition",
+            "value": "attachment; filename=\"invite.ics\""
+          }
+        ],
+        "body": {
+          "size": 335,
+          "data": "QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KUFJPRElEOi0vL1F1YXJyeSBMYWJzLy9TY2hlZHVsZXIvL0VODQpNRVRIT0Q6UkVRVUVTVA0KQkVHSU46VkVWRU5UDQpVSUQ6ZXZ0LTEwMDFAcXVhcnJ5LmV4YW1wbGUNCkRUU1RBUlQ6MjAyNjExMDNUMjAwMDAwWg0KRFRFTkQ6MjAyNjExMDNUMjEwMDAwWg0KU1VNTUFSWTpJbnRlcnZpZXcgd2l0aCBRdWFycnkgTGFicw0KTE9DQVRJT046aHR0cHM6Ly9tZWV0LnF1YXJyeS5leGFtcGxlL3Jvb20tNw0KT1JHQU5JWkVSO0NOPUFuYSBQZXJlejptYWlsdG86YW5hQHF1YXJyeS5leGFtcGxlDQpFTkQ6VkVWRU5UDQpFTkQ6VkNBTEVOREFSDQo"
+        }
+      }
+    ]
+  }
+}

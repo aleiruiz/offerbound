@@ -8,6 +8,7 @@ import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
 import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
 import { registerAuthRoutes } from "./routes/auth.js";
+import { registerGmailRoutes } from "./routes/gmail.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
@@ -88,6 +89,7 @@ export async function buildApp(
       await api.register((guarded, _options, done) => {
         guarded.addHook("preHandler", requireSession(deps));
         registerMeRoutes(guarded, deps);
+        registerGmailRoutes(guarded, deps);
         registerOnboardingRoutes(guarded, deps);
         done();
       });

@@ -16,11 +16,14 @@ async function main(): Promise<void> {
   }
 
   const deps = createDeps(env);
+  // The API only sends and schedules jobs; the worker runs them. /ready is 503 until this is up.
+  await deps.queue.start();
   const app = await buildApp(deps);
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "shutting down");
     await app.close();
+    await deps.queue.stop();
     await deps.prisma.$disconnect();
     process.exit(0);
   };

@@ -1,0 +1,24 @@
+{
+  "id": "m-qp1",
+  "threadId": "t-m-qp1",
+  "labelIds": ["INBOX"],
+  "snippet": "Entrevista",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"iso-8859-1\""
+      },
+      {
+        "name": "Content-Transfer-Encoding",
+        "value": "quoted-printable"
+      }
+    ],
+    "mimeType": "text/plain",
+    "body": {
+      "size": 37,
+      "data": "SG9sYSA9RDFhbmQ9RkEgU3lzdGVtcywNClRvdGFsPTNENDINCg"
+    }
+  }
+}

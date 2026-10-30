@@ -1,0 +1,20 @@
+{
+  "id": "m-b64",
+  "threadId": "t-m-b64",
+  "labelIds": ["INBOX"],
+  "snippet": "Ñandú Systems",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"UTF-8\""
+      }
+    ],
+    "mimeType": "text/plain",
+    "body": {
+      "size": 40,
+      "data": "QmllbnZlbmlkbyBhIMORYW5kw7ogU3lzdGVtcy4gwr9IYWJsYW1vcyBtYcOxYW5hPw"
+    }
+  }
+}

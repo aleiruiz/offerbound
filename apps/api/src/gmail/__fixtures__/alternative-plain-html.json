@@ -1,0 +1,64 @@
+{
+  "id": "m-alt",
+  "threadId": "t-m-alt",
+  "labelIds": ["INBOX"],
+  "snippet": "Quarry Labs application",
+  "internalDate": "1793110800000",
+  "payload": {
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"Ana Pérez\" <ana@quarry.example>"
+      },
+      {
+        "name": "To",
+        "value": "Sam Rivera <sam@owner.example>"
+      },
+      {
+        "name": "Cc",
+        "value": "hiring@quarry.example, Lee Chen <lee@quarry.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "Quarry Labs application"
+      },
+      {
+        "name": "Date",
+        "value": "Tue, 27 Oct 2026 10:00:00 -0600"
+      },
+      {
+        "name": "List-Id",
+        "value": "<jobs.quarry.example>"
+      }
+    ],
+    "mimeType": "multipart/alternative",
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/plain; charset=\"UTF-8\""
+          }
+        ],
+        "body": {
+          "size": 72,
+          "data": "SGkgU2FtLAoKVGhhbmtzIGZvciBhcHBseWluZyB0byBRdWFycnkgTGFicy4gV2Ugd291bGQgbGlrZSB0byB0YWxrLgoKQW5h"
+        }
+      },
+      {
+        "mimeType": "text/html",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "text/html; charset=\"UTF-8\""
+          }
+        ],
+        "body": {
+          "size": 112,
+          "data": "PGh0bWw-PGJvZHk-PHA-SGkgU2FtLDwvcD48cD5BcHBseSBhdCA8YSBocmVmPSJodHRwczovL3F1YXJyeS5leGFtcGxlL2pvYnMvNDIiPm91ciBwb3J0YWw8L2E-LjwvcD48L2JvZHk-PC9odG1sPg"
+        }
+      }
+    ]
+  }
+}
