@@ -7,6 +7,7 @@ import { registerCsrf } from "./http/csrf.js";
 import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
 import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
+import { registerAiUsageRoutes } from "./routes/ai-usage.js";
 import { registerApplicationRoutes } from "./routes/applications.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerEventRoutes } from "./routes/events.js";
@@ -25,6 +26,7 @@ import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerTodayRoutes } from "./routes/today.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerReviewItemRoutes } from "./routes/review-items.js";
+import { registerSettingsRoutes } from "./routes/settings.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -117,6 +119,8 @@ export async function buildApp(
         registerSearchRoutes(guarded, deps);
         registerReviewItemRoutes(guarded, deps);
         registerMessageRoutes(guarded, deps);
+        registerSettingsRoutes(guarded, deps);
+        registerAiUsageRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
