@@ -6,12 +6,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run test:unit && pnpm run test:integration",
     "test:unit": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
     "eval:emails": "tsx --conditions=@offerbound/source scripts/eval-emails.ts"
   },
   "dependencies": {
     "@offerbound/contracts": "workspace:*",
-    "@offerbound/domain": "workspace:*"
+    "@offerbound/domain": "workspace:*",
+    "@prisma/client": "6.19.0"
   }
 }

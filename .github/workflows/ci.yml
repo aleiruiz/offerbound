@@ -35,10 +35,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      # `pnpm db:migrate` is added by T0.2, once prisma/ exists.
+      - run: pnpm db:migrate
       - run: pnpm test
       - run: pnpm build
       - run: pnpm audit --prod
