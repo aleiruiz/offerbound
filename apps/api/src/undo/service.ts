@@ -170,8 +170,22 @@ async function restoreVersioned(tx: Tx, entry: ChangeSetEntry, now: Date): Promi
 async function deleteVersioned(tx: Tx, entry: ChangeSetEntry): Promise<void> {
   const entity = entry.entity as keyof typeof MODEL_NAME;
   const guard = entry.versionAfter === null ? {} : { version: entry.versionAfter };
+  if (entity === "lead") return deleteCreatedLead(tx, entry);
   const { count } = await delegateFor(tx, entity).deleteMany({ where: { id: entry.id, ...guard } });
   if (count === 0) throw changedSince("A record changed after this change.");
+}
+
+/**
+ * A lead the change created is deleted while the owner has not acted on it: it is still `new` (or
+ * suppressed by the pipeline) and has no application. Its `version` is not compared: the link
+ * check and the rank always bump it, so the version the event left is stale by the time anyone
+ * undoes. Owner actions (shortlist, dismiss, mark applied) change `status`.
+ */
+async function deleteCreatedLead(tx: Tx, entry: ChangeSetEntry): Promise<void> {
+  const { count } = await tx.lead.deleteMany({
+    where: { id: entry.id, status: { in: ["new", "suppressed"] }, applicationId: null },
+  });
+  if (count === 0) throw changedSince("This lead was changed after it was created.");
 }
 
 /** A thread link is restored or removed only while it still points where the change left it. */
