@@ -9,8 +9,11 @@ import {
   type ApplicationDetail,
   type ApplicationStatus,
 } from "@offerbound/contracts";
+import { Prisma } from "@prisma/client";
 import { buildTestApp, signIn } from "../../test/app.js";
 import { resetDb, testPrisma } from "../../test/db.js";
+import { withIntakeLock } from "../db/lock.js";
+import { resolveCompanyForOwner } from "./applications.js";
 
 const prisma = testPrisma();
 const CSRF = { "x-offerbound-request": "1" };
@@ -904,6 +907,9 @@ describe("POST /applications/:id/merge", () => {
     expect(await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } })).toMatchObject({
       status: "shortlisted",
       applicationId: null,
+      // A stale lead tab must hit a version conflict (the lead changed under it).
+      version: 2,
+      updatedAt: NOW,
     });
   });
 
@@ -927,5 +933,195 @@ describe("POST /applications/:id/merge", () => {
     expect(missingSource.statusCode).toBe(404);
     expect((await call("POST", `/applications/${a.id}/merge`, {})).statusCode).toBe(400);
     expect(await prisma.application.count()).toBe(1);
+  });
+});
+
+/** Holds the intake lock until `release()`; resolves once it is held. */
+async function holdIntakeLock() {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held!: () => void;
+  const isHeld = new Promise<void>((resolve) => {
+    held = resolve;
+  });
+  const done = withIntakeLock(prisma, async () => {
+    held();
+    await released;
+  });
+  await isHeld;
+  return { release, done };
+}
+const BLOCKED = Symbol("blocked");
+const unlessBlocked = <T>(work: Promise<T>) =>
+  Promise.race([work, new Promise<typeof BLOCKED>((r) => setTimeout(() => r(BLOCKED), 4_000))]);
+
+describe("owner edits don't take the intake lock (TECHNICAL_SPEC §6.8)", () => {
+  it("PATCH with companyName and follow-up-done go through while another writer holds the lock", async () => {
+    const { call } = await appWith();
+    const app = await seedApplication({ company: "Acme Robotics", followUpDue: true });
+    const holder = await holdIntakeLock();
+    try {
+      const patched = await unlessBlocked(
+        call("PATCH", `/applications/${app.id}`, { version: 1, companyName: "Initech" }),
+      );
+      expect(patched).not.toBe(BLOCKED);
+      expect((patched as { statusCode: number }).statusCode).toBe(200);
+      const followed = await unlessBlocked(call("POST", `/applications/${app.id}/follow-up-done`));
+      expect(followed).not.toBe(BLOCKED);
+      expect((followed as { statusCode: number }).statusCode).toBe(200);
+    } finally {
+      holder.release();
+      await holder.done;
+    }
+    expect(
+      (await prisma.company.findFirstOrThrow({ where: { name: "Initech" } })).createdSource,
+    ).toBe("manual");
+  });
+
+  it("creating the company retries once when another writer created it first (unique violation)", async () => {
+    // A client whose first company.create loses the race: the rival row appears, then P2002.
+    let raced = false;
+    const racing = new Proxy(prisma, {
+      get(target, prop, receiver) {
+        if (prop !== "company") return Reflect.get(target, prop, receiver) as unknown;
+        return new Proxy(target.company, {
+          get(companies, method, r) {
+            if (method !== "create") return Reflect.get(companies, method, r) as unknown;
+            return async (args: Prisma.CompanyCreateArgs) => {
+              if (!raced) {
+                raced = true;
+                await companies.create({
+                  data: { name: "Initech Inc", normalizedName: "initech", createdSource: "gmail" },
+                });
+                throw new Prisma.PrismaClientKnownRequestError("unique", {
+                  code: "P2002",
+                  clientVersion: "test",
+                });
+              }
+              return companies.create(args);
+            };
+          },
+        });
+      },
+    });
+
+    const company = await resolveCompanyForOwner(racing, "Initech", NOW);
+    expect(raced).toBe(true);
+    expect(company).toMatchObject({ name: "Initech Inc", normalizedName: "initech" });
+    expect(await prisma.company.count()).toBe(1);
+  });
+});
+
+describe("keyset ties", () => {
+  it("pages rows with equal sort keys, and rows with no applied date, by id without skipping or repeating", async () => {
+    const { call } = await appWith();
+    const tie = at(-5);
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const row = await seedApplication({
+        company: `Tie Co ${i}`,
+        status: "applied",
+        appliedAt: tie,
+        lastCompanyActivityAt: tie,
+      });
+      ids.push(row.id);
+    }
+    for (let i = 0; i < 3; i += 1) {
+      const row = await seedApplication({
+        company: `No date ${i}`,
+        status: "applied",
+        appliedAt: null,
+        createdAt: at(-20),
+      });
+      ids.push(row.id);
+    }
+    for (const sort of ["last_activity", "applied", "status"]) {
+      const walked: string[] = [];
+      let cursor: string | null = null;
+      for (let guard = 0; guard < 10; guard += 1) {
+        const url: string = `/applications?sort=${sort}&limit=1${cursor ? `&cursor=${cursor}` : ""}`;
+        const page = PageOfSummaries.parse((await call("GET", url)).json());
+        walked.push(...page.items.map((i) => i.id));
+        cursor = page.nextCursor;
+        if (cursor === null) break;
+      }
+      expect(walked, sort).toHaveLength(7);
+      expect(new Set(walked).size, sort).toBe(7);
+      expect([...walked].sort(), sort).toEqual([...ids].sort());
+      // The same order as one big page.
+      const whole = PageOfSummaries.parse((await call("GET", `/applications?sort=${sort}`)).json());
+      expect(walked, sort).toEqual(whole.items.map((i) => i.id));
+    }
+  });
+});
+
+describe("timeline toStatus for system status events", () => {
+  it("fills toStatus for abandoned and reopened events, from data or (abandoned) from the type", async () => {
+    const { call } = await appWith();
+    const app = await seedApplication({ company: "Acme Robotics", status: "screening" });
+    await prisma.event.createMany({
+      data: [
+        {
+          applicationId: app.id,
+          type: "abandoned",
+          actor: "system",
+          occurredAt: at(-30),
+          summary: "Abandoned: no reply",
+          data: { fromStatus: "screening", toStatus: "abandoned" },
+          undoable: true,
+        },
+        {
+          applicationId: app.id,
+          type: "reopened",
+          actor: "system",
+          occurredAt: at(-20),
+          summary: "Reopened: Acme replied",
+          data: { fromStatus: "abandoned", toStatus: "screening" },
+          undoable: true,
+        },
+        // A writer that left the key out still reads as abandoned.
+        {
+          applicationId: app.id,
+          type: "abandoned",
+          actor: "system",
+          occurredAt: at(-10),
+          summary: "Abandoned: no reply",
+          undoable: true,
+        },
+      ],
+    });
+    const detail = detailOf((await call("GET", `/applications/${app.id}`)).body);
+    expect(detail.timeline.map((t) => [t.type, t.toStatus])).toEqual([
+      ["abandoned", "abandoned"],
+      ["reopened", "screening"],
+      ["abandoned", "abandoned"],
+    ]);
+  });
+});
+
+describe("authentication", () => {
+  it("every applications route answers 401 without a session", async () => {
+    const { app } = await appWith();
+    const id = "6f9619ff-8b86-4011-b42d-00c04fc964ff";
+    const routes: [string, string][] = [
+      ["GET", "/applications"],
+      ["POST", "/applications"],
+      ["GET", `/applications/${id}`],
+      ["PATCH", `/applications/${id}`],
+      ["POST", `/applications/${id}/follow-up-done`],
+      ["POST", `/applications/${id}/interviews`],
+      ["POST", `/applications/${id}/merge`],
+    ];
+    for (const [method, url] of routes) {
+      const res = await app.inject({
+        method: method as "GET" | "POST" | "PATCH",
+        url: `/api/v1${url}`,
+        headers: CSRF,
+        payload: method === "GET" ? undefined : {},
+      });
+      expect(res.statusCode, `${method} ${url}`).toBe(401);
+    }
   });
 });

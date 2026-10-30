@@ -45,10 +45,11 @@ import { dayColumn } from "./today.js";
  *
  * Every write here is an owner edit, so none of them is undoable (§6.6): the events carry
  * `undoable: false`. Edits do not take the intake lock and are guarded by `version`
- * (`409 version_conflict` with the current record as `current`). Four things do take it, because
- * they touch rows the pipeline also writes: creating an application or changing its company
- * (companies are created and matched under the lock, so "company already seen" stays race-free),
- * *Mark followed up* (the shared daily counter) and merging (messages, events and threads move).
+ * (`409 version_conflict` with the current record as `current`); that includes a change of
+ * company (found or created without the lock, retried once on a unique violation) and *Mark
+ * followed up* (a flag-guarded update and one atomic counter statement). Two things do take the
+ * lock: adding an application (intake, §7.1: it matches and creates companies like the pipeline)
+ * and merging (messages, events and threads the pipeline also writes move).
  */
 
 export { toApplicationSummary } from "./interviews.js";
@@ -251,7 +252,7 @@ function byStart<T extends { startsAt: Date | null; createdAt: Date }>(a: T, b: 
 export async function getApplicationDetail(
   db: Db,
   id: string,
-  now: Date,
+  now: Date = new Date(),
 ): Promise<ApplicationDetail> {
   assertId(id, "application");
   const row = await db.application.findUnique({
@@ -279,7 +280,12 @@ export async function getApplicationDetail(
     nextInterviewAt: nextInterviewAt === null ? null : iso(nextInterviewAt),
     interviews: [...row.interviews].sort(byStart).map(toInterview),
     messages: row.messages.map(toMessageSummary),
-    timeline: sortTimeline(base.timeline, row.events),
+    timeline: sortTimeline(base.timeline, row.events).map((entry) =>
+      // An `abandoned` event is always a move to Abandoned, even from a writer that left the key out.
+      entry.type === "abandoned" && entry.toStatus === null
+        ? { ...entry, toStatus: "abandoned" as const }
+        : entry,
+    ),
   };
 }
 
@@ -300,10 +306,11 @@ function sortTimeline(
 
 /**
  * The company an owner typed (TECHNICAL_SPEC §6.2 rule 4): the one whose normalised name equals
- * the typed name's, else the one that lists it as an alias, else a new company. Run under the
- * intake lock.
+ * the typed name's, else the one that lists it as an alias, else a new company. Creating a
+ * manual application runs it under the intake lock; an owner edit runs it without
+ * ({@link resolveCompanyForOwner}).
  */
-async function resolveCompany(tx: Tx, name: string, now: Date): Promise<Company> {
+async function resolveCompany(tx: Db, name: string, now: Date): Promise<Company> {
   const clean = name.trim();
   const normalizedName = normalizeCompanyName(clean);
   if (normalizedName === "") {
@@ -320,9 +327,29 @@ async function resolveCompany(tx: Tx, name: string, now: Date): Promise<Company>
   });
 }
 
+/**
+ * {@link resolveCompany} for an owner edit, which does not take the intake lock (§6.8). If another
+ * writer creates the same company between the read and the insert, the unique index on the
+ * normalised name refuses the insert (P2002): the company is read again and that row is used.
+ */
+export async function resolveCompanyForOwner(
+  prisma: PrismaClient,
+  name: string,
+  now: Date,
+): Promise<Company> {
+  try {
+    return await resolveCompany(prisma, name, now);
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+      throw error;
+    }
+    return resolveCompany(prisma, name, now);
+  }
+}
+
 /** The posting's job key, unless another application already has it (the key is unique). */
 async function freeJobKey(
-  tx: Tx,
+  tx: Db,
   url: string | null,
   selfId: string | null,
 ): Promise<string | null> {
@@ -446,7 +473,13 @@ function plainChanges(
 
 async function patchApplication(deps: AppDeps, id: string, patch: ApplicationPatch): Promise<void> {
   const now = deps.clock();
-  const run = async (tx: Tx): Promise<void> => {
+  // The company is found or created before the transaction, without the lock: a unique violation
+  // inside a transaction would abort it.
+  const company =
+    patch.companyName === undefined
+      ? null
+      : await resolveCompanyForOwner(deps.prisma, patch.companyName, now);
+  await deps.prisma.$transaction(async (tx) => {
     const row = await tx.application.findUnique({ where: { id } });
     if (row === null) throw new ApiError(404, "not_found", "No such application.");
     if (row.version !== patch.version) throw new StaleApplication();
@@ -457,12 +490,9 @@ async function patchApplication(deps: AppDeps, id: string, patch: ApplicationPat
 
     // The company: by name, as when an application is added.
     let companyId: string | null = null;
-    if (patch.companyName !== undefined) {
-      const company = await resolveCompany(tx, patch.companyName, now);
-      if (company.id !== row.companyId) {
-        data.companyId = company.id;
-        companyId = company.id;
-      }
+    if (company !== null && company.id !== row.companyId) {
+      data.companyId = company.id;
+      companyId = company.id;
     }
     if ("jobUrl" in changes) {
       data.jobKey = await freeJobKey(tx, changes.jobUrl as string | null, id);
@@ -523,10 +553,7 @@ async function patchApplication(deps: AppDeps, id: string, patch: ApplicationPat
         undoable: false,
       });
     }
-  };
-  // A company that may be created is created under the lock.
-  if (patch.companyName === undefined) await deps.prisma.$transaction(run);
-  else await withIntakeLock(deps.prisma, run);
+  });
 }
 
 // --- follow-up done ----------------------------------------------------------------------------------
@@ -539,13 +566,15 @@ async function patchApplication(deps: AppDeps, id: string, patch: ApplicationPat
 async function markFollowedUp(deps: AppDeps, id: string): Promise<void> {
   const now = deps.clock();
   const day = ownerLocalDay(now, deps.env.userTimezone);
-  await withIntakeLock(deps.prisma, async (tx) => {
+  await deps.prisma.$transaction(async (tx) => {
     const row = await tx.application.findUnique({ where: { id } });
     if (row === null) throw new ApiError(404, "not_found", "No such application.");
     if (!row.followUpDue) return;
 
-    await tx.application.update({
-      where: { id },
+    // Guarded by the flag itself: of two taps that arrive together only one matches, so only one
+    // is counted.
+    const { count } = await tx.application.updateMany({
+      where: { id, followUpDue: true },
       data: {
         followUpDue: false,
         followUpDueSince: null,
@@ -554,12 +583,13 @@ async function markFollowedUp(deps: AppDeps, id: string): Promise<void> {
         updatedAt: now,
       },
     });
-    // One statement, so a tap that arrives with another counter write isn't lost.
-    await tx.dailyActivity.upsert({
-      where: { day: dayColumn(day) },
-      create: { day: dayColumn(day), followUps: 1, updatedAt: now },
-      update: { followUps: { increment: 1 }, updatedAt: now },
-    });
+    if (count === 0) return;
+    // One statement, so it can't lose a count written by the pipeline or another tap.
+    await tx.$executeRaw`
+      INSERT INTO daily_activity (day, follow_ups, updated_at)
+      VALUES (${dayColumn(day)}::date, 1, ${now})
+      ON CONFLICT (day) DO UPDATE SET
+        follow_ups = daily_activity.follow_ups + 1, updated_at = EXCLUDED.updated_at`;
     await writeEvent(tx, {
       applicationId: id,
       companyId: row.companyId,
@@ -687,7 +717,13 @@ async function mergeApplications(deps: AppDeps, sourceId: string, targetId: stri
     if (source.leadId !== null) leadMatches.push({ id: source.leadId });
     await tx.lead.updateMany({
       where: { OR: leadMatches },
-      data: { status: "shortlisted", statusChangedAt: now, applicationId: null },
+      data: {
+        status: "shortlisted",
+        statusChangedAt: now,
+        applicationId: null,
+        version: { increment: 1 },
+        updatedAt: now,
+      },
     });
 
     const notes =
