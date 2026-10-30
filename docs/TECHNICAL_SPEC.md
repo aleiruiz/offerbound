@@ -222,10 +222,11 @@ flowchart TD
 2. `users.messages.list` with `q = "after:{YYYY/MM/DD of GMAIL_BACKFILL_SINCE minus 1 day} -in:spam -in:trash -in:drafts"`, `maxResults=500`, paging; after each page insert ids as `discovered` (ignore conflicts) and save the page token on `gmail_connection` so a restart resumes.
 3. Messages with `internal_date` before `GMAIL_BACKFILL_SINCE` (owner time zone) are marked `skipped` at triage.
 4. When paging ends, `backfill_state = done`; incremental sync takes over.
+5. If the retries are used up, `backfill_state = failed` and the owner sees a failed first sync. *Sync now* restarts a failed backfill (it resumes from the saved page token), because incremental sync cannot fill in what the backfill did not list.
 
 **Incremental** (`gmail.sync`, every `GMAIL_SYNC_INTERVAL_MINUTES`, singleton; also *Sync now*):
 1. `users.history.list(startHistoryId, historyTypes=["messageAdded"])`, all pages → insert new ids as `discovered`.
-2. Store the response's latest `historyId` and `last_sync_at` only after inserts commit.
+2. Store the response's latest `historyId` and `last_sync_at` only after inserts commit, and by compare-and-set (`UPDATE … WHERE history_id = {the start point}`), so a run that raced a newer one cannot move it backwards.
 3. HTTP 404 on history (expired start point) → set `history_id` from `getProfile`, then list `after:{newest processed internal_date − 1 day}` and insert as `discovered` (duplicates ignored) (AC-2.7).
 4. `invalid_grant` on token refresh → `status = needs_reauth`, stop scheduling sync until reconnect (AC-2.6).
 5. 429/5xx → pg-boss retry with backoff (base 60 s, ×2, 3 retries); `last_sync_error` set and shown.
@@ -413,7 +414,13 @@ Company-clock effects are part of the plan: any inbound message attributed to an
 
 ### 6.6 Undo (AC-4.3, AC-4.4)
 
-`POST /events/:id/undo`: under the intake lock, for every entry in the event's `change_set`, compare the record's current `version` with `versionAfter`. Any mismatch → `409 changed_since`. Otherwise delete created applications, interviews and leads (and their events), restore `before` fields, bump versions, set `undone_at`, write an `undone` event, and create review item *Undone change* for the source message. Created companies and contacts are deleted only if nothing else references them; otherwise they stay. A lead converted by the undone change returns to its previous status. Events of type `imported`, `undone`, and owner edits cannot be undone.
+`POST /events/:id/undo`: undo works per event. A plan that changes several records writes one event per affected record, and each event carries only its own slice of the change set (the entries for the records it owns, such as one lead and the company created for it). Undoing one event leaves the plan's other events and records alone. Under the intake lock, for every entry in the event's `change_set`, compare the record's current `version` with `versionAfter`. Any mismatch → `409 changed_since`. Otherwise delete created applications, interviews and leads (and their events), restore `before` fields, bump versions, set `undone_at`, write an `undone` event, and create review item *Undone change* for the source message. Created companies and contacts are deleted only if nothing else references them; otherwise they stay. A lead converted by the undone change returns to its previous status.
+
+Undo is also refused with `409 changed_since` (nothing is changed) when the event created an application that has later children: an event from another email or an owner edit, or an interview that a later change added or edited. Events and interviews written by the same email's plan don't count as later. Likewise it is refused when a lead the event created has been converted to an application since.
+
+Exception to the version rule: undoing a `lead_created` event deletes the lead when its status is `new` or `suppressed` and it has no application, with no version comparison, because the link check and the ranking bump the lead's `version` after it is created. Owner actions on the lead (shortlist, dismiss, mark applied) change its status and so block the undo.
+
+Events of type `imported`, `undone`, and owner edits cannot be undone.
 
 When an application is deleted for any reason (undo, merge), its lead — if any — returns to `shortlisted` with `application_id = null`.
 
@@ -422,12 +429,16 @@ When an application is deleted for any reason (undo, merge), its lead — if any
 `timers.tick` every 15 minutes under the intake lock. **Gate:** it does nothing to applications until `gmail_connection.backfill_state = done` and no `gmail_message` in `discovered`, `job_related` or `extracted` has `internal_date` older than one hour (AC-7.6); interview completion runs regardless. For applications in Applied, Screening, Assessment, Interviewing:
 
 ```
-clock = last_company_activity_at ?? applied_at ?? created_at
+clock = max(last_company_activity_at ?? applied_at ?? created_at, clock_restarted_at)
 if now − clock ≥ abandonDays:
     status_before_abandon = status; status = Abandoned; follow_up_due = false   (event, undoable)
 else if now − clock ≥ followUpDays and (follow_up_done_at is null or now − max(follow_up_done_at, clock) ≥ followUpDays):
     follow_up_due = true (follow_up_due_since = now if it was false)
 ```
+
+`clock_restarted_at` is not a column. It is read from events: the latest `status_changed` event whose `fromStatus` is `abandoned` (an owner reopening an application), or the `undone_at` of an `abandoned` event (an undone abandonment). Either restarts the abandonment clock, so the application gets a fresh window instead of being abandoned again on the next tick.
+
+Applications imported from the sheet follow the same rules: an old imported application is abandoned on the first timers tick that finds the gate open.
 
 Interviews `scheduled` with `coalesce(ends_at, starts_at + 60 min) < now` → `completed`.
 
@@ -560,8 +571,8 @@ pg-boss retries with exponential backoff (base 30 s): triage and extraction 4 re
 
 | Queue | Trigger | Concurrency | Retries | Idempotency |
 |---|---|---|---|---|
-| `gmail.sync` | every 5 min (private), *Sync now* | singleton | 3 | inserts ignore existing ids |
-| `gmail.backfill` | *Start syncing*; resumes on worker start while `running` | singleton | 5 | page token persisted per page |
+| `gmail.sync` | every 5 min (private), *Sync now* | singleton | 3 | inserts ignore existing ids; `history_id` is moved by compare-and-set |
+| `gmail.backfill` | *Start syncing*; *Sync now* when the backfill is `failed`; resumes on worker start while `running` | singleton | 5 | page token persisted per page |
 | `email.triage` | after sync/backfill inserts; 1-min sweep | 1, batches of 25 | 4 | state check before work |
 | `email.extract` | per `job_related` message | 4 | 4 | singleton key = message id |
 | `email.apply` | after each extraction; 1-min sweep | singleton | 3 | event unique key `(message_id, type, entity)` |
@@ -609,10 +620,11 @@ Base path `/api/v1`. JSON in and out. Session cookie required (private). Mutatio
 | `POST /auth/logout` | — | 204 |
 | `GET /me` | — | `Me` |
 | `GET /gmail/status` | — | `SyncStatus` |
-| `POST /gmail/start` | — | 202 `SyncStatus` (starts backfill; `409` if already started) |
-| `POST /gmail/sync` | — | 202 |
+| `POST /gmail/start` | — | 202 `SyncStatus` (starts backfill; `409 already_running` if already started, `409 not_connected` when Gmail isn't connected) |
+| `POST /gmail/sync` | — | 202 (`409 not_connected` when Gmail isn't connected or syncing hasn't been started) |
 | `POST /gmail/disconnect` | — | 204 |
 | `GET /today` | — | `Today` |
+| `GET /nav-counts` | — | `NavCounts` (the four navigation badges) |
 | `POST /daily-activity` | `{ kind: "outreach" \| "prep_minutes", amount: 1..240 }` | `DailyCounts` |
 | `GET /applications` | `status[]`, `followUpDue`, `q`, `sort=last_activity\|applied\|status`, pagination | page of `ApplicationSummary` |
 | `POST /applications` | `ApplicationCreate` | 201 `ApplicationDetail` |
@@ -623,7 +635,7 @@ Base path `/api/v1`. JSON in and out. Session cookie required (private). Mutatio
 | `POST /applications/:id/interviews` | `InterviewCreate` | 201 `Interview` |
 | `GET /interviews` | `range=upcoming\|past`, pagination | page of `Interview` (with application summary) |
 | `PATCH /interviews/:id` | `InterviewPatch` | `Interview` |
-| `GET /leads` | `status=new\|shortlisted\|dismissed\|applied\|suppressed`, `track`, `q`, pagination | page of `Lead` |
+| `GET /leads` | `status=new\|shortlisted\|dismissed\|applied\|suppressed`, `track`, `q`, `sort=track_fit\|newest` (default `track_fit`: track priority, then fit score, then newest found; `newest`: newest found first), pagination | page of `Lead` |
 | `POST /leads` | `LeadCreate` (manual) | 201 `Lead` |
 | `PATCH /leads/:id` | `{ status?: "shortlisted"\|"dismissed"\|"new", dismissedReason?, notes?, version }` | `Lead` |
 | `POST /leads/:id/mark-applied` | — | 201 `ApplicationDetail` |
@@ -707,8 +719,16 @@ Settings = {
   timers: { followUpDays: number /*1..60*/; abandonDays: number /*2..90, > followUpDays*/ };
   automation: { autoApplyMinConfidence: number /*0.50..0.99*/; senderIgnoreList: string[] };
 }
+NavCounts = { openApplications: number; newLeads: number; upcomingInterviews: number; openReview: number }
+// openApplications: status Applied, Screening, Assessment, Interviewing or Offer.
+// newLeads: status `new` with pipeline state `ready` (checked and ranked), the New tab's set.
+// upcomingInterviews: the Interviews page's Upcoming list: `to_schedule` interviews plus `scheduled`
+//   ones that start now or later, with no 7-day window (Today's own list is limited to 7 days).
+// openReview: review items in state `open`.
 AiUsage = { monthToDateMicros: number; byPurpose: { purpose; calls; costMicros }[]; last30Days: { date; costMicros }[] }
 ```
+
+`Today.pipeline.byStatus` is an all-time total per status (every application, not only today's), and `responseRate` and `interviewRate` are fractions from 0 to 1 (not percentages) of all applications; both are 0 when there are no applications.
 
 Response rate counts an application as answered when it has at least one inbound message whose category is not `application_confirmation`.
 
@@ -751,7 +771,7 @@ Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief →
 
 ## 14. Synchronisation guarantees
 
-- **At-least-once processing, exactly-once effects:** jobs may run twice; effects are guarded by state checks, unique keys (`gmail_message.id`, `event (message_id, type, entity_id)`, `lead.job_key`, `application.job_key`, `interview.ics_uid`) and the intake lock.
+- **At-least-once processing, exactly-once effects:** jobs may run twice; effects are guarded by state checks, unique keys (`gmail_message.id`, `event (message_id, type, entity_id)` among events that are not undone, so an undone event frees its slot for Reprocess, `lead.job_key`, `application.job_key`, `interview.ics_uid`) and the intake lock.
 - **Order:** effects are applied in Gmail `internal_date` order behind the watermark (§5.6).
 - **Freshness:** a new email reaches its record within sync interval + pipeline time (target ≤ 7 minutes at normal volume).
 - **One record per posting:** `job_key` is unique across leads and across applications.
@@ -774,6 +794,6 @@ Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief →
 
 - **Logs:** pino JSON; redact `authorization`, cookies, tokens, `body_text`, `subject`, `snippet`; log message ids, job ids, durations, outcome codes. Never log email content (SECURITY §4).
 - **Health:** `/health` liveness; `/ready` checks `SELECT 1` and pg-boss state. Coolify healthchecks use them; Coolify notifications for failed deploys.
-- **Backups:** `backup.nightly` runs `pg_dump -Fc` to `/backups/offerbound-YYYY-MM-DD.dump`, deletes files older than `BACKUP_RETENTION_DAYS`. Restore: stop `worker`, `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>`, start `worker`. Off-server copies: OQ-3.
+- **Backups:** `backup.nightly` runs `pg_dump -Fc` to `/backups/offerbound-YYYY-MM-DD.dump` and deletes dated dumps older than `BACKUP_RETENTION_DAYS` (default 14). Restore goes through the `db` container; the steps, manual backups and off-server copies (OQ-3) are in [operations.md](operations.md).
 - **Capacity:** one owner, dozens of job emails a day, ≤ ~100 leads a day. Expected RAM for one Offerbound stack ≈ 400–600 MB (Postgres ~150 MB, api ~150 MB, worker ~200 MB, Caddy ~20 MB); two stacks fit alongside MTGRulesLawyer on 8 GB.
 - **CI** (`.github/workflows/ci.yml`): install (pnpm cache), `prisma generate`, lint, typecheck, unit + integration tests with a Postgres 17 service, build all apps, `gitleaks` secret scan. Required for merge (D33).

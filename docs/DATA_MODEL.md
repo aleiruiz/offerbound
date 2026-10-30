@@ -146,12 +146,13 @@ Indexes: GIN on `aliases`, `domains`, `ats_slugs`; btree `group_id`.
 | `source_message_id` | text | yes | FK `gmail_message.id`, `on delete set null` |
 | `contact_id` | uuid | yes | FK `contact` |
 | `posted_at` | timestamptz | yes | |
-| `found_at` | timestamptz | no | default now() |
+| `found_at` | timestamptz | no | default now(); for email-sourced leads, the source email's `internal_date` (not the time of processing), so a backfilled lead counts on the day the email arrived |
 | `application_id` | uuid | yes | **unique**; FK `application`, `on delete set null` |
 | `notes` | text | yes | |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 Indexes: `(status, pipeline_state, track, fit_score desc)`, `company_id`, `intake_batch_id`, `found_at`.
+For email-sourced leads `created_at` also takes the source email's date. Within one intake batch it is that date plus the lead's order in milliseconds, which is how finalize knows which lead was returned first (the table has no order column).
 Check: `(status = 'suppressed') = (suppressed_reason is not null)`. Application code keeps `status = 'applied'` and `application_id` in step; when the linked application is deleted (undo, merge) the lead returns to `shortlisted` (TECHNICAL_SPEC §6.6).
 
 ### 3.4 `application`
@@ -266,10 +267,12 @@ Check: at least one of `application_id`, `lead_id` is set. Converting a lead fil
 | `undoable` | boolean | no | false for `imported`, `undone`, owner manual edits |
 | `undone_at` | timestamptz | yes | |
 | `undone_by_event_id` | uuid | yes | FK `event` |
-| `entity_key` | text | no | generated: `coalesce(application_id::text, lead_id::text, '-')` |
+| `entity_key` | — | — | not a stored column: the expression `coalesce(application_id::text, lead_id::text, '-')`, used in the unique index below |
 | `created_at` | timestamptz | no | |
 
-Indexes: `(application_id, occurred_at desc)`, `(lead_id, occurred_at desc)`; **unique** `(message_id, type, entity_key) where message_id is not null` (idempotency, TECHNICAL_SPEC §14).
+Indexes: `(application_id, occurred_at desc)`, `(lead_id, occurred_at desc)`; **unique** `(message_id, type, entity_key) where message_id is not null and undone_at is null` (idempotency, TECHNICAL_SPEC §14). The index is partial on `undone_at is null`: an undone event frees its slot, so Reprocess can write the same event again.
+
+`change_set` holds only the entries for the records that event owns. A plan that affects several records writes one event per record, and undo works per event (TECHNICAL_SPEC §6.6).
 
 ### 3.9 `review_item`
 
@@ -289,6 +292,8 @@ Indexes: `(application_id, occurred_at desc)`, `(lead_id, occurred_at desc)`; **
 | `resolved_at` | timestamptz | yes | |
 
 Indexes: `(state, created_at desc)`; **unique** `(message_id, kind) where state = 'open' and message_id is not null`.
+
+A message that fails in the apply stage (a stored extraction that no longer parses, or the third failed apply attempt) is set to `failed`, and its review item is `extraction_failed` with `reasons = ['apply_failed']`; the code that went wrong is in `gmail_message.last_error`. The `reasons` of an `extraction_failed` item that comes from the extraction stage don't contain `apply_failed`.
 
 ### 3.10 `intake_batch`
 
