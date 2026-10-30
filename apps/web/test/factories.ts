@@ -7,6 +7,7 @@ import {
   type InterviewWithApplication,
   type Lead,
   type MessageDetail,
+  type Me,
   type NavCounts,
   type ReviewItem,
   type SearchRun,
@@ -323,3 +324,19 @@ export function makeAiUsage(overrides: Partial<AiUsage> = {}): AiUsage {
     ...overrides,
   };
 }
+
+/** The account `GET /me` answers with, as the owner signed in. */
+export const OWNER_ME: Me = {
+  mode: "private",
+  email: "owner@example.test",
+  onboardingCompleted: true,
+  timezone: "America/Monterrey",
+};
+
+/** The account in the public demo: no sign-in, so no email. */
+export const DEMO_ME: Me = {
+  mode: "demo",
+  email: null,
+  onboardingCompleted: true,
+  timezone: "America/Monterrey",
+};

@@ -31,6 +31,7 @@ import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { formatDateTime, formatTime, localDayKey } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
+import { DemoLock, type DemoReason } from "../lib/demo";
 
 /**
  * Review (DESIGN_SPEC §5.5; AC-5.1–5.3): the decisions the automation needs. One card per item with
@@ -209,6 +210,8 @@ interface ActionSpec {
   key: string;
   label: string;
   disabled?: boolean;
+  /** Turned off, with the reason, in the public demo. */
+  lock?: DemoReason;
   onClick: () => void;
 }
 
@@ -251,7 +254,7 @@ function ReviewCard({
       case "low_confidence":
         return [
           { key: "apply", label: "Apply change", onClick: act("apply") },
-          { key: "edit", label: "Edit and apply", onClick: () => onEdit(item) },
+          { key: "edit", label: "Edit and apply", onClick: () => onEdit(item), lock: "edit" },
           { key: "dismiss", label: "Dismiss", onClick: act("dismiss") },
         ];
       case "ambiguous_match":
@@ -372,16 +375,25 @@ function ReviewCard({
 
       {open ? (
         <Box role="group" aria-label="Actions" sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {actions.map((a, i) => (
-            <Button
-              key={a.key}
-              variant={i === 0 ? "outlined" : "text"}
-              disabled={busy || a.disabled === true}
-              onClick={a.onClick}
-            >
-              {a.label}
-            </Button>
-          ))}
+          {actions.map((a, i) => {
+            const button = (
+              <Button
+                key={a.key}
+                variant={i === 0 ? "outlined" : "text"}
+                disabled={busy || a.disabled === true}
+                onClick={a.onClick}
+              >
+                {a.label}
+              </Button>
+            );
+            return a.lock ? (
+              <DemoLock key={a.key} reason={a.lock}>
+                {button}
+              </DemoLock>
+            ) : (
+              button
+            );
+          })}
         </Box>
       ) : null}
     </Paper>

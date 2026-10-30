@@ -91,17 +91,41 @@ export const SYNC_STATUS_POLL_MS = 30_000;
 export const NAV_COUNTS_POLL_MS = 60_000;
 export const TODAY_POLL_MS = 30_000;
 
-/** `GET /me`: who is signed in, the instance mode and whether onboarding is done. */
-export function useMe() {
+/**
+ * `GET /me`: who is signed in, the instance mode and whether onboarding is done. With
+ * `enabled: false` it only reads what `RequireSession` already fetched and never asks again.
+ */
+export function useMe(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiFetch("/me", { schema: MeSchema, signal }),
+    enabled: options.enabled ?? true,
   });
 }
 
 /** The owner's time zone from `GET /me`; the default until it has answered (TECHNICAL_SPEC §2). */
 export function useTimezone(): string {
   return useMe().data?.timezone ?? DEFAULT_TIMEZONE;
+}
+
+/** What `POST /demo/simulate-email` answers (202): the email it fed to the pipeline. */
+const SimulatedEmailSchema = z.object({ messageId: z.string() });
+
+/** `POST /demo/simulate-email` (TECHNICAL_SPEC §10.1, §12): the demo's next synthetic email, run through the pipeline. */
+export function useSimulateEmail(callbacks: MutationCallbacks<{ messageId: string }, void> = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/demo/simulate-email", { method: "POST", schema: SimulatedEmailSchema }),
+    onSuccess: async (result, variables) => {
+      // An email can change an application, an interview, a lead or a review item, and so Today
+      // and the badges: everything on screen is fetched again. Today's pipeline marker then moves
+      // by itself when it sees the counts change (DESIGN_SPEC §8).
+      await queryClient.invalidateQueries();
+      callbacks.onSuccess?.(result, variables);
+    },
+    onError: callbacks.onError,
+  });
 }
 
 /** `GET /messages/:id`: one email with its body text. The body is personal content: never log it. */

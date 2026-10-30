@@ -9,6 +9,7 @@ import { useId, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useInterviews, useNavCounts, useTimezone, type InterviewRange } from "../api/hooks";
 import { AddInterviewDialog } from "../components/AddInterviewDialog";
+import { DemoLock } from "../lib/demo";
 import { InterviewRow } from "../components/InterviewRow";
 import { PrepNotesSheet } from "../components/PrepNotesSheet";
 import { Key } from "../components/ShortcutDialog";
@@ -211,9 +212,11 @@ export function InterviewsPage() {
 
   const upcomingCount = navCounts.data?.upcomingInterviews;
   const addButton = (
-    <Button variant="outlined" onClick={() => setAdding(true)}>
-      Add interview
-    </Button>
+    <DemoLock reason="add">
+      <Button variant="outlined" onClick={() => setAdding(true)}>
+        Add interview
+      </Button>
+    </DemoLock>
   );
 
   return (

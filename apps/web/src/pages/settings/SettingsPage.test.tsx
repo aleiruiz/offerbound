@@ -2,7 +2,13 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import { makeAiUsage, makeCvProfile, makeSettings, makeSyncStatus } from "../../../test/factories";
+import {
+  DEMO_ME,
+  makeAiUsage,
+  makeCvProfile,
+  makeSettings,
+  makeSyncStatus,
+} from "../../../test/factories";
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../../test/mock-api";
 import { renderWithProviders } from "../../../test/render";
 import { heavyIt } from "../../../test/speed";
@@ -153,6 +159,24 @@ describe("SettingsPage", () => {
       getItem.mockRestore();
       setItem.mockRestore();
     }
+  });
+
+  it("the demo has no Sign out: it has no sign-in", async () => {
+    mockApi({
+      "GET /api/v1/me": () => DEMO_ME,
+      "GET /api/v1/gmail/status": () => makeSyncStatus(),
+    });
+    renderWithProviders(
+      <ColorModeProvider>
+        <Routes>
+          <Route path="/settings/:section" element={<SettingsPage />} />
+        </Routes>
+      </ColorModeProvider>,
+      { route: "/settings/gmail", me: DEMO_ME },
+    );
+    await screen.findByRole("heading", { level: 1, name: "Settings" });
+    expect(screen.getByRole("combobox", { name: "Theme" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
   });
 
   it("Sign out posts /auth/logout and goes to /login", async () => {

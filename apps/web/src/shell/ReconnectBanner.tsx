@@ -3,6 +3,7 @@ import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useSyncStatus } from "../api/hooks";
 import { GOOGLE_START_PATH } from "../api/paths";
+import { DemoLock, useIsDemo } from "../lib/demo";
 
 /**
  * The warning under the top bar on every page when Google stopped Offerbound's access
@@ -10,6 +11,7 @@ import { GOOGLE_START_PATH } from "../api/paths";
  * Reconnecting is a full page load, because the server answers with a redirect to Google.
  */
 export function ReconnectBanner() {
+  const demo = useIsDemo();
   const status = useSyncStatus();
   const connection = status.data?.connection;
   if (connection !== "needs_reauth" && connection !== "missing_scope") return null;
@@ -25,15 +27,23 @@ export function ReconnectBanner() {
       role="alert"
       sx={{ mb: 2, alignItems: "center", "& .MuiAlert-message": { flex: 1 } }}
       action={
-        <Button
-          component="a"
-          href={GOOGLE_START_PATH}
-          variant="outlined"
-          color="warning"
-          size="small"
-        >
-          Reconnect Gmail
-        </Button>
+        demo ? (
+          <DemoLock reason="gmail">
+            <Button variant="outlined" color="warning" size="small">
+              Reconnect Gmail
+            </Button>
+          </DemoLock>
+        ) : (
+          <Button
+            component="a"
+            href={GOOGLE_START_PATH}
+            variant="outlined"
+            color="warning"
+            size="small"
+          >
+            Reconnect Gmail
+          </Button>
+        )
       }
     >
       <Typography variant="body2" component="p">

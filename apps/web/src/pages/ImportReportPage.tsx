@@ -22,6 +22,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { isApiError, useCommitReport, useFetchSeenCompanies, usePreviewReport } from "../api/hooks";
+import { DemoLock } from "../lib/demo";
 import { formatCount, plural } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 
@@ -287,32 +288,39 @@ export function ImportReportPage() {
       <SeenCompanies />
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, alignItems: "flex-start" }}>
-        <TextField
-          label="Report"
-          placeholder="Paste a list of roles here"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          multiline
-          minRows={8}
-          maxRows={20}
-          fullWidth
-          disabled={done}
-          error={over}
-          helperText={
-            <Box component="span" sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
-              <span>
-                {over
-                  ? `Over the limit by ${formatCount(text.length - MAX_REPORT_CHARS)} characters. Shorten the report to read it.`
-                  : "Offerbound reads the roles in it. Nothing is saved until you import."}
-              </span>
-              <span>{`${formatCount(text.length)} of ${formatCount(MAX_REPORT_CHARS)} characters`}</span>
-            </Box>
-          }
-          sx={{ maxWidth: 680 }}
-        />
-        <Button variant="contained" disabled={!canRead || done} onClick={read}>
-          {preview.isPending ? "Reading the report" : "Read the report"}
-        </Button>
+        <DemoLock reason="import" block>
+          <TextField
+            label="Report"
+            placeholder="Paste a list of roles here"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            multiline
+            minRows={8}
+            maxRows={20}
+            fullWidth
+            disabled={done}
+            error={over}
+            helperText={
+              <Box
+                component="span"
+                sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}
+              >
+                <span>
+                  {over
+                    ? `Over the limit by ${formatCount(text.length - MAX_REPORT_CHARS)} characters. Shorten the report to read it.`
+                    : "Offerbound reads the roles in it. Nothing is saved until you import."}
+                </span>
+                <span>{`${formatCount(text.length)} of ${formatCount(MAX_REPORT_CHARS)} characters`}</span>
+              </Box>
+            }
+            sx={{ maxWidth: 680 }}
+          />
+        </DemoLock>
+        <DemoLock reason="import">
+          <Button variant="contained" disabled={!canRead || done} onClick={read}>
+            {preview.isPending ? "Reading the report" : "Read the report"}
+          </Button>
+        </DemoLock>
       </Box>
 
       {preview.isError ? (

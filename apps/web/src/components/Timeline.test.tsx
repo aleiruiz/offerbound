@@ -1,5 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { makeEvent } from "../../test/factories";
 import { renderWithProviders } from "../../test/render";
@@ -243,5 +244,55 @@ describe("Timeline", () => {
   it("shows nothing but an empty list for no events", () => {
     renderWithProviders(<Timeline events={[]} onUndo={vi.fn()} onViewEmail={vi.fn()} />);
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+  });
+});
+
+describe("Timeline, a new entry arriving", () => {
+  const arrival = makeEvent({
+    id: "new",
+    type: "status_changed",
+    actor: "system",
+    occurredAt: "2026-10-30T16:00:00Z",
+    summary: "Moved to Screening",
+    toStatus: "screening",
+    undoable: true,
+  });
+  const noop = () => undefined;
+  /** Shows the timeline; the button is a refetch that brings the new entry. */
+  function Harness() {
+    const [list, setList] = useState(events);
+    return (
+      <>
+        <button onClick={() => setList([arrival, ...events])}>Refetch</button>
+        <Timeline events={list} onUndo={noop} onViewEmail={noop} />
+      </>
+    );
+  }
+  const entering = () =>
+    within(screen.getByRole("list"))
+      .getAllByRole("listitem")
+      .filter((li) => li.dataset.entering === "true")
+      .map((li) => li.dataset.eventId);
+
+  it("fades in only the entry that arrives after the first render", async () => {
+    renderWithProviders(<Harness />);
+    expect(entering()).toEqual([]);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refetch" }));
+    expect(entering()).toEqual(["new"]);
+  });
+
+  it("keeps fading the arrival through later renders, without animating the others", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    await user.click(screen.getByRole("button", { name: "Refetch" }));
+    await user.click(screen.getByRole("button", { name: "Refetch" }));
+    expect(entering()).toEqual(["new"]);
+  });
+
+  it("does not animate with reduced motion: the entry just appears", async () => {
+    renderWithProviders(<Harness />, { reducedMotion: true });
+    await userEvent.setup().click(screen.getByRole("button", { name: "Refetch" }));
+    expect(entering()).toEqual([]);
+    expect(document.querySelector('[data-event-id="new"]')).toBeInTheDocument();
   });
 });

@@ -4,7 +4,9 @@ import UndoOutlined from "@mui/icons-material/UndoOutlined";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import type { KeyboardEvent } from "react";
+import { keyframes } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useRef, type KeyboardEvent } from "react";
 import { DEFAULT_TIMEZONE, formatDateTime } from "../lib/format";
 import { isTypingTarget } from "../lib/shortcuts";
 
@@ -113,6 +115,30 @@ function Summary({ text }: { text: string }) {
   );
 }
 
+/** A new entry fades in over 400 ms (DESIGN_SPEC §8). */
+const FADE_IN_MS = 400;
+const fadeIn = keyframes`from { opacity: 0; } to { opacity: 1; }`;
+
+/**
+ * The ids of entries that arrived after the first render, for the fade-in. What is there when the
+ * list first shows never fades (no entrance animation on page load).
+ */
+function useArrivedAfterFirstRender(events: TimelineEvent[]): ReadonlySet<string> {
+  const known = useRef<Set<string> | null>(null);
+  const arrived = useRef(new Set<string>());
+  if (known.current === null) {
+    known.current = new Set(events.map((e) => e.id));
+  } else {
+    for (const { id } of events) {
+      if (!known.current.has(id)) {
+        known.current.add(id);
+        arrived.current.add(id);
+      }
+    }
+  }
+  return arrived.current;
+}
+
 export interface TimelineProps {
   events: TimelineEvent[];
   /** Undo the automatic change with this event id. */
@@ -133,6 +159,8 @@ export function Timeline({
   onViewEmail,
   timezone = DEFAULT_TIMEZONE,
 }: TimelineProps) {
+  const arrived = useArrivedAfterFirstRender(events);
+  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)", { noSsr: true });
   const sorted = [...events].sort(
     (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
   );
@@ -158,6 +186,7 @@ export function Timeline({
             key={event.id}
             component="li"
             data-event-id={event.id}
+            data-entering={arrived.has(event.id) && !reduced ? "true" : undefined}
             tabIndex={0}
             onKeyDown={onKeyDown}
             sx={{
@@ -165,6 +194,9 @@ export function Timeline({
               gap: 2,
               pb: 3,
               borderRadius: "4px",
+              ...(arrived.has(event.id) && !reduced
+                ? { animation: `${fadeIn} ${FADE_IN_MS}ms ease-out` }
+                : {}),
               "&:last-of-type": { pb: 0 },
               "&:last-of-type .rail::before": { display: "none" },
             }}

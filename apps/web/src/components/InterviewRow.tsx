@@ -8,6 +8,7 @@ import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 import { RowActions } from "./RowActions";
 import { FlagChip } from "./StatusChip";
+import { DEMO_REASON, useIsDemo } from "../lib/demo";
 
 export const INTERVIEW_KIND: Record<InterviewKind, string> = {
   recruiter_screen: "Recruiter screen",
@@ -55,6 +56,7 @@ export function InterviewRow({
   focused,
   rowProps,
 }: InterviewRowProps) {
+  const demo = useIsDemo();
   const linkSx = useLinkSx({
     display: "inline-flex",
     alignItems: "center",
@@ -164,6 +166,7 @@ export function InterviewRow({
                   label: "Prep notes",
                   kind: "outlined" as const,
                   onClick: () => onPrepNotes(interview),
+                  ...(demo ? { disabledReason: DEMO_REASON.notes } : {}),
                 },
               ]
             : []),
