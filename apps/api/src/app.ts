@@ -15,8 +15,10 @@ import { registerCvRoutes } from "./routes/cv.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
 import { registerLeadRoutes } from "./routes/leads.js";
+import { registerMessageRoutes } from "./routes/messages.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
+import { registerReviewItemRoutes } from "./routes/review-items.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -101,6 +103,8 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerReviewItemRoutes(guarded, deps);
+        registerMessageRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
