@@ -842,10 +842,13 @@ export function useMergeApplication(
       }),
     onSuccess: async (target, variables) => {
       queryClient.setQueryData(queryKeys.application(target.id), target);
-      // The merged application's interviews now belong to the target.
+      // The merged application's interviews now belong to the target, and a lead linked to it goes
+      // back to shortlisted (TECHNICAL_SPEC §6.6), so the Leads lists and tab counts follow.
       await Promise.all([
         refreshAfterApplicationChange(queryClient),
         queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts }),
       ]);
       callbacks.onSuccess?.(target, variables);
     },
