@@ -19,6 +19,7 @@ import {
   type MockHandler,
 } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
+import { heavyIt } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { TodayPage } from "./TodayPage";
@@ -48,7 +49,7 @@ function setup(routes: Routes = {}, width?: number) {
     </>,
     { route: "/today", width },
   );
-  return { api, ...rendered, user: userEvent.setup() };
+  return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
 
 const callsTo = (api: MockApi, method: string, path: string) =>
@@ -192,51 +193,55 @@ describe("TodayPage", () => {
     );
   });
 
-  it("+1 outreach and +15, +30 and +60 prep post /daily-activity and update the meter", async () => {
-    let outreach = 2;
-    let prep = 30;
-    const { api, user } = setup({
-      "POST /api/v1/daily-activity": async (req) => {
-        const body = (await req.clone().json()) as DailyActivityBody;
-        if (body.kind === "outreach") outreach += body.amount;
-        else prep += body.amount;
-        return { date: "2026-10-29", outreach, prepMinutes: prep, followUps: 1 };
-      },
-    });
-    await loaded();
-    const targets = section("Today's targets");
-    const meter = (name: string) => within(targets).getByRole("progressbar", { name });
-    expect(meter("Outreach")).toHaveAttribute("aria-valuenow", "2");
+  // Heavy under jsdom (four clicks, each re-rendering the whole page); see heavyIt.
+  heavyIt(
+    "+1 outreach and +15, +30 and +60 prep post /daily-activity and update the meter",
+    async () => {
+      let outreach = 2;
+      let prep = 30;
+      const { api, user } = setup({
+        "POST /api/v1/daily-activity": async (req) => {
+          const body = (await req.clone().json()) as DailyActivityBody;
+          if (body.kind === "outreach") outreach += body.amount;
+          else prep += body.amount;
+          return { date: "2026-10-29", outreach, prepMinutes: prep, followUps: 1 };
+        },
+      });
+      await loaded();
+      const targets = section("Today's targets");
+      const meter = (name: string) => within(targets).getByRole("progressbar", { name });
+      expect(meter("Outreach")).toHaveAttribute("aria-valuenow", "2");
 
-    await user.click(within(targets).getByRole("button", { name: "+1 message" }));
-    await waitFor(() => expect(meter("Outreach")).toHaveAttribute("aria-valuenow", "3"));
+      await user.click(within(targets).getByRole("button", { name: "+1 message" }));
+      await waitFor(() => expect(meter("Outreach")).toHaveAttribute("aria-valuenow", "3"));
 
-    for (const [minutes, total] of [
-      [15, 45],
-      [30, 75],
-      [60, 135],
-    ] as const) {
-      await user.click(within(targets).getByRole("button", { name: `+${minutes} minutes` }));
-      await waitFor(() =>
-        expect(meter("Interview prep")).toHaveAttribute("aria-valuenow", String(total)),
+      for (const [minutes, total] of [
+        [15, 45],
+        [30, 75],
+        [60, 135],
+      ] as const) {
+        await user.click(within(targets).getByRole("button", { name: `+${minutes} minutes` }));
+        await waitFor(() =>
+          expect(meter("Interview prep")).toHaveAttribute("aria-valuenow", String(total)),
+        );
+      }
+
+      const bodies = await Promise.all(
+        callsTo(api, "POST", "/api/v1/daily-activity").map((c) => c.json()),
       );
-    }
-
-    const bodies = await Promise.all(
-      callsTo(api, "POST", "/api/v1/daily-activity").map((c) => c.json()),
-    );
-    expect(bodies).toEqual([
-      { kind: "outreach", amount: 1 },
-      { kind: "prep_minutes", amount: 15 },
-      { kind: "prep_minutes", amount: 30 },
-      { kind: "prep_minutes", amount: 60 },
-    ]);
-    expect(
-      callsTo(api, "POST", "/api/v1/daily-activity")[0]?.headers.get("X-Offerbound-Request"),
-    ).toBe("1");
-    // New leads and, now, interview prep are at or above their targets.
-    expect(within(targets).getAllByText("Target met")).toHaveLength(2);
-  });
+      expect(bodies).toEqual([
+        { kind: "outreach", amount: 1 },
+        { kind: "prep_minutes", amount: 15 },
+        { kind: "prep_minutes", amount: 30 },
+        { kind: "prep_minutes", amount: 60 },
+      ]);
+      expect(
+        callsTo(api, "POST", "/api/v1/daily-activity")[0]?.headers.get("X-Offerbound-Request"),
+      ).toBe("1");
+      // New leads and, now, interview prep are at or above their targets.
+      expect(within(targets).getAllByText("Target met")).toHaveLength(2);
+    },
+  );
 
   it("says so when logging fails, and leaves the count alone", async () => {
     const { user } = setup({

@@ -9,6 +9,7 @@ import {
   makeNavCounts,
   makeToday,
 } from "../../test/factories";
+import { heavyIt, setValue } from "../../test/speed";
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
 import { UndoSnackbar } from "../components/UndoSnackbar";
@@ -85,13 +86,7 @@ function setup(
     </>,
     { route, width },
   );
-  return { api, ...rendered, user: userEvent.setup() };
-}
-
-/** Typing a long text key by key is slow under MUI; the owner pasting it is the same to the page. */
-async function fill(user: ReturnType<typeof userEvent.setup>, field: HTMLElement, text: string) {
-  await user.click(field);
-  await user.paste(text);
+  return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
 
 const listCalls = (api: MockApi) =>
@@ -134,50 +129,56 @@ describe("ApplicationsPage", () => {
   });
 
   // AC-6.1
-  it("status filter chips are toggle buttons with aria-pressed and update the query; Follow-up due only and search filter too", async () => {
-    const { api, user } = setup();
-    await screen.findByRole("link", { name: "Kestrel Pay" });
-    const filter = screen.getByRole("group", { name: "Filter by status" });
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "status filter chips are toggle buttons with aria-pressed and update the query; Follow-up due only and search filter too",
+    async () => {
+      const { api, user } = setup();
+      await screen.findByRole("link", { name: "Kestrel Pay" });
+      const filter = screen.getByRole("group", { name: "Filter by status" });
 
-    const all = within(filter).getByRole("button", { name: "All 41" });
-    expect(all).toHaveAttribute("aria-pressed", "true");
-    expect(within(filter).getByRole("button", { name: "Applied 12" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(lastList(api).searchParams.getAll("status")).toEqual([]);
+      const all = within(filter).getByRole("button", { name: "All 41" });
+      expect(all).toHaveAttribute("aria-pressed", "true");
+      expect(within(filter).getByRole("button", { name: "Applied 12" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      expect(lastList(api).searchParams.getAll("status")).toEqual([]);
 
-    await user.click(within(filter).getByRole("button", { name: "Applied 12" }));
-    await waitFor(() => expect(lastList(api).searchParams.getAll("status")).toEqual(["applied"]));
-    expect(within(filter).getByRole("button", { name: "Applied 12" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(all).toHaveAttribute("aria-pressed", "false");
+      await user.click(within(filter).getByRole("button", { name: "Applied 12" }));
+      await waitFor(() => expect(lastList(api).searchParams.getAll("status")).toEqual(["applied"]));
+      expect(within(filter).getByRole("button", { name: "Applied 12" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(all).toHaveAttribute("aria-pressed", "false");
 
-    await user.click(within(filter).getByRole("button", { name: "Rejected 17" }));
-    await waitFor(() =>
-      expect(lastList(api).searchParams.getAll("status")).toEqual(["applied", "rejected"]),
-    );
+      await user.click(within(filter).getByRole("button", { name: "Rejected 17" }));
+      await waitFor(() =>
+        expect(lastList(api).searchParams.getAll("status")).toEqual(["applied", "rejected"]),
+      );
 
-    // toggling a pressed chip turns it off
-    await user.click(within(filter).getByRole("button", { name: "Applied 12" }));
-    await waitFor(() => expect(lastList(api).searchParams.getAll("status")).toEqual(["rejected"]));
+      // toggling a pressed chip turns it off
+      await user.click(within(filter).getByRole("button", { name: "Applied 12" }));
+      await waitFor(() =>
+        expect(lastList(api).searchParams.getAll("status")).toEqual(["rejected"]),
+      );
 
-    // All clears the selection
-    await user.click(within(filter).getByRole("button", { name: "All 41" }));
-    await waitFor(() => expect(lastList(api).searchParams.getAll("status")).toEqual([]));
-    expect(all).toHaveAttribute("aria-pressed", "true");
+      // All clears the selection
+      await user.click(within(filter).getByRole("button", { name: "All 41" }));
+      await waitFor(() => expect(lastList(api).searchParams.getAll("status")).toEqual([]));
+      expect(all).toHaveAttribute("aria-pressed", "true");
 
-    expect(lastList(api).searchParams.get("followUpDue")).toBeNull();
-    await user.click(screen.getByRole("switch", { name: "Follow-up due only" }));
-    await waitFor(() => expect(lastList(api).searchParams.get("followUpDue")).toBe("true"));
+      expect(lastList(api).searchParams.get("followUpDue")).toBeNull();
+      await user.click(screen.getByRole("switch", { name: "Follow-up due only" }));
+      await waitFor(() => expect(lastList(api).searchParams.get("followUpDue")).toBe("true"));
 
-    await user.type(screen.getByRole("searchbox", { name: "Search" }), "north");
-    await waitFor(() => expect(lastList(api).searchParams.get("q")).toBe("north"));
-    // typing is debounced: not one request per key
-    expect(listCalls(api).filter((c) => new URL(c.url).searchParams.has("q"))).toHaveLength(1);
-  });
+      await user.type(screen.getByRole("searchbox", { name: "Search" }), "north");
+      await waitFor(() => expect(lastList(api).searchParams.get("q")).toBe("north"));
+      // typing is debounced: not one request per key
+      expect(listCalls(api).filter((c) => new URL(c.url).searchParams.has("q"))).toHaveLength(1);
+    },
+  );
 
   it("sorts by last activity by default, or by applied date or status", async () => {
     const { api, user } = setup();
@@ -230,21 +231,25 @@ describe("ApplicationsPage", () => {
     expect(lastList(api).searchParams.get("q")).toBeNull();
   });
 
-  it("status chips and the company link are 44px targets on a phone and compact on a wide screen", async () => {
-    const phone = setup({}, { width: 390 });
-    await screen.findByRole("link", { name: "Kestrel Pay" });
-    expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ minHeight: "44px" });
-    expect(screen.getByRole("button", { name: "All 41" })).toHaveStyle({ minHeight: "44px" });
-    expect(screen.getByRole("link", { name: "Kestrel Pay" })).toHaveStyle({ minHeight: "44px" });
-    phone.unmount();
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "status chips and the company link are 44px targets on a phone and compact on a wide screen",
+    async () => {
+      const phone = setup({}, { width: 390 });
+      await screen.findByRole("link", { name: "Kestrel Pay" });
+      expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ minHeight: "44px" });
+      expect(screen.getByRole("button", { name: "All 41" })).toHaveStyle({ minHeight: "44px" });
+      expect(screen.getByRole("link", { name: "Kestrel Pay" })).toHaveStyle({ minHeight: "44px" });
+      phone.unmount();
 
-    setup({}, { width: 1280 });
-    await screen.findByRole("link", { name: "Kestrel Pay" });
-    expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ height: "32px" });
-    expect(screen.getByRole("link", { name: "Kestrel Pay" })).not.toHaveStyle({
-      minHeight: "44px",
-    });
-  });
+      setup({}, { width: 1280 });
+      await screen.findByRole("link", { name: "Kestrel Pay" });
+      expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ height: "32px" });
+      expect(screen.getByRole("link", { name: "Kestrel Pay" })).not.toHaveStyle({
+        minHeight: "44px",
+      });
+    },
+  );
 
   it("the table is a real <table> with scope='col' headers and scrolls inside its Paper", async () => {
     setup();
@@ -351,7 +356,8 @@ describe("ApplicationsPage", () => {
   });
 
   // AC-6.3
-  it("Add application opens a dialog and posts /applications", async () => {
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt("Add application opens a dialog and posts /applications", async () => {
     const posted: ApplicationCreate[] = [];
     const { api, user } = setup({
       "POST /api/v1/applications": async (req) => {
@@ -380,12 +386,11 @@ describe("ApplicationsPage", () => {
     expect(within(dialog).getByText("Enter the role")).toBeInTheDocument();
     expect(posted).toHaveLength(0);
 
-    await fill(user, within(dialog).getByLabelText("Company"), "Tidewater Labs");
-    await fill(user, within(dialog).getByLabelText("Role"), "Staff Engineer");
-    await fill(user, within(dialog).getByLabelText("Job link"), "https://jobs.example/tidewater/7");
-    await fill(user, within(dialog).getByLabelText("Notes"), "Referred by a friend");
-    await user.clear(within(dialog).getByLabelText("Applied date"));
-    await fill(user, within(dialog).getByLabelText("Applied date"), "2026-10-05");
+    setValue(within(dialog).getByLabelText("Company"), "Tidewater Labs");
+    setValue(within(dialog).getByLabelText("Role"), "Staff Engineer");
+    setValue(within(dialog).getByLabelText("Job link"), "https://jobs.example/tidewater/7");
+    setValue(within(dialog).getByLabelText("Notes"), "Referred by a friend");
+    setValue(within(dialog).getByLabelText("Applied date"), "2026-10-05");
     await user.click(within(dialog).getByRole("combobox", { name: "Status" }));
     await user.click(screen.getByRole("option", { name: "Screening" }));
     const listsBefore = listCalls(api).length;
@@ -407,37 +412,42 @@ describe("ApplicationsPage", () => {
     await waitFor(() => expect(listCalls(api).length).toBeGreaterThan(listsBefore));
   });
 
-  it("the Add application dialog sends empty optional fields as null and shows the server's field errors", async () => {
-    const posted: ApplicationCreate[] = [];
-    const { user } = setup({
-      "POST /api/v1/applications": async (req) => {
-        posted.push((await req.clone().json()) as ApplicationCreate);
-        return apiError(400, "validation_failed", "Check the highlighted fields.", {
-          jobUrl: "Enter a link that starts with http or https",
-        });
-      },
-    });
-    await screen.findByRole("link", { name: "Kestrel Pay" });
-    await user.click(screen.getByRole("button", { name: "Add application" }));
-    const dialog = await screen.findByRole("dialog", { name: "Add application" });
-    await fill(user, within(dialog).getByLabelText("Company"), "Tidewater Labs");
-    await fill(user, within(dialog).getByLabelText("Role"), "Staff Engineer");
-    await user.clear(within(dialog).getByLabelText("Applied date"));
-    await user.click(within(dialog).getByRole("button", { name: "Add application" }));
-    await waitFor(() => expect(posted).toHaveLength(1));
-    expect(posted[0]).toMatchObject({
-      jobUrl: null,
-      appliedAt: null,
-      notes: null,
-      status: "applied",
-    });
-    expect(
-      await within(dialog).findByText("Enter a link that starts with http or https"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Add application" })).toBeInTheDocument();
-  });
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "the Add application dialog sends empty optional fields as null and shows the server's field errors",
+    async () => {
+      const posted: ApplicationCreate[] = [];
+      const { user } = setup({
+        "POST /api/v1/applications": async (req) => {
+          posted.push((await req.clone().json()) as ApplicationCreate);
+          return apiError(400, "validation_failed", "Check the highlighted fields.", {
+            jobUrl: "Enter a link that starts with http or https",
+          });
+        },
+      });
+      await screen.findByRole("link", { name: "Kestrel Pay" });
+      await user.click(screen.getByRole("button", { name: "Add application" }));
+      const dialog = await screen.findByRole("dialog", { name: "Add application" });
+      setValue(within(dialog).getByLabelText("Company"), "Tidewater Labs");
+      setValue(within(dialog).getByLabelText("Role"), "Staff Engineer");
+      setValue(within(dialog).getByLabelText("Applied date"), "");
+      await user.click(within(dialog).getByRole("button", { name: "Add application" }));
+      await waitFor(() => expect(posted).toHaveLength(1));
+      expect(posted[0]).toMatchObject({
+        jobUrl: null,
+        appliedAt: null,
+        notes: null,
+        status: "applied",
+      });
+      expect(
+        await within(dialog).findByText("Enter a link that starts with http or https"),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Add application" })).toBeInTheDocument();
+    },
+  );
 
-  it("rejects a job link that is not http or https before sending anything", async () => {
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt("rejects a job link that is not http or https before sending anything", async () => {
     const posted: unknown[] = [];
     const { user } = setup({
       "POST /api/v1/applications": async (req) => {
@@ -448,9 +458,9 @@ describe("ApplicationsPage", () => {
     await screen.findByRole("link", { name: "Kestrel Pay" });
     await user.click(screen.getByRole("button", { name: "Add application" }));
     const dialog = await screen.findByRole("dialog", { name: "Add application" });
-    await fill(user, within(dialog).getByLabelText("Company"), "Tidewater Labs");
-    await fill(user, within(dialog).getByLabelText("Role"), "Staff Engineer");
-    await fill(user, within(dialog).getByLabelText("Job link"), "javascript:alert(1)");
+    setValue(within(dialog).getByLabelText("Company"), "Tidewater Labs");
+    setValue(within(dialog).getByLabelText("Role"), "Staff Engineer");
+    setValue(within(dialog).getByLabelText("Job link"), "javascript:alert(1)");
     await user.click(within(dialog).getByRole("button", { name: "Add application" }));
     expect(
       await within(dialog).findByText("Enter a link that starts with http or https"),
@@ -458,7 +468,8 @@ describe("ApplicationsPage", () => {
     expect(posted).toHaveLength(0);
   });
 
-  it("the Add application dialog is full screen on a phone", async () => {
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt("the Add application dialog is full screen on a phone", async () => {
     const { user } = setup({}, { width: 390 });
     await screen.findByRole("link", { name: "Kestrel Pay" });
     await user.click(screen.getByRole("button", { name: "Add application" }));

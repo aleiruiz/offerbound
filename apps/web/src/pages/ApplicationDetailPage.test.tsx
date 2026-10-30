@@ -20,6 +20,7 @@ import {
 } from "../../test/factories";
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
+import { heavyIt } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { ApplicationDetailPage } from "./ApplicationDetailPage";
@@ -147,7 +148,7 @@ function setup(
     </>,
     { route, width },
   );
-  return { api, ...rendered, user: userEvent.setup() };
+  return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
 
 /** Screens that are not open keep their cached answers; a change must mark them stale. */
@@ -289,51 +290,55 @@ describe("ApplicationDetailPage", () => {
   });
 
   // AC-6.3, TECHNICAL_SPEC §11
-  it("the detail status Select patches with version; 409 version_conflict refetches and shows 'Changes were made elsewhere'", async () => {
-    let current = detail();
-    const patches: ApplicationPatch[] = [];
-    const { api, user, queryClient } = setup({
-      "GET /api/v1/applications/a1": () => current,
-      "PATCH /api/v1/applications/a1": async (req) => {
-        const body = (await req.clone().json()) as ApplicationPatch;
-        patches.push(body);
-        if (patches.length === 1) {
-          // someone else moved it to Screening and bumped the version
-          current = detail({ version: 4, status: "screening" });
-          return apiError(409, "version_conflict", "Changes were made elsewhere.");
-        }
-        current = detail({ version: 5, status: body.status ?? current.status });
-        return current;
-      },
-    });
-    await loaded();
-    expect(callsTo(api, "GET", "/api/v1/applications/a1")).toHaveLength(1);
-    seedOtherScreens(queryClient);
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "the detail status Select patches with version; 409 version_conflict refetches and shows 'Changes were made elsewhere'",
+    async () => {
+      let current = detail();
+      const patches: ApplicationPatch[] = [];
+      const { api, user, queryClient } = setup({
+        "GET /api/v1/applications/a1": () => current,
+        "PATCH /api/v1/applications/a1": async (req) => {
+          const body = (await req.clone().json()) as ApplicationPatch;
+          patches.push(body);
+          if (patches.length === 1) {
+            // someone else moved it to Screening and bumped the version
+            current = detail({ version: 4, status: "screening" });
+            return apiError(409, "version_conflict", "Changes were made elsewhere.");
+          }
+          current = detail({ version: 5, status: body.status ?? current.status });
+          return current;
+        },
+      });
+      await loaded();
+      expect(callsTo(api, "GET", "/api/v1/applications/a1")).toHaveLength(1);
+      seedOtherScreens(queryClient);
 
-    await user.click(screen.getByRole("combobox", { name: "Status" }));
-    await user.click(screen.getByRole("option", { name: "Offer" }));
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ version: 3, status: "offer" });
+      await user.click(screen.getByRole("combobox", { name: "Status" }));
+      await user.click(screen.getByRole("option", { name: "Offer" }));
+      await waitFor(() => expect(patches).toHaveLength(1));
+      expect(patches[0]).toEqual({ version: 3, status: "offer" });
 
-    expect(await screen.findByText(/Changes were made elsewhere/)).toBeInTheDocument();
-    // the fresh record is shown: fetched again, with the status the other change left
-    await waitFor(() => expect(callsTo(api, "GET", "/api/v1/applications/a1")).toHaveLength(2));
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Screening"),
-    );
+      expect(await screen.findByText(/Changes were made elsewhere/)).toBeInTheDocument();
+      // the fresh record is shown: fetched again, with the status the other change left
+      await waitFor(() => expect(callsTo(api, "GET", "/api/v1/applications/a1")).toHaveLength(2));
+      await waitFor(() =>
+        expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Screening"),
+      );
 
-    // the next try carries the fresh version
-    await user.click(screen.getByRole("combobox", { name: "Status" }));
-    await user.click(screen.getByRole("option", { name: "Offer" }));
-    await waitFor(() => expect(patches).toHaveLength(2));
-    expect(patches[1]).toEqual({ version: 4, status: "offer" });
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Offer"),
-    );
-    expect(await screen.findByText("Status changed to Offer")).toBeInTheDocument();
-    // a manual change marks Today and the badges for a refresh
-    expectOtherScreensStale(queryClient, BADGE_SCREENS);
-  });
+      // the next try carries the fresh version
+      await user.click(screen.getByRole("combobox", { name: "Status" }));
+      await user.click(screen.getByRole("option", { name: "Offer" }));
+      await waitFor(() => expect(patches).toHaveLength(2));
+      expect(patches[1]).toEqual({ version: 4, status: "offer" });
+      await waitFor(() =>
+        expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Offer"),
+      );
+      expect(await screen.findByText("Status changed to Offer")).toBeInTheDocument();
+      // a manual change marks Today and the badges for a refresh
+      expectOtherScreensStale(queryClient, BADGE_SCREENS);
+    },
+  );
 
   it("any status can be chosen, in the order of the pipeline", async () => {
     const { user } = setup();
@@ -789,34 +794,40 @@ describe("ApplicationDetailPage", () => {
     await loaded();
   });
 
-  it("the overflow menu withdraws the application, and Undo puts the status back", async () => {
-    let current = detail();
-    const patches: ApplicationPatch[] = [];
-    const { user } = setup({
-      "GET /api/v1/applications/a1": () => current,
-      "PATCH /api/v1/applications/a1": async (req) => {
-        const body = (await req.clone().json()) as ApplicationPatch;
-        patches.push(body);
-        current = detail({ version: current.version + 1, status: body.status ?? current.status });
-        return current;
-      },
-    });
-    await loaded();
-    await user.click(screen.getByRole("button", { name: "More actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Withdraw" }));
-    await waitFor(() => expect(patches).toHaveLength(1));
-    expect(patches[0]).toEqual({ version: 3, status: "withdrawn" });
-    expect(await screen.findByText("Marked as withdrawn")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Withdrawn"),
-    );
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "the overflow menu withdraws the application, and Undo puts the status back",
+    async () => {
+      let current = detail();
+      const patches: ApplicationPatch[] = [];
+      const { user } = setup({
+        "GET /api/v1/applications/a1": () => current,
+        "PATCH /api/v1/applications/a1": async (req) => {
+          const body = (await req.clone().json()) as ApplicationPatch;
+          patches.push(body);
+          current = detail({ version: current.version + 1, status: body.status ?? current.status });
+          return current;
+        },
+      });
+      await loaded();
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Withdraw" }));
+      await waitFor(() => expect(patches).toHaveLength(1));
+      expect(patches[0]).toEqual({ version: 3, status: "withdrawn" });
+      expect(await screen.findByText("Marked as withdrawn")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent("Withdrawn"),
+      );
 
-    const toast = screen.getByText("Marked as withdrawn").closest('[role="status"]') as HTMLElement;
-    await user.click(within(toast).getByRole("button", { name: "Undo" }));
-    await waitFor(() => expect(patches).toHaveLength(2));
-    expect(patches[1]).toEqual({ version: 4, status: "interviewing" });
-    expect(await screen.findByText("Undone")).toBeInTheDocument();
-  });
+      const toast = screen
+        .getByText("Marked as withdrawn")
+        .closest('[role="status"]') as HTMLElement;
+      await user.click(within(toast).getByRole("button", { name: "Undo" }));
+      await waitFor(() => expect(patches).toHaveLength(2));
+      expect(patches[1]).toEqual({ version: 4, status: "interviewing" });
+      expect(await screen.findByText("Undone")).toBeInTheDocument();
+    },
+  );
 
   it("Withdraw is not offered for an application that is already withdrawn", async () => {
     const { user } = setup({
@@ -830,44 +841,50 @@ describe("ApplicationDetailPage", () => {
     );
   });
 
-  it("Merge into… finds another application, posts the merge and opens the target", async () => {
-    const other = makeApplication({
-      id: "a2",
-      company: { id: "c9", name: "Kestrel Payments Ltd" },
-      title: "Frontend Engineer",
-    });
-    const merged: unknown[] = [];
-    const { api, user } = setup({
-      "GET /api/v1/applications": (req) => {
-        const q = new URL(req.url).searchParams.get("q");
-        return {
-          items: q === "kestrel" ? [makeApplication({ id: "a1" }), other] : [],
-          nextCursor: null,
-        };
-      },
-      "POST /api/v1/applications/a1/merge": async (req) => {
-        merged.push(await req.clone().json());
-        return detail({ id: "a2", company: { id: "c9", name: "Kestrel Payments Ltd" } });
-      },
-      "GET /api/v1/applications/a2": () =>
-        detail({ id: "a2", company: { id: "c9", name: "Kestrel Payments Ltd" } }),
-    });
-    await loaded();
-    await user.click(screen.getByRole("button", { name: "More actions" }));
-    await user.click(screen.getByRole("menuitem", { name: "Merge into…" }));
-    const dialog = await screen.findByRole("dialog", { name: "Merge into another application" });
-    const confirm = within(dialog).getByRole("button", { name: "Merge" });
-    expect(confirm).toBeDisabled();
-    await user.click(within(dialog).getByRole("searchbox", { name: "Find an application" }));
-    await user.paste("kestrel");
-    // the application itself is not offered
-    const choice = await within(dialog).findByRole("radio", { name: /Kestrel Payments Ltd/ });
-    expect(within(dialog).queryAllByRole("radio")).toHaveLength(1);
-    await user.click(choice);
-    await user.click(confirm);
-    await waitFor(() => expect(merged).toEqual([{ intoId: "a2" }]));
-    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/applications/a2"));
-    expect(await screen.findByText("Merged into Kestrel Payments Ltd")).toBeInTheDocument();
-    expect(callsTo(api, "POST", "/api/v1/applications/a1/merge")).toHaveLength(1);
-  });
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "Merge into… finds another application, posts the merge and opens the target",
+    async () => {
+      const other = makeApplication({
+        id: "a2",
+        company: { id: "c9", name: "Kestrel Payments Ltd" },
+        title: "Frontend Engineer",
+      });
+      const merged: unknown[] = [];
+      const { api, user } = setup({
+        "GET /api/v1/applications": (req) => {
+          const q = new URL(req.url).searchParams.get("q");
+          return {
+            items: q === "kestrel" ? [makeApplication({ id: "a1" }), other] : [],
+            nextCursor: null,
+          };
+        },
+        "POST /api/v1/applications/a1/merge": async (req) => {
+          merged.push(await req.clone().json());
+          return detail({ id: "a2", company: { id: "c9", name: "Kestrel Payments Ltd" } });
+        },
+        "GET /api/v1/applications/a2": () =>
+          detail({ id: "a2", company: { id: "c9", name: "Kestrel Payments Ltd" } }),
+      });
+      await loaded();
+      await user.click(screen.getByRole("button", { name: "More actions" }));
+      await user.click(screen.getByRole("menuitem", { name: "Merge into…" }));
+      const dialog = await screen.findByRole("dialog", { name: "Merge into another application" });
+      const confirm = within(dialog).getByRole("button", { name: "Merge" });
+      expect(confirm).toBeDisabled();
+      await user.click(within(dialog).getByRole("searchbox", { name: "Find an application" }));
+      await user.paste("kestrel");
+      // the application itself is not offered
+      const choice = await within(dialog).findByRole("radio", { name: /Kestrel Payments Ltd/ });
+      expect(within(dialog).queryAllByRole("radio")).toHaveLength(1);
+      await user.click(choice);
+      await user.click(confirm);
+      await waitFor(() => expect(merged).toEqual([{ intoId: "a2" }]));
+      await waitFor(() =>
+        expect(screen.getByTestId("where")).toHaveTextContent("/applications/a2"),
+      );
+      expect(await screen.findByText("Merged into Kestrel Payments Ltd")).toBeInTheDocument();
+      expect(callsTo(api, "POST", "/api/v1/applications/a1/merge")).toHaveLength(1);
+    },
+  );
 });

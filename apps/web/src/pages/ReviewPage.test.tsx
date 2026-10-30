@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeMessage, makeNavCounts, makeReviewItem, makeToday } from "../../test/factories";
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
+import { HEAVY_TEST_MS, heavyIt, setValue } from "../../test/speed";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { ReviewPage } from "./ReviewPage";
 
@@ -147,7 +148,7 @@ function setup(
     </>,
     { route, width },
   );
-  return { api, ...rendered, user: userEvent.setup() };
+  return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
 
 const callsTo = (api: MockApi, method: string, path: string) =>
@@ -264,6 +265,7 @@ describe("ReviewPage", () => {
       }
     });
 
+    // One full page per action button, in a loop: heavy under jsdom; see heavyIt.
     it.each(ACTIONS)(
       "%s posts /review-items/:id/resolve with each of its actions",
       async (kind, question, buttons) => {
@@ -284,6 +286,7 @@ describe("ReviewPage", () => {
           unmount();
         }
       },
+      HEAVY_TEST_MS,
     );
 
     it("a resolved item leaves the Open list, the badges are fetched again and the snackbar repeats the verb", async () => {
@@ -315,40 +318,47 @@ describe("ReviewPage", () => {
       );
     });
 
-    it("Edit and apply opens a dialog and posts edit_apply with only the fields that were set", async () => {
-      const { api, user } = setup({
-        "POST /api/v1/review-items/r-low_confidence/resolve": () => ({ ...LOW, state: "resolved" }),
-      });
-      await user.click(
-        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
-          name: "Edit and apply",
-        }),
-      );
-      const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
-      const submit = within(dialog).getByRole("button", { name: "Apply with edits" });
-      expect(submit).toBeDisabled();
-      await user.click(within(dialog).getByRole("combobox", { name: "What the email is" }));
-      await user.click(await screen.findByRole("option", { name: "Interview invitation" }));
-      await user.type(
-        within(dialog).getByRole("textbox", { name: "Job link" }),
-        "https://jobs.example/quarry/7",
-      );
-      expect(submit).toBeEnabled();
-      await user.click(submit);
-      await waitFor(() =>
-        expect(callsTo(api, "POST", "/api/v1/review-items/r-low_confidence/resolve")).toHaveLength(
-          1,
-        ),
-      );
-      expect(
-        await callsTo(api, "POST", "/api/v1/review-items/r-low_confidence/resolve")[0]?.json(),
-      ).toEqual({
-        action: "edit_apply",
-        edits: { category: "interview_invite", jobUrl: "https://jobs.example/quarry/7" },
-      });
-      expect(await screen.findByText("Applied your edits")).toBeInTheDocument();
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    });
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "Edit and apply opens a dialog and posts edit_apply with only the fields that were set",
+      async () => {
+        const { api, user } = setup({
+          "POST /api/v1/review-items/r-low_confidence/resolve": () => ({
+            ...LOW,
+            state: "resolved",
+          }),
+        });
+        await user.click(
+          (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+            name: "Edit and apply",
+          }),
+        );
+        const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
+        const submit = within(dialog).getByRole("button", { name: "Apply with edits" });
+        expect(submit).toBeDisabled();
+        await user.click(within(dialog).getByRole("combobox", { name: "What the email is" }));
+        await user.click(await screen.findByRole("option", { name: "Interview invitation" }));
+        setValue(
+          within(dialog).getByRole("textbox", { name: "Job link" }),
+          "https://jobs.example/quarry/7",
+        );
+        expect(submit).toBeEnabled();
+        await user.click(submit);
+        await waitFor(() =>
+          expect(
+            callsTo(api, "POST", "/api/v1/review-items/r-low_confidence/resolve"),
+          ).toHaveLength(1),
+        );
+        expect(
+          await callsTo(api, "POST", "/api/v1/review-items/r-low_confidence/resolve")[0]?.json(),
+        ).toEqual({
+          action: "edit_apply",
+          edits: { category: "interview_invite", jobUrl: "https://jobs.example/quarry/7" },
+        });
+        expect(await screen.findByText("Applied your edits")).toBeInTheDocument();
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      },
+    );
 
     it("Edit and apply refuses a job link that is not http(s)", async () => {
       const { api, user } = setup();
@@ -358,7 +368,7 @@ describe("ReviewPage", () => {
         }),
       );
       const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
-      await user.type(within(dialog).getByRole("textbox", { name: "Job link" }), "javascript:1");
+      setValue(within(dialog).getByRole("textbox", { name: "Job link" }), "javascript:1");
       await user.click(within(dialog).getByRole("button", { name: "Apply with edits" }));
       expect(await within(dialog).findByText(/starts with http/)).toBeInTheDocument();
       expect(callsTo(api, "POST", "/api/v1/review-items/r-low_confidence/resolve")).toHaveLength(0);
@@ -411,10 +421,7 @@ describe("ReviewPage", () => {
         }),
       );
       const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
-      await user.type(
-        within(dialog).getByRole("textbox", { name: "Job link" }),
-        "https://x.example/1",
-      );
+      setValue(within(dialog).getByRole("textbox", { name: "Job link" }), "https://x.example/1");
       await user.click(within(dialog).getByRole("button", { name: "Apply with edits" }));
       expect(
         await screen.findByText("Changes were made elsewhere. Review has been refreshed."),
@@ -668,6 +675,64 @@ describe("ReviewPage", () => {
       await waitFor(() =>
         expect(screen.getByRole("heading", { level: 1, name: "Review" })).toHaveFocus(),
       );
+    });
+
+    it("resolving the middle of three cards moves focus to the card that follows it", async () => {
+      let open = [LOW, FAILED, UNDONE];
+      const { user } = setup(
+        {
+          "GET /api/v1/review-items": reviewHandler(() => open),
+          "POST /api/v1/review-items/r-extraction_failed/resolve": () => {
+            open = open.filter((i) => i.id !== "r-extraction_failed");
+            return { ...FAILED, state: "dismissed" };
+          },
+        },
+        { items: open },
+      );
+      await user.click(
+        (await cardOf("Offerbound couldn't read this email.")).getByRole("button", {
+          name: "Dismiss",
+        }),
+      );
+      const after = screen.getByRole("heading", { name: "You undid a change from this email." });
+      await waitFor(() => expect(after.closest("li")).toHaveFocus());
+      expect(
+        screen.queryByRole("heading", { name: "Offerbound couldn't read this email." }),
+      ).toBeNull();
+    });
+
+    it("after Edit and apply closes, focus is on the card that follows the edited one", async () => {
+      let open = [LOW, FAILED];
+      const { user } = setup(
+        {
+          "GET /api/v1/review-items": reviewHandler(() => open),
+          "POST /api/v1/review-items/r-low_confidence/resolve": () => {
+            open = open.filter((i) => i.id !== "r-low_confidence");
+            return { ...LOW, state: "resolved" };
+          },
+        },
+        { items: open },
+      );
+      await user.click(
+        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+          name: "Edit and apply",
+        }),
+      );
+      const dialog = await screen.findByRole("dialog", { name: "Edit and apply" });
+      setValue(
+        within(dialog).getByRole("textbox", { name: "Job link" }),
+        "https://jobs.example/q/1",
+      );
+      await user.click(within(dialog).getByRole("button", { name: "Apply with edits" }));
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog", { name: "Edit and apply" })).not.toBeInTheDocument(),
+      );
+      const next = await screen.findByRole("heading", {
+        name: "Offerbound couldn't read this email.",
+      });
+      // The dialog hands focus back to the button that opened it, which has left with its card:
+      // focus must not be lost to the page (a keyboard owner would start again from the top).
+      await waitFor(() => expect(next.closest("li")).toHaveFocus());
     });
 
     it("j moves to the first card and Enter shows its email", async () => {

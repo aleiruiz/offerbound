@@ -14,6 +14,7 @@ import {
 } from "../../test/mock-api";
 import lockupLight from "../assets/brand/lockup.svg";
 import { renderWithProviders } from "../../test/render";
+import { heavyIt, setValue } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
 import { OnboardingPage } from "./OnboardingPage";
 
@@ -126,40 +127,44 @@ async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
 }
 
 describe("OnboardingPage", () => {
-  it("shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped", async () => {
-    const { user } = setup();
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
-    const steps = screen.getByLabelText("Setup steps");
-    for (const name of [
-      "Upload your CV",
-      "Import your spreadsheet",
-      "Write your search brief",
-      "Start syncing Gmail",
-    ]) {
-      expect(within(steps).getByText(name)).toBeInTheDocument();
-    }
-    expect(within(steps).getByText("Upload your CV").closest("[aria-current]")).toHaveAttribute(
-      "aria-current",
-      "step",
-    );
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped",
+    async () => {
+      const { user } = setup();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
+      const steps = screen.getByLabelText("Setup steps");
+      for (const name of [
+        "Upload your CV",
+        "Import your spreadsheet",
+        "Write your search brief",
+        "Start syncing Gmail",
+      ]) {
+        expect(within(steps).getByText(name)).toBeInTheDocument();
+      }
+      expect(within(steps).getByText("Upload your CV").closest("[aria-current]")).toHaveAttribute(
+        "aria-current",
+        "step",
+      );
 
-    // Steps 1 to 3 can be skipped, and the Back button is there from step 2 on.
-    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    await skipTo(user, 3);
-    expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
-    expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
-    expect(within(steps).queryByText("Optional")).toBeNull();
+      // Steps 1 to 3 can be skipped, and the Back button is there from step 2 on.
+      expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+      await skipTo(user, 3);
+      expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toHaveFocus();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
+      expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
+      expect(within(steps).queryByText("Optional")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
-    ).toBeVisible();
-  });
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
+      ).toBeVisible();
+    },
+  );
 
   it("marks steps 1 to 3 Optional in the stepper until they are skipped, and never the last", async () => {
     const { user } = setup();
@@ -684,64 +689,67 @@ describe("OnboardingPage", () => {
   });
 
   describe("the brief step", () => {
-    it("saves through PUT /settings with the edited brief and the rest of the settings unchanged", async () => {
-      const settings: Settings = {
-        ...DEFAULT_SETTINGS,
-        search: { ...DEFAULT_SETTINGS.search, brief: "Old brief", enabled: true },
-      };
-      const { api, user } = setup({
-        "GET /api/v1/settings": () => settings,
-        "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
-      });
-      await skipTo(user, 2);
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "saves through PUT /settings with the edited brief and the rest of the settings unchanged",
+      async () => {
+        const settings: Settings = {
+          ...DEFAULT_SETTINGS,
+          search: { ...DEFAULT_SETTINGS.search, brief: "Old brief", enabled: true },
+        };
+        const { api, user } = setup({
+          "GET /api/v1/settings": () => settings,
+          "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+        });
+        await skipTo(user, 2);
 
-      const field = await screen.findByRole("textbox", { name: "Search brief" });
-      expect(field).toHaveValue("Old brief");
-      await user.clear(field);
-      await typeText(user, field, "Senior roles, remote from Mexico.");
-      expect(screen.getByText("33 of 12,000 characters")).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        const field = await screen.findByRole("textbox", { name: "Search brief" });
+        expect(field).toHaveValue("Old brief");
+        setValue(field, "Senior roles, remote from Mexico.");
+        expect(screen.getByText("33 of 12,000 characters")).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
 
-      await waitFor(() => expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(1));
-      const put = callsTo(api, "PUT", "/api/v1/settings")[0];
-      expect(put?.headers.get("X-Offerbound-Request")).toBe("1");
-      expect(await put?.json()).toEqual({
-        ...settings,
-        search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
-      });
-      expect(
-        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-      ).toBeVisible();
-    });
+        await waitFor(() => expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(1));
+        const put = callsTo(api, "PUT", "/api/v1/settings")[0];
+        expect(put?.headers.get("X-Offerbound-Request")).toBe("1");
+        expect(await put?.json()).toEqual({
+          ...settings,
+          search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
+        });
+        expect(
+          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
+        ).toBeVisible();
+      },
+    );
 
-    it("after a successful save, coming back shows Continue and no Skip, whether or not the text was typed", async () => {
-      const { user } = setup({
-        "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
-      });
-      await skipTo(user, 2);
-      await typeText(
-        user,
-        await screen.findByRole("textbox", { name: "Search brief" }),
-        "Remote roles",
-      );
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
-      await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "after a successful save, coming back shows Continue and no Skip, whether or not the text was typed",
+      async () => {
+        const { user } = setup({
+          "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+        });
+        await skipTo(user, 2);
+        setValue(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
 
-      await user.click(screen.getByRole("button", { name: "Back" }));
-      expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
-      expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
-      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Back" }));
+        expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
+        expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
 
-      // Editing again offers to save the change, and still no Skip.
-      await typeText(user, screen.getByRole("textbox", { name: "Search brief" }), " in Mexico");
-      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
-      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
-      expect(
-        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-      ).toBeVisible();
-    });
+        // Editing again offers to save the change, and still no Skip.
+        setValue(screen.getByRole("textbox", { name: "Search brief" }), "Remote roles in Mexico");
+        expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        expect(
+          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
+        ).toBeVisible();
+      },
+    );
 
     it("starts with an empty field instead of the shipped example text", async () => {
       const { user } = setup();
@@ -755,8 +763,7 @@ describe("OnboardingPage", () => {
       const { user } = setup();
       await skipTo(user, 2);
       const field = await screen.findByRole("textbox", { name: "Search brief" });
-      await user.click(field);
-      await user.paste("a".repeat(12_001));
+      setValue(field, "a".repeat(12_001));
       expect(
         screen.getByText(/12,001 of 12,000 characters\. Shorten it to save\./),
       ).toBeInTheDocument();
@@ -769,11 +776,7 @@ describe("OnboardingPage", () => {
           apiError(502, "upstream_error", "The database didn't answer."),
       });
       await skipTo(user, 2);
-      await typeText(
-        user,
-        await screen.findByRole("textbox", { name: "Search brief" }),
-        "Remote roles",
-      );
+      setValue(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save your brief.");
       expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
@@ -781,46 +784,50 @@ describe("OnboardingPage", () => {
   });
 
   describe("the Gmail step", () => {
-    it("Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today", async () => {
-      let status = makeSyncStatus({ started: false, lastSyncAt: null });
-      const { api, user, queryClient } = setup({
-        "GET /api/v1/gmail/status": () => status,
-        "POST /api/v1/gmail/start": () => {
-          status = makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          });
-          return jsonResponse(status, 202);
-        },
-        "POST /api/v1/onboarding/complete": () => ME,
-      });
-      await skipTo(user, 3);
-      expect(screen.getByRole("list", { name: "What Offerbound reads" })).toBeInTheDocument();
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today",
+      async () => {
+        let status = makeSyncStatus({ started: false, lastSyncAt: null });
+        const { api, user, queryClient } = setup({
+          "GET /api/v1/gmail/status": () => status,
+          "POST /api/v1/gmail/start": () => {
+            status = makeSyncStatus({
+              started: true,
+              lastSyncAt: null,
+              backfill: { state: "running", listed: 400, processed: 120 },
+            });
+            return jsonResponse(status, 202);
+          },
+          "POST /api/v1/onboarding/complete": () => ME,
+        });
+        await skipTo(user, 3);
+        expect(screen.getByRole("list", { name: "What Offerbound reads" })).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Start syncing" }));
+        await user.click(screen.getByRole("button", { name: "Start syncing" }));
 
-      const progress = await screen.findByText(/120 of 400 checked\./);
-      expect(progress).toBeInTheDocument();
-      expect(screen.getByRole("progressbar", { name: "First sync" })).toHaveAttribute(
-        "aria-valuenow",
-        "30",
-      );
-      const start = callsTo(api, "POST", "/api/v1/gmail/start")[0];
-      expect(start?.headers.get("X-Offerbound-Request")).toBe("1");
-      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
+        const progress = await screen.findByText(/120 of 400 checked\./);
+        expect(progress).toBeInTheDocument();
+        expect(screen.getByRole("progressbar", { name: "First sync" })).toHaveAttribute(
+          "aria-valuenow",
+          "30",
+        );
+        const start = callsTo(api, "POST", "/api/v1/gmail/start")[0];
+        expect(start?.headers.get("X-Offerbound-Request")).toBe("1");
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
 
-      // The next status check says the first sync is done.
-      status = makeSyncStatus({
-        started: true,
-        backfill: { state: "done", listed: 400, processed: 400 },
-      });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
+        // The next status check says the first sync is done.
+        status = makeSyncStatus({
+          started: true,
+          backfill: { state: "done", listed: 400, processed: 400 },
+        });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
 
-      expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
-      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
-      expect(queryClient.getQueryData(queryKeys.me)).toEqual(ME);
-    });
+        expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
+        expect(queryClient.getQueryData(queryKeys.me)).toEqual(ME);
+      },
+    );
 
     it("Go to Today finishes setup while the first sync is still running", async () => {
       const { api, user } = setup({
