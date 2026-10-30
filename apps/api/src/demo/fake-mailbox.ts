@@ -23,9 +23,8 @@ export type MailboxHooks = {
  * The cursor is not kept here. "Used" is whatever message ids the database already holds, so the
  * API process (which simulates) and the worker (which resets) agree without sharing memory, and
  * the hourly reset rewinds it by emptying the table. `order` is the walk: the first id in it that
- * the database does not hold is next. When every id is used the walk starts again with ids
- * suffixed `~2`, `~3`, ... so a visitor never runs dry (the message is the same email again,
- * dated now).
+ * the database does not hold is next. When every id is used the walk is over and the caller
+ * (`simulateEmail`) resets the demo, which starts a fresh one; an email is never delivered twice.
  *
  * A delivered email is dated at its arrival and carries its times moved by whole weeks, so an
  * interview it proposes lies ahead of the visitor (see `deliverFixture`). It replaces the
@@ -68,15 +67,16 @@ export class FakeMailbox implements GmailClient {
     return this.originals;
   }
 
+  /** True when every email of the walk is already stored. */
+  isExhausted(used: ReadonlySet<string>): boolean {
+    return this.order.every((id) => used.has(id));
+  }
+
   /** The id the next simulated email gets, given the message ids already stored. */
   nextId(used: ReadonlySet<string>): string {
-    if (this.order.length === 0) throw new Error("The demo has no emails to simulate.");
-    for (let lap = 1; ; lap += 1) {
-      for (const id of this.order) {
-        const candidate = lap === 1 ? id : `${id}~${lap}`;
-        if (!used.has(candidate)) return candidate;
-      }
-    }
+    const next = this.order.find((id) => !used.has(id));
+    if (next === undefined) throw new Error("Every demo email is used; reset the demo first.");
+    return next;
   }
 
   /**
@@ -96,7 +96,7 @@ export class FakeMailbox implements GmailClient {
   }
 
   private place(id: string, arrivesAt: Date): EmailFixture | null {
-    const base = this.byId.get(id.replace(/~\d+$/, ""));
+    const base = this.byId.get(id);
     if (!base) return null;
     const delivered = deliverFixture(base, {
       arrivesAt,

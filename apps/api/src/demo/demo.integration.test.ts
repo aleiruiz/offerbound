@@ -226,17 +226,16 @@ describe("Simulate an incoming email", () => {
     expect(after.timeline[0]?.summary).toMatch(/^Interview rescheduled to /);
   });
 
-  it("walks through every email and starts over with the same emails, without failures", async () => {
+  it("walks through every email, each one applied, without failures", async () => {
     const { call, get } = await demo();
     const order = loadSeed().mailbox.order;
     const ids: string[] = [];
-    for (let i = 0; i < order.length + 3; i += 1) {
+    for (let i = 0; i < order.length; i += 1) {
       const response = await call("POST", "/demo/simulate-email");
       expect(response.statusCode).toBe(202);
       ids.push(response.json<{ messageId: string }>().messageId);
     }
-    expect(ids.slice(0, order.length)).toEqual(order);
-    expect(ids.slice(order.length)).toEqual(order.slice(0, 3).map((id) => `${id}~2`));
+    expect(ids).toEqual(order);
 
     const states = await prisma.gmailMessage.groupBy({ by: ["state"], _count: { _all: true } });
     const byState = Object.fromEntries(states.map((s) => [s.state, s._count._all]));
@@ -252,6 +251,68 @@ describe("Simulate an incoming email", () => {
       await prisma.lead.count({ where: { source: { in: ["gmail_recruiter", "gmail_alert"] } } }),
     ).toBeGreaterThan(0);
     expect(await prisma.company.count({ where: { name: "Ironbark Labs" } })).toBe(1);
+  });
+
+  it("when the walk is used up, the next press resets the demo and applies the first email of the fresh walk", async () => {
+    const { call, deps, applicationByCompany } = await demo();
+    const seed = loadSeed();
+    const order = seed.mailbox.order;
+    for (let i = 0; i < order.length; i += 1) await call("POST", "/demo/simulate-email");
+    expect(await prisma.company.count({ where: { name: "Ironbark Labs" } })).toBe(1);
+
+    // A day later, so "shifted to now" shows.
+    const later = new Date(NOW.getTime() + 24 * HOUR);
+    deps.clock.now = later;
+    const quarryBefore = await applicationByCompany("Quarry AI");
+    const response = await call("POST", "/demo/simulate-email");
+    expect(response.statusCode).toBe(202);
+    expect(response.json<{ messageId: string }>().messageId).toBe(order[0]);
+
+    // The demo is back at its seed: what the walk added is gone, the seed's messages and
+    // applications are there, plus the one email of this press.
+    expect(await prisma.company.count({ where: { name: "Ironbark Labs" } })).toBe(0);
+    expect(await prisma.application.count()).toBe(seed.applications.length);
+    expect(await prisma.gmailMessage.count()).toBe(seed.messages.length + 1);
+    expect(await prisma.reviewItem.count()).toBe(0);
+    // The seed was shifted to the clock of the press (the newest seeded lead was found 32
+    // minutes before the anchor).
+    const lead = await prisma.event.findFirstOrThrow({
+      where: { type: "lead_created" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(lead.occurredAt.getTime()).toBe(
+      later.getTime() - (Date.parse(seed.anchor) - Date.parse("2026-10-09T17:28:00.000Z")),
+    );
+    // The press's email was applied, with a timeline entry dated now.
+    const quarry = await applicationByCompany("Quarry AI");
+    expect(quarry.timeline[0]).toMatchObject({ messageId: order[0], undoable: true });
+    expect(quarry.timeline[0]?.summary).toMatch(/^Interview rescheduled to /);
+    expect(Date.parse(quarry.timeline[0]?.occurredAt ?? "")).toBe(later.getTime());
+    expect(quarry.interviews[0]?.startsAt).not.toBe(quarryBefore.interviews[0]?.startsAt);
+    // The next press goes on with the second email.
+    const next = await call("POST", "/demo/simulate-email");
+    expect(next.json<{ messageId: string }>().messageId).toBe(order[1]);
+  });
+
+  it("two presses at the exhaustion point reset once and apply two different emails", async () => {
+    const { call } = await demo();
+    const seed = loadSeed();
+    const order = seed.mailbox.order;
+    for (let i = 0; i < order.length; i += 1) await call("POST", "/demo/simulate-email");
+
+    const both = await Promise.all([
+      call("POST", "/demo/simulate-email"),
+      call("POST", "/demo/simulate-email"),
+    ]);
+    expect(both.map((r) => r.statusCode)).toEqual([202, 202]);
+    expect(both.map((r) => r.json<{ messageId: string }>().messageId).sort()).toEqual(
+      [order[0], order[1]].sort(),
+    );
+    // One reset: the seed's messages and exactly these two.
+    expect(await prisma.gmailMessage.count()).toBe(seed.messages.length + 2);
+    expect(
+      await prisma.gmailMessage.count({ where: { state: { in: ["applied", "needs_review"] } } }),
+    ).toBe(seed.messages.length + 2);
   });
 
   it("reprocessing a simulated message in the worker gives the same dates the simulation did", async () => {

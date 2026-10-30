@@ -745,7 +745,7 @@ Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief →
 
 - `APP_MODE=demo` boots with `FakeLlmProvider`, `FakeMailbox` (serves `fixtures/emails` marked `demo: true`), no auth, and mutation guard: routes that accept free text (`POST/PATCH` with notes or text, CV, imports, manual creates, settings) return `403 demo_read_only`.
 - `demo.reset` (hourly and at boot): truncate application tables, seed `fixtures/demo` (fictional companies only — no real company names), shift every timestamp by `now − seedAnchor` so data looks current, reset the fake mailbox cursor.
-- `POST /demo/simulate-email`: inserts the next unused fixture as `discovered` and runs triage → extract → apply inline (so the visitor sees the result within seconds).
+- `POST /demo/simulate-email`: inserts the next unused fixture as `discovered` and runs triage → extract → apply inline (so the visitor sees the result within seconds). When every fixture of the walk has been used, the next press first runs the same reset as `demo.reset` (in the same transaction, under the intake lock) and then takes the first fixture of the fresh walk, so every press changes something and no fixture is delivered twice.
 - *Run search now*: the fake provider returns the next fixture batch from `fixtures/leads`, through the real intake.
 
 ## 13. Failure handling

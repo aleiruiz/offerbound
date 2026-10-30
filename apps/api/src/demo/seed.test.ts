@@ -103,14 +103,12 @@ describe("FakeMailbox", () => {
     expect(box.nextId(new Set(["offer-arbor-analytics"]))).toBe("reschedule-ics-quarry-ai");
   });
 
-  it("starts over with suffixed ids once every email is used", () => {
+  it("has no next email once every one is used (the caller resets the demo)", () => {
     const box = mailbox();
-    const used = new Set(order);
-    expect(box.nextId(used)).toBe("reschedule-ics-quarry-ai~2");
-    used.add("reschedule-ics-quarry-ai~2");
-    expect(box.nextId(used)).toBe("offer-arbor-analytics~2");
-    for (const id of order) used.add(`${id}~2`);
-    expect(box.nextId(used)).toBe("reschedule-ics-quarry-ai~3");
+    expect(box.isExhausted(new Set(order.slice(1)))).toBe(false);
+    expect(box.isExhausted(new Set(order))).toBe(true);
+    expect(() => box.nextId(new Set(order))).toThrow(/used/);
+    expect(() => box.deliverNext(new Set(order), new Date())).toThrow(/used/);
   });
 
   it("serves the delivered email dated at its arrival, and the originals until then", async () => {

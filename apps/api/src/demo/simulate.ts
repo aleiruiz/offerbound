@@ -6,6 +6,8 @@ import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { runTriageBatch } from "../pipeline/triage.js";
 import { FakeMailbox } from "./fake-mailbox.js";
+import { resetDemoMemory, resetDemoTables } from "./reset.js";
+import { loadSeed } from "./seed.js";
 
 /** The stages `simulateEmail` runs itself, in the request, so the visitor sees the result at once. */
 const RUN_INLINE: ReadonlySet<QueueName> = new Set([
@@ -35,7 +37,10 @@ function inlineQueue(queue: JobQueue): JobQueue {
  * (dated now) as a `discovered` message, and goes through triage, extraction and apply, the real
  * stages, with the fake model, before this returns. The visitor sees the status, interview or
  * lead change and the timeline entry. Picking the email and storing its row happen together
- * under the intake lock, so two visitors never get the same one.
+ * under the intake lock, so two visitors never get the same one. When the last email of the walk
+ * has been used, the press first resets the demo (the same swap as the hourly `demo.reset`, in
+ * the same transaction), so every press changes something and AC-16.4 holds for the next
+ * visitor too.
  */
 export async function simulateEmail(ctx: WorkerCtx): Promise<{ messageId: string }> {
   if (ctx.env.mode !== "demo") throw new Error("Simulated email only runs in demo mode.");
@@ -46,9 +51,16 @@ export async function simulateEmail(ctx: WorkerCtx): Promise<{ messageId: string
   const now = ctx.clock();
 
   const delivered = await withIntakeLock(ctx.prisma, async (tx) => {
-    const used = new Set(
-      (await tx.gmailMessage.findMany({ select: { id: true } })).map((m) => m.id),
-    );
+    const storedIds = async (): Promise<Set<string>> =>
+      new Set((await tx.gmailMessage.findMany({ select: { id: true } })).map((m) => m.id));
+    let used = await storedIds();
+    if (mailbox.isExhausted(used)) {
+      // Every email has been simulated: start over, so this press changes something again. The
+      // lock is held, so a second press waits, finds the fresh walk and takes its next email.
+      await resetDemoTables(tx, ctx.env.userTimezone, now, loadSeed());
+      await resetDemoMemory(ctx);
+      used = await storedIds();
+    }
     const fixture = mailbox.deliverNext(used, now);
     // What sync leaves behind: the id, with placeholder values until triage reads the message.
     await tx.gmailMessage.create({
