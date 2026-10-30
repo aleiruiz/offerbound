@@ -14,8 +14,6 @@ import type {
   Settings,
   Today,
 } from "@offerbound/contracts";
-import { useTheme } from "@mui/material/styles";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import { useMemo, type ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { ApiClientError } from "../api/client";
@@ -41,6 +39,7 @@ import { TargetMeter } from "../components/TargetMeter";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { formatDate, formatLongDay, formatShortDate, formatTime, zoneCity } from "../lib/format";
 import { usePipelineMovement } from "../lib/pipeline-movement";
+import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 
 /**
@@ -239,22 +238,6 @@ function EmptyLine({ children }: { children: ReactNode }) {
       {children}
     </Typography>
   );
-}
-
-/**
- * Text links under 600px are at least 44px tall (DESIGN_SPEC §9.4); the theme only handles
- * buttons. `extra` adds to the link's own style.
- */
-function useLinkSx(extra: Record<string, unknown> = {}) {
-  const theme = useTheme();
-  const phone = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
-  return {
-    fontSize: 14,
-    fontWeight: 600,
-    textDecoration: "none",
-    ...(phone ? { display: "inline-flex", alignItems: "center", minHeight: 44 } : {}),
-    ...extra,
-  };
 }
 
 // ---------------------------------------------------------------------------------------------

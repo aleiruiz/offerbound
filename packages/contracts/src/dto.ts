@@ -258,6 +258,12 @@ export const SearchRunSchema = z.object({
 });
 export type SearchRun = z.infer<typeof SearchRunSchema>;
 
+/**
+ * `GET /search/runs` answers with the last 14 runs as a plain list (§10.1). The spec does not fix
+ * their order, so a reader that needs the newest run sorts by `startedAt`.
+ */
+export const SearchRunsSchema = z.array(SearchRunSchema);
+
 export const CompanySchema = z.object({
   id,
   version,
@@ -306,6 +312,14 @@ export const ApplicationPatchSchema = z.object({
   sponsorshipText: z.string().nullable().optional(),
 });
 export type ApplicationPatch = z.infer<typeof ApplicationPatchSchema>;
+
+/** `POST /applications/:id/merge`: fold this application into another (AC-6.5). */
+export const ApplicationMergeSchema = z.object({ intoId: requiredText });
+export type ApplicationMerge = z.infer<typeof ApplicationMergeSchema>;
+
+/** `POST /events/:id/undo` answers 200 with `{ undone: true }` (TECHNICAL_SPEC §10.1). */
+export const UndoResultSchema = z.object({ undone: z.literal(true) });
+export type UndoResult = z.infer<typeof UndoResultSchema>;
 
 export const InterviewCreateSchema = z.object({
   kind: InterviewKindSchema,

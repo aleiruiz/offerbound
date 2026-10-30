@@ -1,16 +1,12 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router";
 import { setUnauthorizedHandler } from "./api/client";
+import { ApplicationDetailPage } from "./pages/ApplicationDetailPage";
+import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
-import {
-  ApplicationDetailPage,
-  ApplicationsPage,
-  InterviewsPage,
-  LeadsPage,
-  ReviewPage,
-  SettingsPage,
-} from "./pages/placeholders";
+import { LeadsPage } from "./pages/LeadsPage";
+import { InterviewsPage, ReviewPage, SettingsPage } from "./pages/placeholders";
 import { TodayPage } from "./pages/TodayPage";
 import { AppShell } from "./shell/AppShell";
 import { RequireSession } from "./shell/RequireSession";

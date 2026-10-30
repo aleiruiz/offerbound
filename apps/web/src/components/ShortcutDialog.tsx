@@ -47,7 +47,7 @@ const GROUPS: ShortcutGroup[] = [
   },
 ];
 
-function Key({ children }: { children: string }) {
+export function Key({ children }: { children: string }) {
   return (
     <Box
       component="kbd"

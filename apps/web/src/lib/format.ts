@@ -58,6 +58,44 @@ export function localDayKey(d: Date | string, tz: string): string {
   }).format(toDate(d));
 }
 
+/** The zone's offset from UTC at an instant, in milliseconds (east of UTC is positive). */
+function zoneOffsetMs(instantMs: number, tz: string): number {
+  const parts = formatter(tz, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(new Date(instantMs));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const asUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return asUtc - Math.floor(instantMs / 1000) * 1000;
+}
+
+/**
+ * The instant an owner-local calendar day (`YYYY-MM-DD`) begins, as an ISO string with `Z`. Dates
+ * the owner types mean local midnight (DESIGN_SPEC §10). Null when `day` is not a real day.
+ */
+export function localMidnightIso(day: string, tz: string): string | null {
+  if (formatLongDay(day) === null) return null;
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const wall = Date.UTC(y, m - 1, d);
+  let instant = wall - zoneOffsetMs(wall, tz);
+  // Across a daylight-saving change the first guess uses the wrong offset; settle on the right one.
+  const settled = wall - zoneOffsetMs(instant, tz);
+  if (settled !== instant) instant = settled;
+  return new Date(instant).toISOString();
+}
+
 const relative = new Intl.RelativeTimeFormat("en-US", { numeric: "always" });
 
 /** "2 days ago", "in 3 days", "just now". The absolute date belongs in a tooltip or caption. */

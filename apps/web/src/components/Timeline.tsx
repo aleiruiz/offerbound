@@ -1,4 +1,4 @@
-import type { TimelineEvent } from "@offerbound/contracts";
+import type { EventType, TimelineEvent } from "@offerbound/contracts";
 import MailOutlineOutlined from "@mui/icons-material/MailOutlineOutlined";
 import UndoOutlined from "@mui/icons-material/UndoOutlined";
 import Box from "@mui/material/Box";
@@ -18,6 +18,30 @@ export function stopKind(event: TimelineEvent): StopKind {
   // An application created from an email is shown as the email it came from.
   if (event.type === "application_created" && event.messageId !== null) return "email";
   return "auto";
+}
+
+/**
+ * The automatic changes that write a change set, and so can be undone (TECHNICAL_SPEC §6.6). An
+ * entry of another type (a reminder, an email, an undo) never could be, so it says nothing.
+ */
+const UNDOABLE_TYPES: ReadonlySet<EventType> = new Set<EventType>([
+  "application_created",
+  "status_changed",
+  "field_updated",
+  "interview_created",
+  "interview_updated",
+  "interview_cancelled",
+  "interview_completed",
+  "abandoned",
+  "reopened",
+  "lead_converted",
+]);
+
+/** An entry that could have been undone but no longer can: the application changed after it. */
+function lostUndo(event: TimelineEvent): boolean {
+  if (event.undoable || event.undoneAt !== null || !UNDOABLE_TYPES.has(event.type)) return false;
+  // Marking a lead as applied is the owner's own action, and it is undoable too.
+  return event.actor === "system" || event.type === "lead_converted";
 }
 
 const STOP_BOX = 20;
@@ -120,11 +144,7 @@ export function Timeline({
     >
       {sorted.map((event) => {
         const canUndo = event.undoable && event.undoneAt === null;
-        const cannotUndo =
-          !event.undoable &&
-          event.undoneAt === null &&
-          event.actor === "system" &&
-          stopKind(event) === "auto";
+        const cannotUndo = lostUndo(event);
         const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
           if (e.key !== "u" || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target))
             return;

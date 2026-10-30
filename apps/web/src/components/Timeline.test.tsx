@@ -167,6 +167,79 @@ describe("Timeline", () => {
     expect(onUndo).toHaveBeenCalledTimes(1);
   });
 
+  it("says the application changed afterwards only for entries that could have been undone", () => {
+    const base = { actor: "system" as const, undoable: false, undoneAt: null };
+    renderWithProviders(
+      <Timeline
+        events={[
+          makeEvent({
+            ...base,
+            id: "t-status",
+            type: "status_changed",
+            occurredAt: "2026-10-27T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-created",
+            type: "application_created",
+            messageId: "m1",
+            occurredAt: "2026-10-26T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-interview",
+            type: "interview_created",
+            occurredAt: "2026-10-25T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-converted",
+            type: "lead_converted",
+            actor: "owner",
+            occurredAt: "2026-10-24T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-due",
+            type: "follow_up_due",
+            occurredAt: "2026-10-23T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-undone",
+            type: "undone",
+            occurredAt: "2026-10-22T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-merged",
+            type: "merged",
+            occurredAt: "2026-10-21T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-done",
+            type: "follow_up_done",
+            occurredAt: "2026-10-20T10:00:00Z",
+          }),
+          makeEvent({
+            ...base,
+            id: "t-owner",
+            type: "status_changed",
+            actor: "owner",
+            occurredAt: "2026-10-19T10:00:00Z",
+          }),
+        ]}
+        onUndo={vi.fn()}
+        onViewEmail={vi.fn()}
+      />,
+    );
+    const captioned = entries()
+      .filter((li) => within(li).queryByText(/Can't undo/) !== null)
+      .map((li) => li.getAttribute("data-event-id"));
+    expect(captioned).toEqual(["t-status", "t-created", "t-interview", "t-converted"]);
+  });
+
   it("shows nothing but an empty list for no events", () => {
     renderWithProviders(<Timeline events={[]} onUndo={vi.fn()} onViewEmail={vi.fn()} />);
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);

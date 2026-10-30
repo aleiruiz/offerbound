@@ -50,6 +50,8 @@ export interface LeadRowProps {
   timezone?: string;
   /** The current time, for "at 07:04" versus "on Oct 27". Defaults to now. */
   now?: Date;
+  /** Track key to label, from the settings. A key with no label is shown as it is. */
+  trackLabels?: Record<string, string>;
   /** Marks the row the keyboard is on (`aria-current`). */
   focused?: boolean;
   /** Props from `useListKeyboard().getRowProps(i)`. */
@@ -76,6 +78,7 @@ export function LeadRow({
   lead,
   timezone = DEFAULT_TIMEZONE,
   now,
+  trackLabels,
   focused,
   rowProps,
   onShortlist,
@@ -199,7 +202,9 @@ export function LeadRow({
           </Box>
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-          {lead.track ? <FlagChip tone="neutral" label={lead.track} /> : null}
+          {lead.track ? (
+            <FlagChip tone="neutral" label={trackLabels?.[lead.track] ?? lead.track} />
+          ) : null}
           {workMode ? <FlagChip tone="neutral" label={workMode} /> : null}
           <FlagChip tone={verification.tone} label={verification.label} />
           {compensationLabel ? <FlagChip tone="neutral" label={compensationLabel} /> : null}

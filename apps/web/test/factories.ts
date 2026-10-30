@@ -1,4 +1,5 @@
 import type {
+  ApplicationDetail,
   ApplicationSummary,
   InterviewWithApplication,
   Lead,
@@ -71,6 +72,24 @@ export function makeApplication(overrides: Partial<ApplicationSummary> = {}): Ap
     workMode: "remote",
     country: null,
     source: "manual",
+    ...overrides,
+  };
+}
+
+export function makeApplicationDetail(
+  overrides: Partial<ApplicationDetail> = {},
+): ApplicationDetail {
+  return {
+    ...makeApplication(),
+    jobUrl: "https://jobs.example/northwind/42",
+    locationText: "Remote, open to Mexico",
+    compensationText: "US$9.5–11k / month",
+    sponsorshipText: null,
+    notes: null,
+    leadId: null,
+    interviews: [],
+    messages: [],
+    timeline: [],
     ...overrides,
   };
 }

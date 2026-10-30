@@ -37,6 +37,12 @@ function ignoreKey(e: KeyboardEvent): boolean {
   );
 }
 
+/** True when focus is on the page itself or inside a list row, where row keys apply. */
+function inListContext(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  return target === document.body || target.closest("[data-list-row]") !== null;
+}
+
 // --- Shortcut dialog state, shared by `?` and any button that opens the dialog ---
 
 let dialogOpen = false;
@@ -167,7 +173,8 @@ export function useListKeyboard<T>(
       } else {
         const action = h.keys?.[e.key];
         const item = current[index];
-        if (action && item !== undefined) {
+        // Row keys belong to the list: not to a select, a menu or a button elsewhere on the page.
+        if (action && item !== undefined && inListContext(e.target)) {
           e.preventDefault();
           action(item);
         }

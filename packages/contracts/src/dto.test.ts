@@ -3,6 +3,7 @@ import {
   ApiErrorBodySchema,
   ApiErrorCodeSchema,
   ApplicationCreateSchema,
+  ApplicationMergeSchema,
   ApplicationPatchSchema,
   CvProfileSchema,
   CvUploadFailedSchema,
@@ -13,9 +14,11 @@ import {
   PageSchema,
   ParsedMessageSchema,
   ReviewResolveSchema,
+  SearchRunsSchema,
   SheetCommitBodySchema,
   TodaySchema,
   TimelineEventSchema,
+  UndoResultSchema,
   type EmailFixture,
 } from "./index.js";
 import { z } from "zod";
@@ -255,5 +258,40 @@ describe("onboarding request and response shapes", () => {
     expect(CvUploadFailedSchema.safeParse({ profileStatus: "failed", profile }).success).toBe(
       false,
     );
+  });
+});
+
+describe("application merge and undo", () => {
+  it("POST /applications/:id/merge takes { intoId }; POST /events/:id/undo answers { undone: true }", () => {
+    expect(ApplicationMergeSchema.parse({ intoId: "a2" })).toEqual({ intoId: "a2" });
+    expect(ApplicationMergeSchema.safeParse({}).success).toBe(false);
+    expect(ApplicationMergeSchema.safeParse({ intoId: "" }).success).toBe(false);
+    expect(UndoResultSchema.parse({ undone: true })).toEqual({ undone: true });
+    expect(UndoResultSchema.safeParse({ undone: false }).success).toBe(false);
+  });
+});
+
+describe("search runs", () => {
+  const run = {
+    id: "r1",
+    trigger: "manual",
+    status: "running",
+    startedAt: "2026-10-30T13:00:00Z",
+    finishedAt: null,
+    rounds: 1,
+    returned: 12,
+    accepted: 9,
+    suppressed: 2,
+    duplicates: 1,
+    dead: 0,
+    webSearchCalls: 30,
+    costMicros: null,
+    error: null,
+  };
+
+  it("GET /search/runs answers with a plain list of runs", () => {
+    expect(SearchRunsSchema.parse([run])).toHaveLength(1);
+    expect(SearchRunsSchema.parse([])).toEqual([]);
+    expect(SearchRunsSchema.safeParse({ items: [run], nextCursor: null }).success).toBe(false);
   });
 });
