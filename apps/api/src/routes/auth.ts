@@ -16,8 +16,10 @@ const OAUTH_COOKIE_ATTRIBUTES = {
   sameSite: "lax",
   path: "/api/v1/auth/google",
 } as const;
-/** Auth routes: 20 requests per minute per IP (TECHNICAL_SPEC §4). */
-const AUTH_RATE_LIMIT = { rateLimit: { max: 20, timeWindow: "1 minute" } } as const;
+/** Auth routes share one counter: 20 requests per minute per IP (TECHNICAL_SPEC §4). */
+const AUTH_RATE_LIMIT = { max: 20, timeWindow: "1 minute" } as const;
+/** Longest the 403 page waits for Google to confirm a revoke. */
+const REVOKE_TIMEOUT_MS = 3_000;
 
 function redirectUri(deps: Pick<AppDeps, "env">): string {
   return `${deps.env.publicBaseUrl.replace(/\/+$/, "")}/api/v1/auth/google/callback`;
@@ -64,6 +66,26 @@ a{align-self:flex-start;padding:6px 12px;border:1px solid #b3261e;border-radius:
 `;
 }
 
+/**
+ * Best effort: a non-owner's grant should not outlive the 403 page. Failures and slowness are
+ * ignored, and the token is never logged.
+ */
+async function revokeQuietly(google: AppDeps["google"], token: string): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      google.revoke(token),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, REVOKE_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    // Ignored on purpose.
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function clearOauthCookie(reply: FastifyReply): void {
   void reply.clearCookie(OAUTH_COOKIE, OAUTH_COOKIE_ATTRIBUTES);
 }
@@ -72,103 +94,113 @@ function clearOauthCookie(reply: FastifyReply): void {
  * Google sign-in (TECHNICAL_SPEC §4, SECURITY §5). Registered outside the session guard. Handlers
  * never log the code, state, nonce, tokens or the email address.
  */
-export function registerAuthRoutes(app: FastifyInstance, deps: AppDeps): void {
+export async function registerAuthRoutes(root: FastifyInstance, deps: AppDeps): Promise<void> {
   const { env, prisma, google } = deps;
-
-  app.get("/auth/google/start", { config: AUTH_RATE_LIMIT }, async (_request, reply) => {
-    // Without a stored refresh token Google must be asked to consent again to issue one.
-    const connection = await prisma.gmailConnection.findUnique({
-      where: { id: 1 },
-      select: { refreshTokenEnc: true },
-    });
-    const prompt = connection?.refreshTokenEnc ? "select_account" : "consent";
-    const state = randomBytes(32).toString("base64url");
-    const nonce = randomBytes(32).toString("base64url");
-    void reply.setCookie(OAUTH_COOKIE, `${state}.${nonce}`, {
-      ...OAUTH_COOKIE_ATTRIBUTES,
-      maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS,
-    });
-    return reply.redirect(
-      google.authUrl({ state, nonce, prompt, redirectUri: redirectUri(deps) }),
-      302,
-    );
+  // A scope of its own so the limiter below covers these routes and nothing registered later.
+  await root.register((app, _options, done) => {
+    // One limiter instance, so start, callback and logout draw on the same counter per IP.
+    app.addHook("onRequest", app.rateLimit(AUTH_RATE_LIMIT));
+    registerRoutes(app);
+    done();
   });
 
-  app.get("/auth/google/callback", { config: AUTH_RATE_LIMIT }, async (request, reply) => {
-    const query = request.query as Record<string, unknown>;
-    const code = typeof query.code === "string" ? query.code : "";
-    const state = typeof query.state === "string" ? query.state : "";
-    const [cookieState = "", nonce = ""] = (request.cookies[OAUTH_COOKIE] ?? "").split(".");
-    // The cookie is single-use whatever happens next.
-    clearOauthCookie(reply);
-
-    // Declined at Google's consent screen.
-    if (typeof query.error === "string") return reply.redirect("/login?error=denied", 302);
-    if (!code || !state || !cookieState || !nonce || !safeEqual(state, cookieState)) {
-      return reply.redirect("/login?error=expired", 302);
-    }
-
-    let tokens;
-    let identity;
-    try {
-      tokens = await google.exchangeCode(code, redirectUri(deps));
-      identity = await google.verifyIdToken(tokens.idToken, nonce);
-    } catch (error) {
-      request.log.warn({ errorName: (error as Error).name }, "google sign-in failed");
-      return reply.redirect("/login?error=expired", 302);
-    }
-
-    // The owner is the only account that may sign in (AC-1.2, AC-1.3). Nothing is stored otherwise.
-    if (!identity.emailVerified || identity.email.toLowerCase() !== env.ownerEmail) {
-      return reply
-        .code(403)
-        .header("content-type", "text/html; charset=utf-8")
-        .header("cache-control", "no-store")
-        .header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'")
-        .send(notOwnerPage(identity.email));
-    }
-
-    const key = env.tokenEncryptionKey;
-    if (!key) throw new ApiError(500, "internal_error", "Something went wrong.");
-    const now = deps.clock();
-
-    const existing = await prisma.gmailConnection.findUnique({ where: { id: 1 } });
-    // Google sends a refresh token only on consent. Keep the stored one otherwise, but never one
-    // that belongs to a different Google account. An empty string counts as none.
-    const newRefresh = tokens.refreshToken ? encryptToken(tokens.refreshToken, key) : null;
-    const keptRefresh = existing?.googleSub === identity.sub ? existing.refreshTokenEnc : null;
-    const refreshTokenEnc = newRefresh ?? keptRefresh;
-    const status = !tokens.scopes.includes(GMAIL_READONLY_SCOPE)
-      ? "missing_scope"
-      : refreshTokenEnc === null
-        ? "needs_reauth"
-        : "active";
-    const fields = {
-      googleSub: identity.sub,
-      email: identity.email,
-      scopes: tokens.scopes,
-      refreshTokenEnc,
-      accessTokenEnc: tokens.accessToken ? encryptToken(tokens.accessToken, key) : null,
-      accessTokenExpiresAt: tokens.expiresAt,
-      status,
-      ...(status === "active" ? { lastSyncError: null } : {}),
-    } as const;
-    await prisma.gmailConnection.upsert({
-      where: { id: 1 },
-      create: { id: 1, ...fields, backfillSince: new Date(env.gmailBackfillSince) },
-      update: fields,
+  function registerRoutes(app: FastifyInstance): void {
+    app.get("/auth/google/start", async (_request, reply) => {
+      // Without a stored refresh token Google must be asked to consent again to issue one.
+      const connection = await prisma.gmailConnection.findUnique({
+        where: { id: 1 },
+        select: { refreshTokenEnc: true },
+      });
+      const prompt = connection?.refreshTokenEnc ? "select_account" : "consent";
+      const state = randomBytes(32).toString("base64url");
+      const nonce = randomBytes(32).toString("base64url");
+      void reply.setCookie(OAUTH_COOKIE, `${state}.${nonce}`, {
+        ...OAUTH_COOKIE_ATTRIBUTES,
+        maxAge: OAUTH_COOKIE_MAX_AGE_SECONDS,
+      });
+      return reply.redirect(
+        google.authUrl({ state, nonce, prompt, redirectUri: redirectUri(deps) }),
+        302,
+      );
     });
 
-    const session = await createSession(prisma, request.headers["user-agent"] ?? null, now);
-    setSessionCookie(reply, session.cookieValue);
-    const onboarded = (await getOnboardingCompletedAt(prisma)) !== null;
-    return reply.redirect(onboarded ? "/today" : "/onboarding", 302);
-  });
+    app.get("/auth/google/callback", async (request, reply) => {
+      const query = request.query as Record<string, unknown>;
+      const code = typeof query.code === "string" ? query.code : "";
+      const state = typeof query.state === "string" ? query.state : "";
+      const [cookieState = "", nonce = ""] = (request.cookies[OAUTH_COOKIE] ?? "").split(".");
+      // The cookie is single-use whatever happens next.
+      clearOauthCookie(reply);
 
-  app.post("/auth/logout", { config: AUTH_RATE_LIMIT }, async (request, reply) => {
-    const cookieValue = sessionCookieOf(request);
-    if (cookieValue) await deleteSession(prisma, cookieValue);
-    clearSessionCookie(reply);
-    return reply.code(204).send();
-  });
+      // Declined at Google's consent screen.
+      if (typeof query.error === "string") return reply.redirect("/login?error=expired", 302);
+      if (!code || !state || !cookieState || !nonce || !safeEqual(state, cookieState)) {
+        return reply.redirect("/login?error=expired", 302);
+      }
+
+      let tokens;
+      let identity;
+      try {
+        tokens = await google.exchangeCode(code, redirectUri(deps));
+        identity = await google.verifyIdToken(tokens.idToken, nonce);
+      } catch (error) {
+        request.log.warn({ errorName: (error as Error).name }, "google sign-in failed");
+        return reply.redirect("/login?error=expired", 302);
+      }
+
+      // The owner is the only account that may sign in (AC-1.2, AC-1.3). Nothing is stored otherwise.
+      if (!identity.emailVerified || identity.email.toLowerCase() !== env.ownerEmail) {
+        await revokeQuietly(google, tokens.accessToken);
+        return reply
+          .code(403)
+          .header("content-type", "text/html; charset=utf-8")
+          .header("cache-control", "no-store")
+          .header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'")
+          .send(notOwnerPage(identity.email));
+      }
+
+      const key = env.tokenEncryptionKey;
+      if (!key) throw new ApiError(500, "internal_error", "Something went wrong.");
+      const now = deps.clock();
+
+      const existing = await prisma.gmailConnection.findUnique({ where: { id: 1 } });
+      // Google sends a refresh token only on consent. Keep the stored one otherwise, but never one
+      // that belongs to a different Google account. An empty string counts as none.
+      const newRefresh = tokens.refreshToken ? encryptToken(tokens.refreshToken, key) : null;
+      const keptRefresh = existing?.googleSub === identity.sub ? existing.refreshTokenEnc : null;
+      const refreshTokenEnc = newRefresh ?? keptRefresh;
+      const status = !tokens.scopes.includes(GMAIL_READONLY_SCOPE)
+        ? "missing_scope"
+        : refreshTokenEnc === null
+          ? "needs_reauth"
+          : "active";
+      const fields = {
+        googleSub: identity.sub,
+        email: identity.email,
+        scopes: tokens.scopes,
+        refreshTokenEnc,
+        accessTokenEnc: tokens.accessToken ? encryptToken(tokens.accessToken, key) : null,
+        accessTokenExpiresAt: tokens.expiresAt,
+        status,
+        ...(status === "active" ? { lastSyncError: null } : {}),
+      } as const;
+      await prisma.gmailConnection.upsert({
+        where: { id: 1 },
+        create: { id: 1, ...fields, backfillSince: new Date(env.gmailBackfillSince) },
+        update: fields,
+      });
+
+      const session = await createSession(prisma, request.headers["user-agent"] ?? null, now);
+      setSessionCookie(reply, session.cookieValue);
+      const onboarded = (await getOnboardingCompletedAt(prisma)) !== null;
+      return reply.redirect(onboarded ? "/today" : "/onboarding", 302);
+    });
+
+    app.post("/auth/logout", async (request, reply) => {
+      const cookieValue = sessionCookieOf(request);
+      if (cookieValue) await deleteSession(prisma, cookieValue);
+      clearSessionCookie(reply);
+      return reply.code(204).send();
+    });
+  }
 }

@@ -29,6 +29,8 @@ export const LOG_REDACT_PATHS = [
 export type BuildAppOptions = {
   /** Destination for log lines; tests use it to inspect what is logged. Defaults to stdout. */
   logStream?: Writable;
+  /** Called for every route as it is registered (not HEAD or OPTIONS). Tests use it to walk routes. */
+  onRoute?: (route: { method: string; url: string }) => void;
 };
 
 export async function buildApp(
@@ -57,6 +59,15 @@ export async function buildApp(
     trustProxy: env.trustedProxyIps,
   });
 
+  const { onRoute } = options;
+  if (onRoute) {
+    app.addHook("onRoute", (route) => {
+      for (const method of [route.method].flat()) {
+        if (method !== "HEAD" && method !== "OPTIONS") onRoute({ method, url: route.url });
+      }
+    });
+  }
+
   // No CORS plugin, ever: the API sends no Access-Control-* headers (SECURITY §5).
   registerErrorHandling(app);
   await registerRateLimit(app);
@@ -71,7 +82,7 @@ export async function buildApp(
   await app.register(
     async (api) => {
       // Demo mode has no sign-in (TECHNICAL_SPEC §4).
-      if (deps.env.mode === "private") registerAuthRoutes(api, deps);
+      if (deps.env.mode === "private") await registerAuthRoutes(api, deps);
 
       // Everything below needs a session. Later tasks register their routes here.
       await api.register((guarded, _options, done) => {

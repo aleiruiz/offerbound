@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
   createSession,
@@ -114,6 +114,31 @@ describe("sessions", () => {
     expect(await readSession(db, "A".repeat(43), NOW)).toBeNull();
     expect(await readSession(db, "", NOW)).toBeNull();
     expect(await readSession(db, "not a cookie value", NOW)).toBeNull();
+  });
+
+  it("treats a session deleted during renewal as no session", async () => {
+    const { db } = memoryDb();
+    const { cookieValue } = await createSession(db, null, NOW);
+    const gone = new Prisma.PrismaClientKnownRequestError("Record not found", {
+      code: "P2025",
+      clientVersion: "test",
+    });
+    (db.session as unknown as { update: () => never }).update = () => {
+      throw gone;
+    };
+    const later = new Date(NOW.getTime() + 25 * DAY); // inside the renewal window
+    expect(await readSession(db, cookieValue, later)).toBeNull();
+  });
+
+  it("rethrows other errors from the renewal", async () => {
+    const { db } = memoryDb();
+    const { cookieValue } = await createSession(db, null, NOW);
+    (db.session as unknown as { update: () => never }).update = () => {
+      throw new Error("connection lost");
+    };
+    await expect(readSession(db, cookieValue, new Date(NOW.getTime() + 25 * DAY))).rejects.toThrow(
+      "connection lost",
+    );
   });
 
   it("deletes the session row", async () => {

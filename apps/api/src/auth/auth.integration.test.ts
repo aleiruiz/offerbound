@@ -5,7 +5,7 @@ import { ApiErrorBodySchema, DEFAULT_SETTINGS, MeSchema } from "@offerbound/cont
 import { loadEnv } from "../config/env.js";
 import { buildTestApp, signIn, testEnv } from "../../test/app.js";
 import { resetDb, testPrisma } from "../../test/db.js";
-import type { FakeGoogleAuthClient } from "../../test/fake-google.js";
+import { FakeGoogleAuthClient } from "../../test/fake-google.js";
 import { decryptToken, encryptToken } from "./crypto.js";
 import { createGoogleAuthClient, GOOGLE_SCOPES } from "./google.js";
 import { createSession } from "./sessions.js";
@@ -149,6 +149,7 @@ describe("GET /auth/google/callback", () => {
     const res = await callback(app, google, { state: "some-other-state" });
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe("/login?error=expired");
+    expect(cookieOf(res, "ob_oauth")).toMatchObject({ value: "", maxAge: 0 });
     expect(cookieOf(res, "ob_session")).toBeUndefined();
     expect(google.exchanged).toHaveLength(0);
     expect(await prisma.session.count()).toBe(0);
@@ -159,16 +160,19 @@ describe("GET /auth/google/callback", () => {
     const { app, google } = await appWith();
     const noCookie = await callback(app, google, { cookie: null });
     expect(noCookie.headers.location).toBe("/login?error=expired");
+    expect(cookieOf(noCookie, "ob_oauth")).toMatchObject({ value: "", maxAge: 0 });
     const noCode = await callback(app, google, { code: null });
     expect(noCode.headers.location).toBe("/login?error=expired");
+    expect(cookieOf(noCode, "ob_oauth")).toMatchObject({ value: "", maxAge: 0 });
     expect(google.exchanged).toHaveLength(0);
   });
 
-  it("when the owner cancels at Google → 302 /login?error=denied", async () => {
+  it("when the owner cancels at Google → 302 /login?error=expired", async () => {
     const { app, google } = await appWith();
     const res = await callback(app, google, { query: "error=access_denied" });
     expect(res.statusCode).toBe(302);
-    expect(res.headers.location).toBe("/login?error=denied");
+    expect(res.headers.location).toBe("/login?error=expired");
+    expect(cookieOf(res, "ob_oauth")).toMatchObject({ value: "", maxAge: 0 });
     expect(await prisma.session.count()).toBe(0);
   });
 
@@ -177,6 +181,7 @@ describe("GET /auth/google/callback", () => {
     google.verifyIdToken = () => Promise.reject(new Error("bad nonce"));
     const res = await callback(app, google);
     expect(res.headers.location).toBe("/login?error=expired");
+    expect(cookieOf(res, "ob_oauth")).toMatchObject({ value: "", maxAge: 0 });
     expect(await prisma.session.count()).toBe(0);
     expect(await prisma.gmailConnection.count()).toBe(0);
   });
@@ -208,6 +213,25 @@ describe("GET /auth/google/callback", () => {
     expect(cookieOf(res, "ob_session")).toBeUndefined();
     expect(await prisma.session.count()).toBe(0);
     expect(await prisma.gmailConnection.count()).toBe(0);
+  });
+
+  it("revokes a non-owner's grant, ignoring revoke failures, and does not revoke the owner's", async () => {
+    const { app, google } = await appWith();
+    google.identity = { sub: "sub-x", email: "someone@gmail.example", emailVerified: true };
+    const res = await callback(app, google);
+    expect(res.statusCode).toBe(403);
+    expect(google.revoked).toEqual(["fake-access-token"]);
+
+    google.revoke = () => Promise.reject(new Error("revoke failed"));
+    const again = await callback(app, google);
+    expect(again.statusCode).toBe(403);
+    expect(again.body).toContain("This Offerbound is private.");
+
+    google.revoked = [];
+    google.revoke = FakeGoogleAuthClient.prototype.revoke.bind(google);
+    google.identity = { sub: "s", email: "owner@example.com", emailVerified: true };
+    expect((await callback(app, google)).statusCode).toBe(302);
+    expect(google.revoked).toEqual([]);
   });
 
   it("escapes the signed-in email in the 403 page", async () => {
@@ -531,6 +555,70 @@ describe("auth rate limit", () => {
     // The limit is for auth routes only.
     const health = await app.inject({ method: "GET", url: "/health" });
     expect(health.statusCode).toBe(200);
+  });
+});
+
+describe("auth rate limit across routes", () => {
+  it("start, callback and logout share one 20/min counter", async () => {
+    const { app } = await appWith();
+    const start = () => app.inject({ method: "GET", url: "/api/v1/auth/google/start" });
+    const cb = () => app.inject({ method: "GET", url: "/api/v1/auth/google/callback" });
+    const logout = () => app.inject({ method: "POST", url: "/api/v1/auth/logout", headers: CSRF });
+    for (let i = 0; i < 7; i++) expect((await start()).statusCode).toBe(302);
+    for (let i = 0; i < 7; i++) expect((await cb()).statusCode).toBe(302);
+    for (let i = 0; i < 6; i++) expect((await logout()).statusCode).toBe(204);
+    expect((await start()).statusCode).toBe(429);
+    expect((await cb()).statusCode).toBe(429);
+    expect((await logout()).statusCode).toBe(429);
+  });
+});
+
+describe("session guard coverage", () => {
+  async function walk(env?: ReturnType<typeof testEnv>) {
+    const routes: { method: string; url: string }[] = [];
+    const { app } = await appWith(env ? { env } : {}, { onRoute: (r) => routes.push(r) });
+    await app.ready();
+    return { app, routes };
+  }
+  const concrete = (url: string) => url.replace(/:[A-Za-z_]+/g, "x").replace(/\*/g, "x");
+
+  it("every /api/v1 route outside /auth answers 401 without a session", async () => {
+    const { app, routes } = await walk();
+    const api = routes.filter((r) => r.url.startsWith("/api/v1/"));
+    // Sanity: the walk sees the routes that exist today.
+    expect(api.map((r) => r.url)).toEqual(
+      expect.arrayContaining(["/api/v1/me", "/api/v1/auth/google/start"]),
+    );
+    const guarded = api.filter((r) => !r.url.startsWith("/api/v1/auth/"));
+    expect(guarded.length).toBeGreaterThan(0);
+    for (const route of guarded) {
+      const res = await app.inject({
+        method: route.method as "GET",
+        url: concrete(route.url),
+        headers: CSRF,
+      });
+      expect(res.statusCode, `${route.method} ${route.url}`).toBe(401);
+    }
+  });
+
+  it("in demo mode no /api/v1 route asks for a session", async () => {
+    const demo = loadEnv({
+      APP_MODE: "demo",
+      PUBLIC_BASE_URL: "https://demo.offerbound.example",
+      DATABASE_URL: process.env.DATABASE_URL ?? "",
+      LOG_LEVEL: "silent",
+    });
+    const { app, routes } = await walk(demo);
+    const api = routes.filter((r) => r.url.startsWith("/api/v1/"));
+    expect(api.length).toBeGreaterThan(0);
+    for (const route of api) {
+      const res = await app.inject({
+        method: route.method as "GET",
+        url: concrete(route.url),
+        headers: CSRF,
+      });
+      expect(res.statusCode, `${route.method} ${route.url}`).not.toBe(401);
+    }
   });
 });
 

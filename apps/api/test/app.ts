@@ -1,6 +1,6 @@
 import type { Writable } from "node:stream";
 import type { FastifyInstance } from "fastify";
-import { buildApp } from "../src/app.js";
+import { buildApp, type BuildAppOptions } from "../src/app.js";
 import { loadEnv, type Env } from "../src/config/env.js";
 import type { AppDeps } from "../src/deps.js";
 import { createSession } from "../src/auth/sessions.js";
@@ -33,7 +33,7 @@ export function testEnv(overrides: Record<string, string> = {}): Env {
   });
 }
 
-export type TestAppOptions = { logStream?: Writable };
+export type TestAppOptions = { logStream?: Writable; onRoute?: BuildAppOptions["onRoute"] };
 
 /**
  * Builds the app against the test database with a fixed environment. Later tasks add fakes for
@@ -50,7 +50,10 @@ export async function buildTestApp(
     google: new FakeGoogleAuthClient(),
     ...overrides,
   };
-  const app = await buildApp(deps, options.logStream ? { logStream: options.logStream } : {});
+  const app = await buildApp(deps, {
+    ...(options.logStream ? { logStream: options.logStream } : {}),
+    ...(options.onRoute ? { onRoute: options.onRoute } : {}),
+  });
   return { app, deps };
 }
 

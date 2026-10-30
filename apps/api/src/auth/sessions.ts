@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -63,17 +63,25 @@ export async function readSession(
     return null;
   }
 
-  if (row.expiresAt.getTime() - now.getTime() < RENEW_BELOW_MS) {
-    const renewedExpiresAt = expiryFrom(now);
-    await db.session.update({
-      where: { idHash },
-      data: { expiresAt: renewedExpiresAt, lastSeenAt: now },
-    });
-    return { renewedExpiresAt };
-  }
+  try {
+    if (row.expiresAt.getTime() - now.getTime() < RENEW_BELOW_MS) {
+      const renewedExpiresAt = expiryFrom(now);
+      await db.session.update({
+        where: { idHash },
+        data: { expiresAt: renewedExpiresAt, lastSeenAt: now },
+      });
+      return { renewedExpiresAt };
+    }
 
-  if (now.getTime() - row.lastSeenAt.getTime() >= LAST_SEEN_GRANULARITY_MS) {
-    await db.session.update({ where: { idHash }, data: { lastSeenAt: now } });
+    if (now.getTime() - row.lastSeenAt.getTime() >= LAST_SEEN_GRANULARITY_MS) {
+      await db.session.update({ where: { idHash }, data: { lastSeenAt: now } });
+    }
+  } catch (error) {
+    // Deleted between the read and the update (logout in another tab): no session.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
   }
   return { renewedExpiresAt: null };
 }
