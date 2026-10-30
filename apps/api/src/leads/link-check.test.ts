@@ -154,6 +154,30 @@ describe("checkLink", () => {
     }
   });
 
+  it("a board root with any query parameter that is not a tracking one is not a root", async () => {
+    const withParams = [
+      "https://jobs.ashbyhq.com/quarry?job-id=4012345",
+      "https://jobs.ashbyhq.com/quarry?jobPostingId=4012345",
+      "https://jobs.ashbyhq.com/quarry?JobId=4012345",
+      "https://jobs.ashbyhq.com/quarry?posting=abc",
+      "https://jobs.ashbyhq.com/quarry?ashby_jid=abc",
+      "https://job-boards.greenhouse.io/quarry?gh_jid=4012345",
+      "https://jobs.lever.co/quarry?lever-source=feed&x=1",
+      "https://jobs.ashbyhq.com/quarry?utm_source=feed&opening=7",
+    ];
+    for (const finalUrl of withParams) {
+      const { fetch } = stubFetcher({ finalUrl });
+      expect((await checkLink(URL_OK, fetch)).verdict, finalUrl).toBe("verified");
+    }
+    for (const finalUrl of [
+      "https://jobs.ashbyhq.com/quarry?utm_source=feed&utm_medium=email",
+      "https://jobs.ashbyhq.com/quarry?ref=newsletter&lng=es",
+    ]) {
+      const { fetch } = stubFetcher({ finalUrl });
+      expect((await checkLink(URL_OK, fetch)).verdict, finalUrl).toBe("dead");
+    }
+  });
+
   it("a company page on its own domain is not a board root", async () => {
     const { fetch } = stubFetcher({ finalUrl: "https://quarry.example/careers" });
     expect((await checkLink(URL_OK, fetch)).verdict).toBe("verified");
@@ -216,6 +240,39 @@ describe("checkLink", () => {
     const { fetch, requested } = stubFetcher();
     expect((await checkLink("not a url", fetch)).verdict).toBe("unverified");
     expect(requested).toEqual([]);
+  });
+});
+
+describe("checkLink on hostile markup", () => {
+  const URL_PAGE = "https://jobs.example/roles/1";
+  const hostile: [string, string][] = [
+    ["nested divs", "<div>".repeat(100_000)],
+    ["nested tables", "<table><tr><td>".repeat(40_000)],
+    ["nested lists", "<ul><li>".repeat(60_000)],
+    ["nested inline elements", "<span><b><i>".repeat(40_000)],
+  ];
+
+  it.each(hostile)(
+    "%s up to 1 MB return a result quickly instead of blocking or throwing",
+    async (_name, markup) => {
+      const body = `<html><body>${markup}Backend Engineer`;
+      expect(body.length).toBeGreaterThan(200_000);
+      const fetch: LinkFetcher = (url) =>
+        Promise.resolve({ status: 200, finalUrl: url, contentType: "text/html", body });
+      const started = performance.now();
+      const result = await checkLink(URL_PAGE, fetch);
+      expect(performance.now() - started).toBeLessThan(3000);
+      expect(["verified", "unverified"]).toContain(result.verdict);
+      expect(result.finalUrl).toBe(URL_PAGE);
+    },
+  );
+
+  it("reads only the first 128 KiB of HTML", async () => {
+    const padding = `<p>${"filler ".repeat(40_000)}</p>`;
+    const late = stubFetcher({ body: html(`${padding}<p>Job not found</p>`) });
+    expect((await checkLink(URL_OK, late.fetch)).verdict).toBe("verified");
+    const early = stubFetcher({ body: html(`<p>Job not found</p>${padding}`) });
+    expect((await checkLink(URL_OK, early.fetch)).verdict).toBe("dead");
   });
 });
 

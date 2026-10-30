@@ -16,6 +16,13 @@ export type LinkCheckResult = {
 };
 
 const EXCERPT_CHARS = 8000;
+/**
+ * The most HTML given to the converter. html-to-text is synchronous and superlinear on deeply
+ * nested markup (100k nested divs blocked the thread for seconds and then overflowed the stack),
+ * so the input is cut first; 128 KiB is far more than the excerpt and the markers need, and is
+ * the same cap used for email HTML.
+ */
+const MAX_HTML_CHARS = 128 * 1024;
 
 /** Phrases that mean the posting is closed (§7.2), compared after lower-casing and collapsing space. */
 const CLOSED_MARKERS = [
@@ -44,8 +51,14 @@ const BOARD_HOSTS: ReadonlySet<string> = new Set([
   "jobs.smartrecruiters.com",
 ]);
 
-/** A query parameter that names one posting, as in `?gh_jid=123`. */
-const JOB_PARAM = /(^|_)(jid|job|jobid|job_id|id|posting)$/i;
+/**
+ * Query parameters that carry no job: tracking and display options. A board root is recognised
+ * only when every parameter is one of these, so any other name (`gh_jid`, `job-id`,
+ * `jobPostingId`, ...) is taken to name a posting. Wrongly calling a live job "dead" discards a
+ * good lead, so the check errs toward "not a root".
+ */
+const HARMLESS_PARAM =
+  /^(utm_[a-z0-9_]+|ref|ref_?src|source|src|gh_src|lng|lang|locale|fbclid|gclid|trk)$/i;
 
 function isLinkedIn(url: URL): boolean {
   return url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
@@ -54,7 +67,7 @@ function isLinkedIn(url: URL): boolean {
 function isBoardRoot(url: URL): boolean {
   if (!BOARD_HOSTS.has(url.hostname)) return false;
   if (url.pathname.split("/").filter((segment) => segment !== "").length > 1) return false;
-  for (const name of url.searchParams.keys()) if (JOB_PARAM.test(name)) return false;
+  for (const name of url.searchParams.keys()) if (!HARMLESS_PARAM.test(name)) return false;
   return true;
 }
 
@@ -62,7 +75,7 @@ function pageText(contentType: string | null, body: string): string {
   if (body === "") return "";
   const type = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
   if (type === "text/plain") return body.trim();
-  return convert(body, {
+  return convert(body.slice(0, MAX_HTML_CHARS), {
     wordwrap: false,
     selectors: [
       { selector: "script", format: "skip" },
@@ -123,7 +136,13 @@ export async function checkLink(url: string, fetch: LinkFetcher): Promise<LinkCh
   }
   if (response.status !== 200) return { verdict: "unverified", finalUrl, pageExcerpt: null };
 
-  const text = pageText(response.contentType, response.body);
+  let text: string;
+  try {
+    text = pageText(response.contentType, response.body);
+  } catch {
+    // Markup the converter cannot handle: the page could not be read, so it is not verified.
+    return { verdict: "unverified", finalUrl, pageExcerpt: null };
+  }
   const haystack = normalize(text);
   if (isBoardRoot(final) || CLOSED_MARKERS.some((marker) => haystack.includes(marker))) {
     return { verdict: "dead", finalUrl, pageExcerpt: null };
