@@ -592,6 +592,7 @@ Base path `/api/v1`. JSON in and out. Session cookie required (private). Mutatio
 | 413 | `too_large` |
 | 422 | `cv_no_text`, `unsupported_file` |
 | 429 | `rate_limited` |
+| 500 | `internal_error` (unexpected failure) |
 | 502 | `upstream_error` (OpenAI/Google) |
 | 503 | `not_ready` |
 
