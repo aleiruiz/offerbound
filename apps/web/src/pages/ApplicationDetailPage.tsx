@@ -44,6 +44,7 @@ import { formatDate, formatDateTime, formatShortDate, formatTime, zoneCity } fro
 import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 import { DemoLock } from "../lib/demo";
+import { applicationOrigin } from "../shell/origin";
 
 /**
  * Application detail (DESIGN_SPEC §5.3; AC-4.2 to 4.4, AC-6.2, AC-6.3): company, status, the next
@@ -557,6 +558,8 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   const [merging, setMerging] = useState(false);
   const [editing, setEditing] = useState(false);
   const crumbSx = useLinkSx({ fontSize: "inherit" });
+  // Back leads where the owner came from: Today, Leads, Interviews or a filtered list.
+  const origin = applicationOrigin();
   const [conflict, setConflict] = useState(false);
   const menuId = useId();
   const latest = useRef(detail);
@@ -613,8 +616,8 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
       <Typography component="nav" aria-label="Breadcrumb" variant="caption" color="text.secondary">
-        <Link component={RouterLink} to="/applications" underline="none" sx={crumbSx}>
-          Applications
+        <Link component={RouterLink} to={origin.to} underline="none" sx={crumbSx}>
+          {origin.label}
         </Link>
         {" / "}
         <span aria-current="page">{detail.company.name}</span>

@@ -33,7 +33,11 @@ function Mode() {
   return <p data-testid="mode">{useColorMode().mode}</p>;
 }
 
-function setup(route = "/settings/gmail", routes: Record<string, MockHandler> = {}) {
+function setup(
+  route = "/settings/gmail",
+  routes: Record<string, MockHandler> = {},
+  width?: number,
+) {
   const api: MockApi = mockApi({
     "GET /api/v1/me": () => ME,
     "GET /api/v1/gmail/status": () => makeSyncStatus(),
@@ -48,11 +52,12 @@ function setup(route = "/settings/gmail", routes: Record<string, MockHandler> = 
       <Where />
       <Mode />
       <Routes>
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/:section" element={<SettingsPage />} />
         <Route path="/login" element={<h1>Sign in page</h1>} />
       </Routes>
     </ColorModeProvider>,
-    { route },
+    { route, width },
   );
   return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
@@ -105,6 +110,38 @@ describe("SettingsPage", () => {
           .filter((l) => l.hasAttribute("aria-current")),
       ).toHaveLength(1);
     }
+  });
+
+  it("/settings opens Gmail on wider screens", async () => {
+    setup("/settings");
+    expect(await screen.findByRole("heading", { level: 2, name: "Gmail" })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/settings/gmail");
+  });
+
+  describe("on phones the list and the section are separate screens", () => {
+    it("/settings shows only the section list", async () => {
+      setup("/settings", {}, 400);
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Settings" }),
+      ).toBeInTheDocument();
+      const nav = screen.getByRole("navigation", { name: "Settings sections" });
+      expect(within(nav).getAllByRole("link")).toHaveLength(SECTIONS.length);
+      expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+      expect(screen.getByTestId("where")).toHaveTextContent(/^\/settings$/);
+    });
+
+    it("tapping a section shows it in place of the list", async () => {
+      const { user } = setup("/settings", {}, 400);
+      const nav = await screen.findByRole("navigation", { name: "Settings sections" });
+      await user.click(within(nav).getByRole("link", { name: "Daily targets" }));
+      expect(screen.getByTestId("where")).toHaveTextContent("/settings/targets");
+      expect(
+        await screen.findByRole("heading", { level: 2, name: "Daily targets" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("navigation", { name: "Settings sections" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("an unknown section goes to Gmail", async () => {
@@ -169,6 +206,7 @@ describe("SettingsPage", () => {
     renderWithProviders(
       <ColorModeProvider>
         <Routes>
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/:section" element={<SettingsPage />} />
         </Routes>
       </ColorModeProvider>,

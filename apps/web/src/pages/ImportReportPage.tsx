@@ -281,8 +281,18 @@ export function ImportReportPage() {
           Back to Leads
         </Link>
         <Typography variant="h4" component="h1">
-          Import a report
+          Paste a report
         </Typography>
+        <Typography variant="caption" color="text.secondary" component="p">
+          The roles you add here become leads.
+        </Typography>
+        <Link
+          component={RouterLink}
+          to="/settings/import"
+          sx={{ ...linkSx, alignSelf: "flex-start" }}
+        >
+          Import your applications spreadsheet instead
+        </Link>
       </Box>
 
       <SeenCompanies />

@@ -10,6 +10,7 @@ import lockupLight from "../assets/brand/lockup.svg";
 import markLight from "../assets/brand/mark.svg";
 import { renderWithProviders } from "../../test/render";
 import { AppShell } from "./AppShell";
+import { resetOrigin } from "./origin";
 
 const NO_COUNTS = makeNavCounts({
   openApplications: 0,
@@ -43,6 +44,9 @@ function renderShellUi(width: number, route: string) {
         <Route path="today" element={<h1>Today</h1>} />
         <Route path="interviews" element={<h1>Interviews</h1>} />
         <Route path="settings/:section" element={<h1>Settings</h1>} />
+        <Route path="applications" element={<h1>Applications</h1>} />
+        <Route path="applications/:id" element={<h1>Application</h1>} />
+        <Route path="leads" element={<h1>Leads</h1>} />
       </Route>
     </Routes>,
     { route, width },
@@ -63,7 +67,7 @@ describe("AppShell", () => {
     );
     expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute(
       "href",
-      "/settings/gmail",
+      "/settings",
     );
     expect(within(nav).getByText(window.location.host)).toBeInTheDocument();
     expect(screen.getByRole("main")).toContainElement(
@@ -124,7 +128,7 @@ describe("AppShell", () => {
     );
     expect(within(menu).getByRole("menuitem", { name: "Settings" })).toHaveAttribute(
       "href",
-      "/settings/gmail",
+      "/settings",
     );
   });
 
@@ -132,6 +136,36 @@ describe("AppShell", () => {
     renderShell(400, "/interviews");
     const banner = screen.getByRole("banner");
     expect(within(banner).getByText("Interviews")).toBeInTheDocument();
+  });
+
+  describe("below sm the top bar leads back from a sub-page", () => {
+    afterEach(() => resetOrigin());
+
+    it("has no back button on a destination", () => {
+      renderShell(400, "/interviews");
+      expect(
+        within(screen.getByRole("banner")).queryByRole("link", { name: /^Back to/ }),
+      ).toBeNull();
+    });
+
+    it("leads from a settings section to the section list", () => {
+      renderShell(400, "/settings/gmail");
+      expect(
+        within(screen.getByRole("banner")).getByRole("link", { name: "Back to Settings" }),
+      ).toHaveAttribute("href", "/settings");
+    });
+
+    it("leads from an application opened by link to the Applications list", () => {
+      renderShell(400, "/applications/app-1");
+      expect(
+        within(screen.getByRole("banner")).getByRole("link", { name: "Back to Applications" }),
+      ).toHaveAttribute("href", "/applications");
+    });
+
+    it("has no back button at md width", () => {
+      renderShell(1000, "/settings/gmail");
+      expect(screen.queryByRole("link", { name: /^Back to/ })).toBeNull();
+    });
   });
 
   it("marks More as current on Interviews and Settings", () => {

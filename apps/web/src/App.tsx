@@ -46,7 +46,7 @@ export function App() {
           <Route path="/leads/import" element={<ImportReportPage />} />
           <Route path="/interviews" element={<InterviewsPage />} />
           <Route path="/review" element={<ReviewPage />} />
-          <Route path="/settings" element={<Navigate to="/settings/gmail" replace />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/:section" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Route>

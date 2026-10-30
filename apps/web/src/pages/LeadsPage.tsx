@@ -503,11 +503,11 @@ export function LeadsPage() {
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
           {demo ? (
             <DemoLock reason="import">
-              <Button variant="outlined">Import a report</Button>
+              <Button variant="outlined">Paste a report</Button>
             </DemoLock>
           ) : (
             <Button variant="outlined" component={RouterLink} to="/leads/import">
-              Import a report
+              Paste a report
             </Button>
           )}
           {runSearchButton}

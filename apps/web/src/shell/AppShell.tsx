@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -17,6 +18,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import KeyboardOutlined from "@mui/icons-material/KeyboardOutlined";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
 import { useRef, useState, type ReactNode } from "react";
@@ -36,6 +38,7 @@ import {
   type NavKey,
 } from "./nav";
 import { DemoBanner } from "./DemoBanner";
+import { parentOf, useTrackOrigin } from "./origin";
 import { ReconnectBanner } from "./ReconnectBanner";
 import { SyncStatus } from "./SyncStatus";
 
@@ -425,10 +428,13 @@ function BottomNav({
  */
 export function AppShell() {
   useGlobalShortcuts();
+  useTrackOrigin();
   const variant = useShellVariant();
   const { pathname } = useLocation();
   const active = activeNavItem(pathname);
   const counts = useNavCounts().data;
+  // On phones a record or a settings section has no navigation of its own: the top bar leads back.
+  const parent = variant === "bottom" ? parentOf(pathname) : undefined;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
@@ -443,7 +449,21 @@ export function AppShell() {
             sx={{ bgcolor: "background.paper", border: 0, borderBottom: 1, borderColor: "divider" }}
           >
             <Toolbar sx={{ minHeight: 56 }}>
-              <Logo variant="mark" height={28} style={{ marginRight: 12 }} />
+              {parent ? (
+                <Tooltip title={`Back to ${parent.label}`}>
+                  <IconButton
+                    component={Link}
+                    to={parent.to}
+                    edge="start"
+                    aria-label={`Back to ${parent.label}`}
+                    sx={{ mr: 1, width: 44, height: 44 }}
+                  >
+                    <ArrowBackOutlined sx={{ fontSize: 20 }} />
+                  </IconButton>
+                </Tooltip>
+              ) : (
+                <Logo variant="mark" height={28} style={{ marginRight: 12 }} />
+              )}
               <Typography component="span" variant="h6" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
                 {active?.label ?? "Offerbound"}
               </Typography>

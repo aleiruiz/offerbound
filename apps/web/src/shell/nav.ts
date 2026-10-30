@@ -41,7 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     key: "settings",
     label: "Settings",
-    to: "/settings/gmail",
+    to: "/settings",
     prefix: "/settings",
     icon: SettingsOutlined,
   },
