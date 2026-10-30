@@ -17,6 +17,7 @@ import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
+import { runTimersTick } from "../timers/tick.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
@@ -242,6 +243,11 @@ const emailApply: JobHandler = async (ctx) => {
   await applyEligibleMessages(ctx);
 };
 
+/** `timers.tick`, every 15 minutes (§6.7): follow-ups, abandonment and interview completion. */
+const timersTick: JobHandler = async (ctx) => {
+  await runTimersTick(ctx);
+};
+
 /**
  * The handlers registered so far, by queue. Later tasks add theirs here (apply, leads,
  * timers, maintenance). A queue without a handler is created but not consumed.
@@ -255,6 +261,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
+  [QUEUES.timersTick]: timersTick,
 };
 
 /**
