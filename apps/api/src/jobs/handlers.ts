@@ -124,8 +124,8 @@ const gmailBackfill: JobHandler = async (ctx, job) => {
  * `email.triage`, from the 1-minute sweep and after sync inserts. The sweep also sends
  * `leads.check` for leads whose first send was lost (`sendPendingChecks`). Messages already `job_related`
  * are sent to extraction again first (a send lost after a commit is not repeated by a retry). A
- * full batch sends the next one at once, so a large backfill does not wait a minute per 25
- * messages (see `continueTriage`). Gmail's `Retry-After` defers the job instead of failing it. While the connection is
+ * full batch is followed by the next one at once, in the same run (see `continueTriage`), so a
+ * large backfill does not wait a minute per 25 messages. Gmail's `Retry-After` defers the job instead of failing it. While the connection is
  * already lost the job does nothing, so the 1-minute sweep neither calls Gmail nor logs the
  * lost authorization again (`gmail.sync` stops its own schedule); an authorization lost during
  * the job ends it and stops the sync schedule.
@@ -136,16 +136,29 @@ const gmailBackfill: JobHandler = async (ctx, job) => {
  * - it read messages for the first time and more work follows: messages still unread, or outgoing
  *   messages waiting on older ones, which the next batch can decide once those have been read;
  * - it decided waiting outgoing messages and others still wait.
+ * Never when a model call failed: that is an outage, and running again at once would spend the
+ * messages' failed attempts back to back. Each message then gets one attempt per sweep, as before.
  * A batch whose only work was looking at waiting rows that are still blocked reads nothing and
- * decides nothing, so it never continues: the stage cannot spin.
+ * decides nothing, so it never continues either: the stage cannot spin.
  */
 function continueTriage(batch: TriageBatchResult): boolean {
+  if (batch.modelFailed > 0) return false;
   return (
     batch.processed >= TRIAGE_BATCH_SIZE ||
     (batch.read > 0 && (batch.unread > 0 || batch.waiting > 0)) ||
     (batch.released > 0 && batch.waiting > 0)
   );
 }
+
+/**
+ * One `email.triage` run works through batches until none is called for, up to this many batches
+ * or this long. Each batch the job would otherwise ask for is a separate pg-boss job, and a job
+ * waits for the queue's next poll, so a first sync of thousands of messages would spend most of
+ * its time waiting. The bound keeps one run well inside the queue's job expiry; if work remains
+ * the run asks for another job.
+ */
+export const MAX_TRIAGE_BATCHES_PER_RUN = 20;
+const MAX_TRIAGE_RUN_MS = 50_000;
 
 const emailTriage: JobHandler = async (ctx, job) => {
   // The one 1-minute sweep that runs in every mode: it also sends `leads.check` for leads whose
@@ -162,11 +175,17 @@ const emailTriage: JobHandler = async (ctx, job) => {
   if (await gmailAuthIsLost(ctx.prisma)) return;
   try {
     await resendPendingExtractions(ctx);
-    const batch = await runTriageBatch(ctx);
-    // A waiting outgoing message was decided: the messages after it can be applied now, and the
-    // next waiting one may be decidable once they are.
-    if (batch.released > 0 && batch.waiting > 0) await applyEligibleMessages(ctx);
-    if (continueTriage(batch)) await ctx.queue.send(QUEUES.emailTriage);
+    const started = Date.now();
+    let more = false;
+    for (let batches = 0; batches < MAX_TRIAGE_BATCHES_PER_RUN; batches += 1) {
+      const batch = await runTriageBatch(ctx);
+      // A waiting outgoing message was decided: the messages after it can be applied now, and the
+      // next waiting one may be decidable once they are.
+      if (batch.released > 0 && batch.waiting > 0) await applyEligibleMessages(ctx);
+      more = continueTriage(batch);
+      if (!more || Date.now() - started >= MAX_TRIAGE_RUN_MS) break;
+    }
+    if (more) await ctx.queue.send(QUEUES.emailTriage);
   } catch (error) {
     if (await deferForRetryAfter(ctx, QUEUES.emailTriage, job, error)) return;
     if (error instanceof GmailAuthError) {

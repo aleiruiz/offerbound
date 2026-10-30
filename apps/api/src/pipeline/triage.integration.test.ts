@@ -531,6 +531,69 @@ describe("runTriageBatch: R3 deferral for outgoing mail", () => {
     expect(await row("a-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
   });
 
+  it("releases a run of consecutive waiting messages together, each read twice", async () => {
+    const reads = new Map<string, number>();
+    const fixtures = [
+      confirmation("a-confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("b-out1", "2026-10-06T10:00:00.000Z"),
+      outgoing("b-out2", "2026-10-07T10:00:00.000Z"),
+      outgoing("b-out3", "2026-10-08T10:00:00.000Z"),
+    ];
+    const real = new FakeGmailClient(fixtures);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        reads.set(id, (reads.get(id) ?? 0) + 1);
+        return real.getMetadata(id);
+      },
+    };
+    const { ctx } = await setup(fixtures, gmail);
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1, read: 4, waiting: 3 });
+
+    // The older message is applied: all three waiting ones go in one batch, oldest first.
+    await prisma.gmailMessage.update({ where: { id: "a-confirm" }, data: { state: "applied" } });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 3, released: 3, waiting: 0 });
+    for (const id of ["b-out1", "b-out2", "b-out3"]) {
+      expect(await row(id), id).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+      expect(reads.get(id), id).toBe(2);
+    }
+  });
+
+  it("releases a waiting run only up to a message that is still unsettled", async () => {
+    const { ctx } = await setup([
+      confirmation("a-confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("b-out1", "2026-10-06T10:00:00.000Z"),
+      confirmation("c-middle", "2026-10-07T10:00:00.000Z"),
+      outgoing("d-out2", "2026-10-08T10:00:00.000Z"),
+    ]);
+    await runTriageBatch(ctx);
+    await prisma.gmailMessage.update({ where: { id: "a-confirm" }, data: { state: "applied" } });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1, released: 1, waiting: 1 });
+    expect((await row("b-out1")).state).toBe("triaged_out");
+    // c-middle is job_related and not applied, so the later one keeps waiting.
+    expect((await row("d-out2")).state).toBe("discovered");
+  });
+
+  it("does not count a message whose model call failed as read", async () => {
+    const { ctx, llm } = await setup([
+      mail("a-skip", { labels: ["SPAM"] }),
+      mail("b-one"),
+      mail("c-two"),
+    ]);
+    llm.triage = () => Promise.reject(new LlmError("upstream", "down", { retryable: true }));
+    expect(await runTriageBatch(ctx)).toMatchObject({
+      processed: 1,
+      // Only the skipped message left the placeholder date; the two failed ones did not.
+      read: 1,
+      modelFailed: 2,
+      unread: 2,
+    });
+    expect(await row("b-one")).toMatchObject({ state: "discovered", attempts: 1 });
+  });
+
   it("does not read a waiting message again while an older one is unsettled, and reports nothing to do", async () => {
     const reads = new Map<string, number>();
     const fixtures = [
@@ -555,6 +618,7 @@ describe("runTriageBatch: R3 deferral for outgoing mail", () => {
         processed: 0,
         read: 0,
         released: 0,
+        modelFailed: 0,
         unread: 0,
         waiting: 0,
       });

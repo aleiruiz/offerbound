@@ -226,10 +226,15 @@ const SETTLED_STATES = ["skipped", "triaged_out", "applied", "needs_review", "fa
  * epoch: every older message stays below it and can still be applied, which is what ends the wait.
  * A deferral is not a failed attempt and does not touch `attempts`, and it never reaches the model.
  */
-async function olderMessagesUnsettled(tx: Db, id: string, date: Date): Promise<boolean> {
+async function olderMessagesUnsettled(
+  tx: Db,
+  id: string,
+  date: Date,
+  ignore: readonly string[] = [],
+): Promise<boolean> {
   const count = await tx.gmailMessage.count({
     where: {
-      id: { not: id },
+      id: { notIn: [id, ...ignore] },
       OR: [
         // Unread: still `discovered` on the placeholder date. A message Gmail no longer has, or one
         // that failed for good before it was read, keeps that date but is `skipped` or `failed`
@@ -312,8 +317,10 @@ function isFatalLlmError(error: unknown): boolean {
 /**
  * What a triage batch did, for the job handler to decide whether to run another at once:
  * - `processed`: messages that left `discovered`.
- * - `read`: messages read from Gmail for the first time.
+ * - `read`: messages read from Gmail for the first time that left the placeholder date, decided or
+ *   waiting. A failed attempt is not progress.
  * - `released`: waiting outgoing messages (see {@link olderMessagesUnsettled}) decided.
+ * - `modelFailed`: messages whose model call failed (an outage; they got one failed attempt).
  * - `unread`: messages still on the placeholder date, not read yet.
  * - `waiting`: messages read but kept `discovered` until older messages settle.
  */
@@ -321,6 +328,7 @@ export type TriageBatchResult = {
   processed: number;
   read: number;
   released: number;
+  modelFailed: number;
   unread: number;
   waiting: number;
 };
@@ -356,18 +364,23 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<TriageBatchResult>
     select: { id: true, internalDate: true },
   });
   // A row that was read before (it has a real date) is waiting on an older message. It is read
-  // again only once nothing older is unsettled, so a long wait costs no Gmail calls.
+  // again only once nothing older is unsettled, so a long wait costs no Gmail calls. Waiting rows
+  // that are blocked only by older waiting rows of this same window are read together: they are
+  // decided oldest first in one transaction, so a run of them is released in one batch.
   const rows: Row[] = [];
   const unread = new Set<string>();
+  const admitted: string[] = [];
   for (const { id, internalDate } of candidates) {
     if (internalDate.getTime() === UNKNOWN_DATE.getTime()) {
       unread.add(id);
       rows.push({ id });
-    } else if (!(await olderMessagesUnsettled(prisma, id, internalDate))) {
+    } else if (!(await olderMessagesUnsettled(prisma, id, internalDate, admitted))) {
+      admitted.push(id);
       rows.push({ id });
     }
   }
-  if (rows.length === 0) return { processed: 0, read: 0, released: 0, unread: 0, waiting: 0 };
+  if (rows.length === 0)
+    return { processed: 0, read: 0, released: 0, modelFailed: 0, unread: 0, waiting: 0 };
 
   const client = await ctx.gmail();
   const outcomes: Outcome[] = [];
@@ -504,16 +517,22 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<TriageBatchResult>
   if (sendError) throw sendError.error;
   if (abort) throw abort.error;
 
-  // Rows read for the first time this batch (a row read again after waiting is not progress of
-  // that kind), and what is left for a next batch to do.
-  const read = fetched.filter(({ row }) => unread.has(row.id)).length;
+  // Rows read for the first time that left the placeholder date: decided, or kept waiting. A row
+  // whose model call or Gmail read failed is still unread and is not progress. A row read again
+  // after waiting is not progress of this kind either.
+  const read =
+    outcomes.filter((o) => o.kind === "decided" && unread.has(o.row.id)).length +
+    deferrable.filter((d) => unread.has(d.row.id)).length;
+  const modelFailed = outcomes.filter(
+    (o) => o.kind === "failed" && o.code.startsWith("llm_"),
+  ).length;
   const [stillUnread, waiting] = await Promise.all([
     prisma.gmailMessage.count({ where: { state: "discovered", internalDate: UNKNOWN_DATE } }),
     prisma.gmailMessage.count({
       where: { state: "discovered", internalDate: { not: UNKNOWN_DATE } },
     }),
   ]);
-  return { processed, read, released, unread: stillUnread, waiting };
+  return { processed, read, released, modelFailed, unread: stillUnread, waiting };
 }
 
 /**
