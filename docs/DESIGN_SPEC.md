@@ -90,7 +90,7 @@ Component defaults (`theme.components`):
 | Review | `/review?tab=open\|resolved` | open count (amber badge) | Decisions the automation needs (F5) |
 | Settings | `/settings/:section` | — | Gmail, Job search, CV, Daily targets, Timers, Automation, Import, AI usage, Data (F15) |
 | Sign in | `/login` | — | Private instance only (F1) |
-| Onboarding | `/onboarding` | — | First run: CV → import → brief → start syncing |
+| Onboarding | `/onboarding` | — | First run: start syncing → CV → import → brief |
 
 The nav footer always shows Gmail sync status with *Sync now* (AC-2.5). Analytics in Release 1 is the pipeline summary on Today (AC-13.4); there is no separate analytics page (PRD §5, Later).
 

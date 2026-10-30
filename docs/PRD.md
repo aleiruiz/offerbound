@@ -84,7 +84,7 @@ Google Calendar sync · reminders or notifications by email or push · drafting 
 
 ## 6. Key user journeys
 
-**J1 — First run (private).** Owner opens the private URL → signs in with Google and grants read-only Gmail access → uploads CV → imports the spreadsheet CSV → pastes the search brief → presses *Start syncing*. Offerbound backfills email from 2026-09-01, attaches it to the imported records and shows progress.
+**J1 — First run (private).** Owner opens the private URL → signs in with Google and grants read-only Gmail access → presses *Start syncing* → uploads CV → imports the spreadsheet CSV → pastes the search brief. Offerbound backfills email from 2026-09-01 and shows progress while the owner does the other steps; a later import skips rows already found in Gmail.
 
 **J2 — A rejection arrives.** Within 5 minutes the email is recognised, matched to its application, the status changes to *Rejected*, and a timeline entry links to the email. The owner can undo it from the timeline.
 
@@ -112,7 +112,7 @@ Each acceptance criterion is written to be automated. "Owner" means the authenti
 
 - **AC-2.1** The Google consent requests exactly `openid`, `email`, `profile` and `https://www.googleapis.com/auth/gmail.readonly`, with offline access.
 - **AC-2.2** If the owner declines the Gmail permission, the connection shows *Gmail permission missing* with a *Reconnect* button, and no sync runs.
-- **AC-2.3** Sync does not start until the owner presses *Start syncing* (so the sheet import can run first). Pressing it starts a backfill of messages dated on or after `GMAIL_BACKFILL_SINCE` (default 2026-09-01), excluding spam, trash and drafts.
+- **AC-2.3** Sync does not start until the owner presses *Start syncing*, the first onboarding step. Pressing it starts a backfill of messages dated on or after `GMAIL_BACKFILL_SINCE` (default 2026-09-01), excluding spam, trash and drafts.
 - **AC-2.4** After the backfill, new messages are picked up at most 5 minutes after they arrive (configurable), plus on *Sync now*.
 - **AC-2.5** Settings and the Today header show: connection state, last successful sync time, backfill progress (listed / processed), and counts waiting at each pipeline stage.
 - **AC-2.6** If Google revokes the token (`invalid_grant`), sync stops, the connection becomes *Needs reconnection*, a banner appears on every page, and reconnecting resumes from the last synced point with no duplicates.

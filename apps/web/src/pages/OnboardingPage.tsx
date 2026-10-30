@@ -134,11 +134,13 @@ function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
   const navigate = useNavigate();
   const complete = useCompleteOnboarding();
   const [record] = useState(() => readOnboardingProgress(STEPS.length));
+  // The sync step comes from the server's sync status alone: a stale record (a reset, another
+  // Gmail account) must not let the owner past the required step.
   const [completed, setCompleted] = useState<ReadonlySet<number>>(
-    () => new Set([...record.completed, ...serverDone]),
+    () => new Set([...record.completed.filter((step) => step !== 0), ...serverDone]),
   );
   const [skipped, setSkipped] = useState<ReadonlySet<number>>(
-    () => new Set(record.skipped.filter((step) => !serverDone.has(step))),
+    () => new Set(record.skipped.filter((step) => step !== 0 && !serverDone.has(step))),
   );
   const [firstOpen] = useState(() => {
     for (let step = 0; step < LAST_STEP; step += 1) {

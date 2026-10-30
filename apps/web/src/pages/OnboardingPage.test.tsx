@@ -957,6 +957,9 @@ describe("OnboardingPage", () => {
       within(screen.getByLabelText("Setup steps"))
         .getByText(name)
         .closest("[class*=MuiStepLabel-root]");
+    // MUI puts Mui-completed on the label text of a step that is completed.
+    const isCompleted = (name: string) =>
+      /Mui-completed/.test(within(screen.getByLabelText("Setup steps")).getByText(name).className);
     const withBrief = (brief: string): Settings => ({
       ...DEFAULT_SETTINGS,
       search: { ...DEFAULT_SETTINGS.search, brief },
@@ -1015,6 +1018,40 @@ describe("OnboardingPage", () => {
       await setup({ "GET /api/v1/cv": () => PROFILE });
       expect(heading("Import your spreadsheet")).toBeVisible();
       expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+    });
+
+    it("takes the sync step from the sync status alone: a record claiming it done does not skip it", async () => {
+      stored({ completed: [0, 1, 2, 3], skipped: [] });
+      await setup({ "GET /api/v1/gmail/status": () => NOT_STARTED });
+      expect(heading("Start syncing Gmail")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
+      expect(isCompleted("Start syncing Gmail")).toBe(false);
+      // The rest of the record still stands.
+      expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+    });
+
+    it("does not let a record skip the sync step when the sync status failed to load", async () => {
+      stored({ completed: [0, 1], skipped: [2] });
+      await setup({ "GET /api/v1/gmail/status": () => apiError(500, "internal", "Boom.") });
+      expect(heading("Start syncing Gmail")).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+    });
+
+    it("ignores a record that skips the sync step", async () => {
+      stored({ completed: [], skipped: [0] });
+      await setup({ "GET /api/v1/gmail/status": () => NOT_STARTED });
+      expect(heading("Start syncing Gmail")).toBeVisible();
+      expect(labelOf("Start syncing Gmail")).not.toHaveTextContent("Skipped");
+    });
+
+    it("treats a step listed as both completed and skipped as completed", async () => {
+      stored({ completed: [1], skipped: [1, 2] });
+      await setup();
+      expect(heading("Write your search brief")).toBeVisible();
+      expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
+      expect(isCompleted("Upload your CV")).toBe(true);
+      expect(labelOf("Import your spreadsheet")).toHaveTextContent("Skipped");
+      expect(isCompleted("Import your spreadsheet")).toBe(false);
     });
 
     it("never reads the record of the previous step order (v1)", async () => {

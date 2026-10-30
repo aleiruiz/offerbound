@@ -81,7 +81,7 @@ Discovery followed the *grill-me* questioning method (the command itself was not
 | S-20 | Model configurable per purpose; default is MTGRulesLawyer's production model; the evaluation picks cheaper models per purpose | Hard-coding a model ties cost to code changes |
 | S-21 | Recruiter outreach is exempt from "company already seen" (flagged instead) | A recruiter writing to the owner is real interest, unlike a sourced posting |
 | S-22 | Follow-ups are detected from Sent mail to a known company and also loggable by hand; they do not reset the abandonment clock | D28 measures silence from the company |
-| S-23 | Spreadsheet import runs before Gmail sync (sync waits for *Start syncing*) | Otherwise backfilled emails would create records the import then duplicates |
+| S-23 | *(superseded by I-8, 2026-10-30)* Spreadsheet import runs before Gmail sync (sync waits for *Start syncing*) | Otherwise backfilled emails would create records the import then duplicates |
 
 ## Implementation rulings (build)
 

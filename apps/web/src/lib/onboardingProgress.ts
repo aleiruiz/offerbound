@@ -28,7 +28,11 @@ export function readOnboardingProgress(stepCount: number): OnboardingProgress {
     const parsed = z
       .object({ completed: z.array(index), skipped: z.array(index) })
       .safeParse(JSON.parse(raw));
-    if (parsed.success) return parsed.data;
+    if (parsed.success) {
+      // A step in both lists counts as completed.
+      const { completed, skipped } = parsed.data;
+      return { completed, skipped: skipped.filter((step) => !completed.includes(step)) };
+    }
     window.localStorage.removeItem(ONBOARDING_STORAGE_KEY);
   } catch {
     // unreadable storage or text that is not JSON: start from nothing
