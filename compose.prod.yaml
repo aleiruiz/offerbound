@@ -1,0 +1,103 @@
+# Production stack for Coolify (docs/deploy.md). Local development uses compose.yaml.
+# Services: db, api, worker, web. No service publishes a port: the Coolify proxy reaches `web`
+# over the Docker network. Variables written ${VAR:?} are required in private mode: compose
+# (and so the deploy) fails naming the missing variable. SERVICE_PASSWORD_POSTGRES is the
+# exception: Coolify generates it, and it is written without ':?' so Coolify recognises it.
+
+x-app-environment: &app-environment
+  APP_MODE: ${APP_MODE:-private}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?}
+  DATABASE_URL: postgresql://offerbound:${SERVICE_PASSWORD_POSTGRES}@db:5432/offerbound
+  OWNER_EMAIL: ${OWNER_EMAIL:?}
+  USER_TIMEZONE: ${USER_TIMEZONE:-America/Monterrey}
+  HOME_COUNTRY: ${HOME_COUNTRY:-MX}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?}
+  TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:?}
+  AI_PRICING: ${AI_PRICING:?}
+  AI_WEB_SEARCH_COST_PER_CALL_MICROS: ${AI_WEB_SEARCH_COST_PER_CALL_MICROS:?}
+  # Optional: empty means "use the application default" (TECHNICAL_SPEC §3.4).
+  OPENAI_MODEL_TRIAGE: ${OPENAI_MODEL_TRIAGE:-}
+  OPENAI_MODEL_EXTRACT: ${OPENAI_MODEL_EXTRACT:-}
+  OPENAI_MODEL_RANK: ${OPENAI_MODEL_RANK:-}
+  OPENAI_MODEL_SEARCH: ${OPENAI_MODEL_SEARCH:-}
+  OPENAI_MODEL_PROFILE: ${OPENAI_MODEL_PROFILE:-}
+  OPENAI_REASONING_EFFORT_TRIAGE: ${OPENAI_REASONING_EFFORT_TRIAGE:-}
+  OPENAI_REASONING_EFFORT_EXTRACT: ${OPENAI_REASONING_EFFORT_EXTRACT:-}
+  OPENAI_REASONING_EFFORT_RANK: ${OPENAI_REASONING_EFFORT_RANK:-}
+  OPENAI_REASONING_EFFORT_SEARCH: ${OPENAI_REASONING_EFFORT_SEARCH:-}
+  OPENAI_REASONING_EFFORT_PROFILE: ${OPENAI_REASONING_EFFORT_PROFILE:-}
+  GMAIL_BACKFILL_SINCE: ${GMAIL_BACKFILL_SINCE:-}
+  GMAIL_SYNC_INTERVAL_MINUTES: ${GMAIL_SYNC_INTERVAL_MINUTES:-}
+  SEARCH_MAX_TOOL_CALLS_PER_ROUND: ${SEARCH_MAX_TOOL_CALLS_PER_ROUND:-}
+  SEARCH_MAX_ROUNDS: ${SEARCH_MAX_ROUNDS:-}
+  BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
+  TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+  LOG_LEVEL: ${LOG_LEVEL:-}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: offerbound
+      POSTGRES_DB: offerbound
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U offerbound -d offerbound"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      # Migrations run before the server listens.
+      start_period: 60s
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    command: node apps/api/dist/worker.js
+    environment: *app-environment
+    # Running jobs get 30 s to finish after SIGTERM (apps/api/src/worker.ts).
+    stop_grace_period: 40s
+    depends_on:
+      # The api has run the migrations once it is healthy.
+      api:
+        condition: service_healthy
+    volumes:
+      - backups:/backups
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  backups:
