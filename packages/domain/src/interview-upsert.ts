@@ -4,6 +4,10 @@ import type { EntityRef, InterviewFields, InterviewRef, Operation } from "./plan
 /**
  * Interview upsert (TECHNICAL_SPEC §6.9; AC-8.1, AC-8.2). Pure: returns the one operation an
  * interview invite, reschedule or cancellation implies for the matched application, or null.
+ *
+ * On an update (`interviewId` set), a null `meetingUrl`, `schedulingUrl` or `location`, an empty
+ * `interviewers` list and a null `timezoneHint` all mean "not provided": the executor keeps the
+ * existing value rather than blanking it.
  */
 
 type ExtractedInterview = NonNullable<Extraction["interview"]>;
