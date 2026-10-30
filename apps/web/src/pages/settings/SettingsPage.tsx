@@ -12,6 +12,7 @@ import { useColorMode, type ThemePreference } from "../../ColorModeProvider";
 import { AiUsage } from "./AiUsage";
 import { Automation } from "./Automation";
 import { Cv } from "./Cv";
+import { Data } from "./Data";
 import { Gmail } from "./Gmail";
 import { Import } from "./Import";
 import { Search } from "./Search";
@@ -29,7 +30,6 @@ interface Section {
   element: ReactElement;
 }
 
-// The Data section joins this list with T10.3b.
 const SECTIONS: readonly Section[] = [
   { key: "gmail", label: "Gmail", element: <Gmail /> },
   { key: "search", label: "Job search", element: <Search /> },
@@ -39,6 +39,7 @@ const SECTIONS: readonly Section[] = [
   { key: "automation", label: "Automation", element: <Automation /> },
   { key: "import", label: "Import", element: <Import /> },
   { key: "ai-usage", label: "AI usage", element: <AiUsage /> },
+  { key: "data", label: "Data", element: <Data /> },
 ];
 
 const THEMES: { value: ThemePreference; label: string }[] = [
