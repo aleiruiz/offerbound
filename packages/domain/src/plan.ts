@@ -48,6 +48,10 @@ export type ApplicationSet = Partial<{
   followUpDoneAt: Date;
 }>;
 
+/**
+ * On an update, a null `meetingUrl`, `schedulingUrl` or `location`, an empty `interviewers` list
+ * and a null `timezoneHint` mean "not provided": the executor keeps the existing value.
+ */
 export type InterviewFields = {
   kind: InterviewKind;
   status: InterviewStatus;
@@ -90,7 +94,8 @@ export type Operation =
       expectedVersion: number;
       applicationRef: string;
       status: ApplicationStatus;
-      appliedAt: Date;
+      /** Set only when the email is an application confirmation, like `create_application.appliedAt`. */
+      appliedAt: Date | null;
     }
   | {
       op: "update_application";
@@ -126,6 +131,11 @@ export type PlannedEvent = {
   data: Record<string, unknown> | null;
 };
 
+/**
+ * What the planner proposes for one message. When `autoApply` is false, `operations`, `events` and
+ * `notices` are a proposal for display in the review item only: the executor must not run them
+ * until the owner decides (the owner's choice produces a new plan with `autoApply` true).
+ */
 export type ChangePlan = {
   operations: Operation[];
   events: PlannedEvent[];
@@ -238,8 +248,17 @@ function formatLocal(instant: Date, tz: string): string {
     .toFormat("ccc, LLL d, HH:mm");
 }
 
-function percent(value: number): string {
-  return `${Math.round(value * 100)}%`;
+/** A percentage floored to `digits` decimals, so a value below a threshold never reads as equal to it. */
+function percent(value: number, digits = 0): string {
+  const scale = 10 ** digits;
+  // The epsilon absorbs binary noise such as 0.29 * 100 = 28.999999999999996.
+  return `${Math.floor(value * 100 * scale + 1e-9) / scale}%`;
+}
+
+/** Both percentages for a "below the threshold" reason, with a decimal only when whole numbers tie. */
+function percentPair(confidence: number, threshold: number): [string, string] {
+  const whole: [string, string] = [percent(confidence), percent(threshold)];
+  return whole[0] === whole[1] ? [percent(confidence, 2), percent(threshold, 2)] : whole;
 }
 
 function companyNameById(s: PlanSnapshot, companyId: string): string {
@@ -571,7 +590,7 @@ function planCreate(c: Ctx, resolution: CompanyResolution, convertLeadId: string
         expectedVersion: leadVersion.version,
         applicationRef: NEW_APPLICATION,
         status,
-        appliedAt: m.internalDate,
+        appliedAt: e.category === "application_confirmation" ? m.internalDate : null,
       },
       {
         op: "update_application",
@@ -702,14 +721,15 @@ function planRecruiterLead(c: Ctx): Part {
 function planLeadThread(c: Ctx, leadId: string): Part {
   const lead = c.s.leads.find((l) => l.id === leadId);
   const name = lead === undefined ? "the company" : companyNameById(c.s, lead.companyId);
+  const outbound = c.m.direction === "outbound";
   return {
     ...emptyPart(),
     events: [
       {
         subject: { id: leadId },
         subjectType: "lead",
-        type: "email_received",
-        summary: `Email from ${name}`,
+        type: outbound ? "email_sent" : "email_received",
+        summary: outbound ? `Email sent to ${name}` : `Email from ${name}`,
         data: null,
       },
     ],
@@ -844,9 +864,10 @@ export function planChanges(
 
   // Low confidence is a review condition unless the owner has already decided.
   if (choice === undefined && confidence < settings.autoApplyMinConfidence) {
+    const [shown, threshold] = percentPair(confidence, settings.autoApplyMinConfidence);
     part.conditions.push({
       kind: "low_confidence",
-      reason: `Confidence ${percent(confidence)} is below the ${percent(settings.autoApplyMinConfidence)} threshold`,
+      reason: `Confidence ${shown} is below the ${threshold} threshold`,
       candidates: [],
     });
   }

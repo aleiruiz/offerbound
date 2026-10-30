@@ -937,6 +937,61 @@ describe("planChanges", () => {
     ]);
   });
 
+  it.each([
+    ["application_confirmation", AT],
+    ["rejection", null],
+    ["interview_invite", null],
+  ] as const)("a lead converted by %s gets appliedAt %s", (category, expected) => {
+    const s = snap({
+      leads: [{ id: "l1", status: "new", version: 3 }],
+      threadLinks: [["t1", { applicationId: null, leadId: "l1" }]],
+    });
+    const p = plan(
+      s,
+      ext({ category, interview: category === "interview_invite" ? interviewOf() : null }),
+    );
+    expect(opsOf(p, "convert_lead")[0]?.appliedAt).toEqual(expected);
+  });
+
+  it("outbound mail on a lead thread is an email_sent entry, not 'Email from'", () => {
+    const s = snap({
+      leads: [{ id: "l1", status: "new", version: 3 }],
+      threadLinks: [["t1", { applicationId: null, leadId: "l1" }]],
+    });
+    const p = plan(
+      s,
+      ext({ category: "recruiter_outreach" }),
+      msg({ direction: "outbound", fromEmail: "owner@owner.example" }),
+    );
+    expect(p.events).toEqual([
+      {
+        subject: { id: "l1" },
+        subjectType: "lead",
+        type: "email_sent",
+        summary: "Email sent to Northwind Labs",
+        data: null,
+      },
+    ]);
+  });
+
+  it("the low-confidence reason never rounds the confidence up to the threshold", () => {
+    const p = plan(
+      snap({ apps: [{ id: "a1" }] }),
+      ext({ category: "rejection", confidence: 0.795 }),
+    );
+    expect(p.review?.reasons).toEqual(["Confidence 79% is below the 80% threshold"]);
+  });
+
+  it("when whole percentages tie, the low-confidence reason shows two decimals", () => {
+    const p = planChanges(
+      snap({ apps: [{ id: "a1" }] }),
+      msg(),
+      ext({ category: "rejection", confidence: 0.801 }),
+      { autoApplyMinConfidence: 0.805 },
+    );
+    expect(p.review?.reasons).toEqual(["Confidence 80.1% is below the 80.5% threshold"]);
+  });
+
   it("does not link a thread that is already linked to the application", () => {
     const p = plan(
       snap({

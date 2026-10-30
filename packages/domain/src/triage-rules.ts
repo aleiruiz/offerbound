@@ -53,6 +53,8 @@ function isIgnored(address: string, ignoreList: readonly string[]): boolean {
     const entry = raw.trim().toLowerCase().replace(/^@/, "");
     if (entry === "") return false;
     if (entry.includes("@")) return entry === address;
+    // A bare top-level domain ("com", "co.uk") has no registrable domain and must match nothing.
+    if (registrableDomain(entry) === null) return false;
     return entry === host || entry === domain || host.endsWith(`.${entry}`);
   });
 }

@@ -23,6 +23,9 @@ const GENERIC_ID_PARAMS: ReadonlySet<string> = new Set([
   "req_id",
   "reqid",
   "requisition_id",
+  "position",
+  "posting",
+  "pid",
 ]);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
