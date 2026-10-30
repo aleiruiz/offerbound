@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EmailCategory } from "@offerbound/contracts";
 import type { CompanyRef, CompanyResolution } from "./company.js";
-import { matchApplication, type MatchSnapshot } from "./matching.js";
+import { matchApplication, rolesSimilar, type MatchSnapshot } from "./matching.js";
 
 const company = (id: string, name: string, groupId: string | null = null): CompanyRef => ({
   id,
@@ -333,5 +333,27 @@ describe("matchApplication", () => {
         via: "thread",
       });
     });
+  });
+});
+
+describe("rolesSimilar", () => {
+  it("is true for the same words in another order, ignoring case, accents and punctuation", () => {
+    expect(rolesSimilar("Senior Backend Engineer", "Backend Engineer, Senior")).toBe(true);
+    expect(rolesSimilar("Ingeniero de Datos", "ingeniero  de datos")).toBe(true);
+  });
+
+  it("is true at the 0.6 word-overlap threshold and false just under it", () => {
+    // 3 shared of 5 distinct words = 0.6
+    expect(rolesSimilar("Senior Backend Engineer", "Senior Backend Engineer Remote Payments")).toBe(
+      true,
+    );
+    // 2 shared of 5 distinct words = 0.4
+    expect(rolesSimilar("Backend Engineer", "Senior Backend Developer Remote")).toBe(false);
+  });
+
+  it("is false for different roles and for titles with no words", () => {
+    expect(rolesSimilar("Product Designer", "Senior Backend Engineer")).toBe(false);
+    expect(rolesSimilar("", "Backend Engineer")).toBe(false);
+    expect(rolesSimilar("---", "!!!")).toBe(false);
   });
 });

@@ -734,7 +734,7 @@ Response rate counts an application as answered when it has at least one inbound
 
 ## 11. Frontend (functional; visuals in Phase 3)
 
-Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief → start syncing; each skippable except start), `/today`, `/applications`, `/applications/:id`, `/leads` (tabs New, Shortlisted, Applied, Dismissed, Suppressed), `/leads/import` (Should), `/interviews`, `/review`, `/settings/:section`.
+Routes: `/login`, `/onboarding` (steps: start syncing → CV → sheet import → search brief; each skippable except start), `/today`, `/applications`, `/applications/:id`, `/leads` (tabs New, Shortlisted, Applied, Dismissed, Suppressed), `/leads/import` (Should), `/interviews`, `/review`, `/settings/:section`.
 
 - Server state via TanStack Query; `Today` and `SyncStatus` poll every 30 s; review count every 60 s.
 - Mutations send `X-Offerbound-Request: 1` and `version`; `409 version_conflict` shows the fresh record with a *Changes were made elsewhere* notice.
@@ -775,7 +775,7 @@ Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief →
 - **Order:** effects are applied in Gmail `internal_date` order behind the watermark (§5.6).
 - **Freshness:** a new email reaches its record within sync interval + pipeline time (target ≤ 7 minutes at normal volume).
 - **One record per posting:** `job_key` is unique across leads and across applications.
-- **Sheet before Gmail:** sync starts only on *Start syncing*, after the optional import, so backfilled emails attach to imported records.
+- **Gmail before sheet (DECISIONS I-8):** onboarding starts with *Start syncing*; a later sheet import skips rows matching a record Gmail already created (canonical link, or same company and a similar role, AC-14.5).
 
 ## 15. Testing strategy
 

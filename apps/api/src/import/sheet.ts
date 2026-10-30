@@ -14,6 +14,7 @@ import {
   localMidnightUtc,
   normalizeCompanyName,
   resolveCompany,
+  rolesSimilar,
   type CompanyIndex,
   type IncomingLead,
 } from "@offerbound/domain";
@@ -286,18 +287,26 @@ async function loadCompanyIndex(db: Db): Promise<CompanyIndex> {
   return { companies, contacts: [] };
 }
 
-async function loadExisting(db: Db): Promise<{ jobKeys: Set<string>; pairs: Set<string> }> {
+type Existing = {
+  jobKeys: Set<string>;
+  /** Per company, the titles of its leads and applications. */
+  titlesByCompany: Map<string, string[]>;
+};
+
+async function loadExisting(db: Db): Promise<Existing> {
   const jobKeys = new Set<string>();
-  const pairs = new Set<string>();
+  const titlesByCompany = new Map<string, string[]>();
   const leads = await db.lead.findMany({ select: { jobKey: true, companyId: true, title: true } });
   const apps = await db.application.findMany({
     select: { jobKey: true, companyId: true, title: true },
   });
   for (const row of [...leads, ...apps]) {
     if (row.jobKey !== null) jobKeys.add(row.jobKey);
-    pairs.add(`${row.companyId}|${roleKey(row.title)}`);
+    const titles = titlesByCompany.get(row.companyId);
+    if (titles) titles.push(row.title);
+    else titlesByCompany.set(row.companyId, [row.title]);
   }
-  return { jobKeys, pairs };
+  return { jobKeys, titlesByCompany };
 }
 
 const linkKey = (row: SheetRow): string | null =>
@@ -306,7 +315,8 @@ const linkKey = (row: SheetRow): string | null =>
 /**
  * Splits parsed rows into those an import would write, repeats inside the file (the first row
  * wins) and matches with records that exist (AC-14.4, AC-14.5): same job key, or same company and
- * role.
+ * the same role or a similar one (word overlap of at least 0.6, as for email matching). Repeats
+ * inside the file stay exact: only identical rows are duplicates of each other.
  */
 async function classifyRows(db: Db, rows: readonly SheetRow[]): Promise<Classified> {
   const seenKeys = new Map<string, number>();
@@ -343,7 +353,9 @@ async function classifyRows(db: Db, rows: readonly SheetRow[]): Promise<Classifi
     const known =
       (key !== null && existing.jobKeys.has(key)) ||
       (company.kind === "existing" &&
-        existing.pairs.has(`${company.companyId}|${roleKey(row.role)}`));
+        (existing.titlesByCompany.get(company.companyId) ?? []).some(
+          (title) => roleKey(title) === roleKey(row.role) || rolesSimilar(title, row.role),
+        ));
     (known ? matched : importable).push(row);
   }
   return { importable, duplicatesInFile, existing: matched };
