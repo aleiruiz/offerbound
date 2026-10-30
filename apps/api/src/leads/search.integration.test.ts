@@ -23,7 +23,7 @@ import { recordLlmCall } from "../llm/record.js";
 import { saveSettings } from "../settings/service.js";
 import { startWorker } from "../worker.js";
 import { ingestLeads } from "./intake.js";
-import { markStaleRuns, registerSearchSchedule, runSearch } from "./search.js";
+import { markStaleRuns, registerSearchSchedule, requestSearchRun, runSearch } from "./search.js";
 import type { LinkFetcher } from "./ssrf.js";
 
 const prisma = testPrisma();
@@ -478,6 +478,90 @@ describe("run record", () => {
       code: "already_running",
     });
     expect(fake.calls).toEqual([]);
+  });
+
+  it("a running row older than 30 minutes does not block a new run", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx } = setup([batch(searchLead(1))]);
+    const stale = await prisma.searchRun.create({
+      data: {
+        trigger: "schedule",
+        status: "running",
+        startedAt: new Date(NOW.getTime() - 31 * 60_000),
+        briefHash: "x",
+      },
+    });
+    const run = await runSearch(ctx, "manual");
+    expect(run.status).toBe("succeeded");
+    expect(await prisma.searchRun.findUniqueOrThrow({ where: { id: stale.id } })).toMatchObject({
+      status: "failed",
+      error: "interrupted",
+    });
+
+    // Run now takes the same path.
+    await prisma.searchRun.create({
+      data: {
+        trigger: "schedule",
+        status: "running",
+        startedAt: new Date(NOW.getTime() - 45 * 60_000),
+        briefHash: "x",
+      },
+    });
+    const queued = await requestSearchRun(ctx, "manual");
+    expect(queued.status).toBe("running");
+  });
+
+  it("a run still inside its 30 minutes keeps blocking", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx } = setup([batch(searchLead(1))]);
+    await prisma.searchRun.create({
+      data: {
+        trigger: "manual",
+        status: "running",
+        startedAt: new Date(NOW.getTime() - 29 * 60_000),
+        briefHash: "x",
+      },
+    });
+    await expect(runSearch(ctx, "schedule")).rejects.toMatchObject({ code: "already_running" });
+  });
+
+  it("a failure before the first round closes the run as failed", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx, fake } = setup([batch(searchLead(1))]);
+    const row = await prisma.searchRun.create({
+      data: { trigger: "manual", status: "running", startedAt: NOW, briefHash: "x" },
+    });
+    // Reading the settings fails; everything else reaches the real database.
+    const broken = new Proxy(prisma, {
+      get: (target, key) =>
+        key === "setting"
+          ? { findMany: () => Promise.reject(new Error("db down")) }
+          : (Reflect.get(target, key) as unknown),
+    });
+    const run = await runSearch({ ...ctx, prisma: broken }, "manual", row.id);
+    expect(run).toMatchObject({ id: row.id, status: "failed", error: "search_error: Error" });
+    expect(fake.calls).toEqual([]);
+    expect(await prisma.searchRun.count({ where: { status: "running" } })).toBe(0);
+  });
+
+  it("counts distinct companies for the stop check, as finalize keeps one lead per company", async () => {
+    await seedSettings({ min: 2, max: 3 });
+    // Round 1 returns two postings of one company: finalize will keep one, so min is not reached.
+    const { ctx, fake } = setup([
+      batch(
+        searchLead(1),
+        searchLead(1, {
+          title: "Platform Engineer II",
+          jobUrl: "https://careers.company1.example/jobs/11",
+        }),
+      ),
+      batch(searchLead(2)),
+    ]);
+    const run = await runSearch(ctx, "manual");
+    expect(fake.calls).toHaveLength(2);
+    expect((fake.calls[1]?.input as SearchInput).wanted).toBe(2);
+    expect(run).toMatchObject({ status: "succeeded", rounds: 2, accepted: 2 });
+    expect(await prisma.lead.count({ where: { status: "new" } })).toBe(2);
   });
 });
 

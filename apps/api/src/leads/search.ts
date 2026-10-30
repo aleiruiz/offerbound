@@ -71,12 +71,17 @@ function alreadyRunning(): ApiError {
  * Creates the `running` row for a new run. At most one run can be `running` (a partial unique
  * index), so a second start answers `409 already_running`. Stores only the SHA-256 of the brief
  * (AC-10.6, DATA_MODEL §3.12).
+ *
+ * First it closes runs that have been `running` for more than 30 minutes (`markStaleRuns`), so a
+ * run lost to a crash or deploy stops blocking Run now and the daily run 30 minutes after it
+ * started, without waiting for another worker start.
  */
 async function createRun(
   prisma: PrismaClient,
   trigger: SearchTrigger,
   now: Date,
 ): Promise<{ row: RunRow; settings: Settings }> {
+  await markStaleRuns(prisma, now);
   const settings = await getSettings(prisma);
   const briefHash = createHash("sha256").update(settings.search.brief).digest("hex");
   if ((await prisma.searchRun.count({ where: { status: "running" } })) > 0) throw alreadyRunning();
@@ -262,7 +267,15 @@ function toIncoming(
   };
 }
 
-type RoundOutcome = { batchId: string; accepted: number; returned: number };
+type RoundOutcome = {
+  batchId: string;
+  /**
+   * Distinct companies among the leads intake accepted. Finalize keeps one lead per company, so
+   * this is what the batch will still hold; the stop check counts it, not the raw accepted count.
+   */
+  accepted: number;
+  returned: number;
+};
 
 /**
  * Steps 1-3 of a round for the leads the model returned: drop leads without a usable job link
@@ -314,9 +327,16 @@ async function ingestRound(
         undoable: false,
       });
     }
-    return ingested;
+    const keptCompanies = new Set(
+      stored.filter((lead) => lead.status === "new").map((lead) => lead.companyId),
+    );
+    return { ingested, accepted: keptCompanies.size };
   });
-  return { batchId: result.batchId, accepted: result.counts.accepted, returned: leads.length };
+  return {
+    batchId: result.ingested.batchId,
+    accepted: result.accepted,
+    returned: leads.length,
+  };
 }
 
 // --- the run ------------------------------------------------------------------------------------
@@ -358,7 +378,8 @@ async function totalsOf(prisma: PrismaClient, batchIds: string[]) {
  *
  * Each round asks the model for `wanted` leads (the first asks for `leadTarget.max`), drops leads
  * without a job link, link-checks the rest with a concurrency of 5, drops the dead ones and runs
- * intake under the lock. The run stops when accepted ≥ `leadTarget.min`, when a round accepts
+ * intake under the lock. The run stops when accepted ≥ `leadTarget.min` (counted as distinct
+ * companies among accepted leads, since finalize keeps one lead per company), when a round accepts
  * nothing, or after `SEARCH_MAX_ROUNDS` rounds; otherwise the round's companies join the exclusion
  * list and the next round asks for `leadTarget.max − accepted`. Finally every batch of the run is
  * finalized.
@@ -378,17 +399,15 @@ export async function runSearch(
 ): Promise<SearchRunDto> {
   const { prisma } = ctx;
   let id: string;
-  let settings: Settings;
+  let settings: Settings | null = null;
   if (runId === undefined) {
     const created = await createRun(prisma, trigger, ctx.clock());
     id = created.row.id;
     settings = created.settings;
   } else {
     id = runId;
-    settings = await getSettings(prisma);
   }
 
-  const { leadTarget } = settings.search;
   const maxRounds = ctx.env.searchMaxRounds;
   const batchIds: string[] = [];
   const roundCompanies: string[] = [];
@@ -396,7 +415,12 @@ export async function runSearch(
   let accepted = 0;
   let failure: string | null = null;
 
+  let leadTarget: Settings["search"]["leadTarget"] | null = null;
+
   try {
+    // Inside the try: a failed read closes the run as failed instead of leaving it `running`.
+    settings ??= await getSettings(prisma);
+    leadTarget = settings.search.leadTarget;
     const cvProfile = await getActiveProfile(prisma);
     let wanted = leadTarget.max;
     for (let round = 1; round <= maxRounds; round += 1) {
@@ -445,7 +469,7 @@ export async function runSearch(
     const totals = await totalsOf(prisma, batchIds);
     const status =
       failure === null
-        ? totals.accepted >= leadTarget.min
+        ? totals.accepted >= (leadTarget?.min ?? 0)
           ? "succeeded"
           : "partial"
         : totals.accepted > 0
