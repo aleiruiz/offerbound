@@ -377,7 +377,13 @@ export type LeadSort = z.infer<typeof LeadSortSchema>;
 export const LeadsQuerySchema = z.object({
   status: LeadStatusSchema.optional(),
   track: z.string().trim().min(1).optional(),
-  q: z.string().trim().min(1).max(200).optional(),
+  /** A blank search is no search. */
+  q: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .transform((q) => (q === "" ? undefined : q)),
   sort: LeadSortSchema.default("track_fit"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().min(1).optional(),

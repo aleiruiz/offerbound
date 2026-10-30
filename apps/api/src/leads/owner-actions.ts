@@ -10,6 +10,7 @@ import {
 } from "@offerbound/contracts";
 import type { IncomingLead } from "@offerbound/domain";
 import type { AppDeps } from "../deps.js";
+import { writeEvent, type ChangeSetEntry } from "../db/events.js";
 import { withIntakeLock } from "../db/lock.js";
 import { ApiError } from "../http/errors.js";
 import { QUEUES } from "../jobs/queues.js";
@@ -52,12 +53,28 @@ const notFound = () => new ApiError(404, "not_found", "No such lead.");
 
 type Db = Prisma.TransactionClient | PrismaClient;
 
-/** A lead the owner can act on: leads still being checked or ranked are not shown anywhere yet. */
-async function loadActionable(db: Db, id: string) {
+/**
+ * A lead the owner can act on: leads still being checked or ranked are not shown anywhere yet.
+ * An id that is unknown, or a not-ready lead whose `version` the caller knows and still matches
+ * (`expectedVersion`), is a 404. A caller whose version is stale, or who sends none
+ * (`expectedVersion` undefined), has seen the lead before it changed (a re-rank moves a listed
+ * lead back to `ranking` and bumps its version), so it gets the 409 that makes the page refresh.
+ */
+async function loadActionable(db: Db, id: string, expectedVersion?: number) {
   assertId(id, "lead");
   const row = await db.lead.findUnique({ where: { id }, include: LEAD_INCLUDE });
-  if (row === null || row.pipelineState !== "ready") throw notFound();
+  if (row === null) throw notFound();
+  if (row.pipelineState !== "ready") {
+    if (expectedVersion === row.version) throw notFound();
+    throw new VersionConflictError(toLeadDto(row));
+  }
   return row;
+}
+
+/** A guarded write matched nothing: the lead changed after it was read (an owner edit takes no lock). */
+async function staleLead(db: Db, id: string): Promise<Error> {
+  const row = await db.lead.findUnique({ where: { id }, include: LEAD_INCLUDE });
+  return row === null ? notFound() : new VersionConflictError(toLeadDto(row));
 }
 
 // --- list ---------------------------------------------------------------------------------------
@@ -222,17 +239,15 @@ export async function createManualLead(ctx: LeadActionCtx, input: LeadCreate): P
       });
     }
     const lead = await tx.lead.findUniqueOrThrow({ where: { id: leadId } });
-    await tx.event.create({
-      data: {
-        leadId,
-        companyId: lead.companyId,
-        type: "lead_created",
-        actor: "owner",
-        occurredAt: now,
-        summary: "Added manually",
-        data: { source: "manual", status: lead.status },
-        undoable: false,
-      },
+    await writeEvent(tx, {
+      leadId,
+      companyId: lead.companyId,
+      type: "lead_created",
+      actor: "owner",
+      occurredAt: now,
+      summary: "Added manually",
+      data: { source: "manual", status: lead.status },
+      undoable: false,
     });
     return ingested;
   });
@@ -256,7 +271,7 @@ export async function createManualLead(ctx: LeadActionCtx, input: LeadCreate): P
  */
 export async function patchLead(ctx: LeadActionCtx, id: string, body: LeadPatch): Promise<LeadDto> {
   const now = ctx.clock();
-  const lead = await loadActionable(ctx.prisma, id);
+  const lead = await loadActionable(ctx.prisma, id, body.version);
   if (lead.version !== body.version) throw new VersionConflictError(toLeadDto(lead));
 
   const data: Prisma.LeadUncheckedUpdateManyInput = {};
@@ -296,20 +311,6 @@ export async function patchLead(ctx: LeadActionCtx, id: string, body: LeadPatch)
 
 // --- mark applied -------------------------------------------------------------------------------
 
-/**
- * One record an event changed, in the form undo reads (TECHNICAL_SPEC §6.5, §6.6): `before` is
- * null for a record the event created, `versionAfter` is the record's version after the change
- * (null where the table has none).
- */
-export type ChangeSetEntry = {
-  entity: "application" | "lead" | "thread_link";
-  id: string;
-  created: boolean;
-  before: Record<string, unknown> | null;
-  after: Record<string, unknown>;
-  versionAfter: number | null;
-};
-
 /** The stored form of a row the change created: what was written, without bookkeeping columns. */
 function createdAfter(row: object): Record<string, unknown> {
   const rest: Record<string, unknown> = { ...row };
@@ -336,8 +337,7 @@ export async function markLeadApplied(
 ): Promise<string> {
   assertId(leadId, "lead");
   return withIntakeLock(ctx.prisma, async (tx) => {
-    const lead = await tx.lead.findUnique({ where: { id: leadId }, include: LEAD_INCLUDE });
-    if (lead === null || lead.pipelineState !== "ready") throw notFound();
+    const lead = await loadActionable(tx, leadId);
     if (lead.status === "applied" || lead.applicationId !== null) {
       throw new VersionConflictError(toLeadDto(lead), "This lead was already marked as applied.");
     }
@@ -390,7 +390,7 @@ export async function markLeadApplied(
         version: { increment: 1 },
       },
     });
-    if (count === 0) throw notFound();
+    if (count === 0) throw await staleLead(tx, lead.id);
     changes.push({
       entity: "lead",
       id: lead.id,
@@ -431,20 +431,17 @@ export async function markLeadApplied(
       });
     }
 
-    await tx.event.create({
-      data: {
-        applicationId: application.id,
-        leadId: lead.id,
-        companyId: lead.companyId,
-        type: "lead_converted",
-        actor: "owner",
-        occurredAt: now,
-        summary: "Marked as applied",
-        data: { toStatus: "applied", fromLeadStatus: lead.status },
-        // Plain JSON: dates become ISO strings, as they do in a stored change set.
-        changeSet: JSON.parse(JSON.stringify(changes)) as Prisma.InputJsonValue,
-        undoable: true,
-      },
+    await writeEvent(tx, {
+      applicationId: application.id,
+      leadId: lead.id,
+      companyId: lead.companyId,
+      type: "lead_converted",
+      actor: "owner",
+      occurredAt: now,
+      summary: "Marked as applied",
+      data: { toStatus: "applied", fromLeadStatus: lead.status },
+      changeSet: changes,
+      undoable: true,
     });
     return application.id;
   });
@@ -484,7 +481,7 @@ export async function reconsiderLead(ctx: LeadActionCtx, id: string): Promise<Le
         version: { increment: 1 },
       },
     });
-    if (count === 0) throw notFound();
+    if (count === 0) throw await staleLead(tx, id);
     const fresh = await tx.lead.findUniqueOrThrow({ where: { id }, include: LEAD_INCLUDE });
     return { lead: fresh, check };
   });

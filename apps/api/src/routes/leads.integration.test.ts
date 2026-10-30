@@ -200,6 +200,16 @@ describe("GET /leads", () => {
     expect(await ids("status=new&q=%25")).toEqual([]);
   });
 
+  it("treats a blank q as no search", async () => {
+    const { call } = await appWith();
+    await seedLead("Northwind Labs");
+    for (const q of ["", "%20", "%20%20"]) {
+      const res = await call("GET", `/leads?status=new&q=${q}`);
+      expect(res.statusCode).toBe(200);
+      expect(LeadPage.parse(res.json()).items).toHaveLength(1);
+    }
+  });
+
   it("the Lead DTO carries compensation.isEstimate and basis", async () => {
     const { call } = await appWith();
     await seedLead("Northwind Labs", {
@@ -625,15 +635,20 @@ describe("POST /leads/:id/mark-applied", () => {
     const res = await call("POST", `/leads/${lead.id}/mark-applied`);
     expect(res.statusCode).toBe(201);
     expect(await prisma.application.count()).toBe(2);
+    const created = await prisma.application.findFirstOrThrow({ where: { leadId: lead.id } });
+    expect(created.jobKey).toBeNull();
+    expect((await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } })).jobKey).toBe(
+      "dup-key",
+    );
   });
 
-  it("answers 404 for an unknown lead and for one still being checked", async () => {
+  it("answers 404 for an unknown lead and 409 for one still being checked", async () => {
     const { call } = await appWith();
     expect(
       (await call("POST", "/leads/00000000-0000-4000-8000-000000000000/mark-applied")).statusCode,
     ).toBe(404);
     const checking = await seedLead("Northwind Labs", { pipelineState: "checking" });
-    expect((await call("POST", `/leads/${checking.id}/mark-applied`)).statusCode).toBe(404);
+    expect((await call("POST", `/leads/${checking.id}/mark-applied`)).statusCode).toBe(409);
   });
 });
 
@@ -737,6 +752,39 @@ describe("POST /leads/rerank", () => {
 
     // One job, whatever the number of leads.
     expect(queue.sent.filter((s) => s.name === QUEUES.leadsRank)).toHaveLength(1);
+  });
+
+  it("a lead put back in ranking answers a stale PATCH with 409 and the current lead; mark-applied and reconsider also 409", async () => {
+    const { call } = await appWith();
+    const lead = await seedLead("Alpha", { track: "A", fitScore: 80 });
+    expect((await call("POST", "/leads/rerank", { scope: "new" })).statusCode).toBe(202);
+
+    const stale = await call("PATCH", `/leads/${lead.id}`, {
+      version: lead.version,
+      status: "shortlisted",
+    });
+    expect(stale.statusCode).toBe(409);
+    const body = JSON.parse(stale.body) as { error: { code: string }; current: unknown };
+    expect(body.error.code).toBe("version_conflict");
+    expect(LeadSchema.parse(body.current)).toMatchObject({
+      id: lead.id,
+      version: lead.version + 1,
+      status: "new",
+    });
+
+    for (const path of ["mark-applied", "reconsider"]) {
+      const res = await call("POST", `/leads/${lead.id}/${path}`);
+      expect(res.statusCode).toBe(409);
+      expect(errorOf(res.body).code).toBe("version_conflict");
+    }
+    expect(await prisma.application.count()).toBe(0);
+    // With the current version, a lead that is still being ranked is not there to act on yet.
+    const current = await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    const fresh = await call("PATCH", `/leads/${lead.id}`, {
+      version: current.version,
+      status: "shortlisted",
+    });
+    expect(fresh.statusCode).toBe(404);
   });
 
   it("sends no job when there is nothing to rank", async () => {
