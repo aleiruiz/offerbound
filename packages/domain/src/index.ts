@@ -3,3 +3,4 @@ export * from "./time.js";
 export * from "./triage-rules.js";
 export * from "./job-key.js";
 export * from "./company.js";
+export * from "./status.js";

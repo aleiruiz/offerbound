@@ -1,0 +1,60 @@
+{
+  "id": "alert-wellfound-two-same-company",
+  "threadId": "thr-alert-wellfound-1012",
+  "internalDate": "2026-10-12T15:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Wellfound <noreply@wellfound.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Sandpiper AI is hiring: 2 roles match your profile",
+    "date": "Mon, 12 Oct 2026 15:00:00 +0000"
+  },
+  "snippet": "Sandpiper AI has 2 open roles that match your profile: Senior Platform Engineer and Staff Machine Learning Engineer.",
+  "bodyText": "Sandpiper AI has 2 open roles that match your profile\n\nSenior Platform Engineer - Remote (Americas) - $110k - $140k\nhttps://wellfound.com/jobs/3401122-senior-platform-engineer\n\nStaff Machine Learning Engineer - Remote (Americas) - $150k - $185k\nhttps://wellfound.com/jobs/3401123-staff-machine-learning-engineer\n\nYou are receiving this because you follow Sandpiper AI.",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "job_alert",
+    "company": null,
+    "role": null,
+    "outcome": "applied",
+    "leads": 2
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "job_alert",
+      "confidence": 0.95,
+      "company": null,
+      "role": null,
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Sandpiper AI",
+          "title": "Senior Platform Engineer",
+          "jobUrl": "https://wellfound.com/jobs/3401122-senior-platform-engineer",
+          "locationText": "Remote (Americas)",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": "$110k - $140k",
+          "postedAt": null
+        },
+        {
+          "company": "Sandpiper AI",
+          "title": "Staff Machine Learning Engineer",
+          "jobUrl": "https://wellfound.com/jobs/3401123-staff-machine-learning-engineer",
+          "locationText": "Remote (Americas)",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": "$150k - $185k",
+          "postedAt": null
+        }
+      ],
+      "summary": "Wellfound alert with 2 roles at Sandpiper AI.",
+      "language": "en"
+    }
+  }
+}

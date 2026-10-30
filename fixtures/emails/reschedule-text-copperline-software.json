@@ -1,0 +1,59 @@
+{
+  "id": "reschedule-text-copperline-software",
+  "threadId": "thr-copperline-software",
+  "internalDate": "2026-10-12T15:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Hannah Brooks <hannah.brooks@copperline-software.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Re: Copperline Software: technical interview",
+    "date": "Mon, 12 Oct 2026 15:00:00 +0000"
+  },
+  "snippet": "Hi Mateo, our engineering lead is travelling on Tuesday. Could we do Wednesday 14 October at 2:00 PM EST instead?",
+  "bodyText": "Hi Mateo,\n\nOur engineering lead is travelling on Tuesday. Could we do Wednesday 14 October at 2:00 PM EST instead? The video link is https://meet.copperline-software.example/tech-0914.\n\nBest regards,\nHannah Brooks\nTechnical recruiter, Copperline Software",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_reschedule",
+    "company": "Copperline Software",
+    "role": "Senior Software Engineer",
+    "outcome": "applied",
+    "interviewStart": "2026-10-14T19:00:00.000Z"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_reschedule",
+      "confidence": 0.91,
+      "company": {
+        "name": "Copperline Software",
+        "websiteDomain": "copperline-software.example"
+      },
+      "role": {
+        "title": "Senior Software Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Hannah Brooks",
+        "email": "hannah.brooks@copperline-software.example",
+        "title": "Technical recruiter",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "technical",
+        "startsAt": "2026-10-14T14:00:00-05:00",
+        "endsAt": null,
+        "timezone": "America/New_York",
+        "meetingUrl": "https://meet.copperline-software.example/tech-0914",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": []
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Copperline Software proposed moving the interview to 14 October at 14:00 EST.",
+      "language": "en"
+    }
+  }
+}

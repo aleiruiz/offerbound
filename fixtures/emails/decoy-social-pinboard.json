@@ -1,0 +1,30 @@
+{
+  "id": "decoy-social-pinboard",
+  "threadId": "thr-decoy-social",
+  "internalDate": "2026-09-19T22:15:00.000Z",
+  "labels": ["INBOX", "UNREAD", "CATEGORY_SOCIAL"],
+  "headers": {
+    "from": "Pinboard Social <notifications@pinboard-social.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Elena Vargas and 3 others liked your photo",
+    "date": "Sat, 19 Sep 2026 22:15:00 +0000"
+  },
+  "snippet": "Elena Vargas and 3 others liked your photo from Parque Fundidora. See who else is talking about it.",
+  "bodyText": "Elena Vargas and 3 others liked your photo from Parque Fundidora.\n\nSee who else is talking about it: https://pinboard-social.example/p/55102",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-social-pinboard",
+      "jobRelated": false,
+      "confidence": 0.97
+    },
+    "extraction": null
+  }
+}

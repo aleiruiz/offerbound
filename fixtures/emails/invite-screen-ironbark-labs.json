@@ -1,0 +1,63 @@
+{
+  "id": "invite-screen-ironbark-labs",
+  "threadId": "thr-ironbark-labs",
+  "internalDate": "2026-09-22T15:10:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Sam Whitlock <sam.whitlock@ironbark-labs.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Intro call for the Backend Engineer role at Ironbark Labs",
+    "date": "Tue, 22 Sep 2026 15:10:00 +0000"
+  },
+  "snippet": "Hi Mateo, I would like to set up a 30 minute introductory call about the Backend Engineer role. Would Thursday 24 September at 10:00 Monterrey time work?",
+  "bodyText": "Hi Mateo,\n\nI came across your application for the Backend Engineer role at Ironbark Labs and would like to set up a 30 minute introductory call. Would Thursday 24 September at 10:00 Monterrey time (UTC-6) work? I will use this link: https://meet.ironbark-labs.example/rs-5521\n\nBest regards,\nSam Whitlock\nRecruiter, Ironbark Labs",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_invite",
+    "company": "Ironbark Labs",
+    "role": "Backend Engineer",
+    "outcome": "applied",
+    "interviewStart": "2026-09-24T16:00:00.000Z"
+  },
+  "llm": {
+    "triage": {
+      "id": "invite-screen-ironbark-labs",
+      "jobRelated": true,
+      "confidence": 0.94
+    },
+    "extraction": {
+      "category": "interview_invite",
+      "confidence": 0.92,
+      "company": {
+        "name": "Ironbark Labs",
+        "websiteDomain": "ironbark-labs.example"
+      },
+      "role": {
+        "title": "Backend Engineer",
+        "seniority": null
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Sam Whitlock",
+        "email": "sam.whitlock@ironbark-labs.example",
+        "title": "Recruiter",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "recruiter_screen",
+        "startsAt": "2026-09-24T10:00:00-06:00",
+        "endsAt": "2026-09-24T10:30:00-06:00",
+        "timezone": "America/Monterrey",
+        "meetingUrl": "https://meet.ironbark-labs.example/rs-5521",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": ["Sam Whitlock"]
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Ironbark Labs proposed a recruiter screen on 24 September at 10:00.",
+      "language": "en"
+    }
+  }
+}

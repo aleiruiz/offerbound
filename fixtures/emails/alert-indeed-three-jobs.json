@@ -1,0 +1,70 @@
+{
+  "id": "alert-indeed-three-jobs",
+  "threadId": "thr-alert-indeed-0922",
+  "internalDate": "2026-09-22T12:30:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Indeed <alert@indeed.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "3 new data engineer jobs in Monterrey, NL",
+    "date": "Tue, 22 Sep 2026 12:30:00 +0000"
+  },
+  "snippet": "Harbor Works is hiring a Senior Data Engineer. Tamarind Software is hiring a Backend Engineer (Python). Gannet Insurance Tech is hiring a Data Platform Engineer.",
+  "bodyText": "3 new data engineer jobs in Monterrey, NL\n\nSenior Data Engineer\nHarbor Works - Monterrey, NL\n70,000 - 90,000 MXN a month\nhttps://www.indeed.com/viewjob?jk=a1b2c3d4e5f60718&from=alert\n\nBackend Engineer (Python)\nTamarind Software - Remote\nhttps://www.indeed.com/viewjob?jk=9f8e7d6c5b4a3921&from=alert\n\nData Platform Engineer\nGannet Insurance Tech - Mexico City, CDMX\nhttps://www.indeed.com/viewjob?jk=0c1d2e3f4a5b6c7d&from=alert\n\nYou are receiving this email because you created a job alert on Indeed.",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "job_alert",
+    "company": null,
+    "role": null,
+    "outcome": "applied",
+    "leads": 3
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "job_alert",
+      "confidence": 0.96,
+      "company": null,
+      "role": null,
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Harbor Works",
+          "title": "Senior Data Engineer",
+          "jobUrl": "https://www.indeed.com/viewjob?jk=a1b2c3d4e5f60718&from=alert",
+          "locationText": "Monterrey, NL",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": "70,000 - 90,000 MXN a month",
+          "postedAt": null
+        },
+        {
+          "company": "Tamarind Software",
+          "title": "Backend Engineer (Python)",
+          "jobUrl": "https://www.indeed.com/viewjob?jk=9f8e7d6c5b4a3921&from=alert",
+          "locationText": "Remote",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Gannet Insurance Tech",
+          "title": "Data Platform Engineer",
+          "jobUrl": "https://www.indeed.com/viewjob?jk=0c1d2e3f4a5b6c7d&from=alert",
+          "locationText": "Mexico City, CDMX",
+          "country": "MX",
+          "workMode": "onsite",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "Indeed alert with 3 new data engineer jobs in Monterrey.",
+      "language": "en"
+    }
+  }
+}

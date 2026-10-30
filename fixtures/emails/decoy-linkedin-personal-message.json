@@ -1,0 +1,30 @@
+{
+  "id": "decoy-linkedin-personal-message",
+  "threadId": "thr-decoy-linkedin",
+  "internalDate": "2026-10-03T16:40:00.000Z",
+  "labels": ["INBOX", "UNREAD", "CATEGORY_SOCIAL"],
+  "headers": {
+    "from": "Diego Alvarez via LinkedIn <messages-noreply@linkedin.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Diego Alvarez sent you a message",
+    "date": "Sat, 03 Oct 2026 16:40:00 +0000"
+  },
+  "snippet": "Diego Alvarez: Hey Mateo! Are you coming to the barbecue on Saturday? We are meeting at six. Let me know if you need a ride.",
+  "bodyText": "Diego Alvarez sent you a new message\n\nHey Mateo! Are you coming to the barbecue on Saturday? We are meeting at six. Let me know if you need a ride.\n\nView message: https://www.linkedin.com/messaging/thread/2-ZmFrZS10aHJlYWQtMDAy/",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-linkedin-personal-message",
+      "jobRelated": false,
+      "confidence": 0.93
+    },
+    "extraction": null
+  }
+}

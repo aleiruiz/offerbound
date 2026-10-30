@@ -1,0 +1,30 @@
+{
+  "id": "decoy-calendar-dinner",
+  "threadId": "thr-decoy-calendar",
+  "internalDate": "2026-10-10T17:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Tomás Vega <tomas@vega-friends.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Invitation: Dinner at Casa Olmo @ Fri 16 Oct 2026 20:00",
+    "date": "Sat, 10 Oct 2026 17:00:00 +0000"
+  },
+  "snippet": "Tomás Vega invited you to Dinner at Casa Olmo on Friday 16 October 2026, 20:00 to 22:00 (America/Monterrey).",
+  "ics": "BEGIN:VCALENDAR\r\nPRODID:-//Fictional Scheduler//Offerbound fixtures//EN\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:dinner-casa-olmo-1016@vega-friends.example\r\nDTSTAMP:20261010T170000Z\r\nDTSTART:20261017T020000Z\r\nDTEND:20261017T040000Z\r\nSUMMARY:Dinner at Casa Olmo\r\nLOCATION:Casa Olmo, Monterrey\r\nORGANIZER;CN=Tomás Vega:mailto:tomas@vega-friends.example\r\nSEQUENCE:0\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-calendar-dinner",
+      "jobRelated": false,
+      "confidence": 0.95
+    },
+    "extraction": null
+  }
+}

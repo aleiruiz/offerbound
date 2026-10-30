@@ -1,0 +1,45 @@
+{
+  "id": "confirm-personio-lumen-health",
+  "threadId": "thr-lumen-health",
+  "internalDate": "2026-09-05T15:20:50.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Lumen Health <noreply@personio.de>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "We received your application to Lumen Health",
+    "date": "Sat, 05 Sep 2026 15:20:50 +0000"
+  },
+  "snippet": "Hello Mateo, thank you for applying for the Product Data Scientist position at Lumen Health. Your application has been received.",
+  "bodyText": "Hello Mateo,\n\nThank you for applying for the Product Data Scientist position at Lumen Health. Your application has been received and our team will get back to you.\n\nPosition: https://lumen-health.jobs.personio.de/job/1482051\n\nLumen Health People Team",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "application_confirmation",
+    "company": "Lumen Health",
+    "role": "Product Data Scientist",
+    "jobKey": "personio:lumen-health:1482051",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "application_confirmation",
+      "confidence": 0.95,
+      "company": {
+        "name": "Lumen Health",
+        "websiteDomain": "lumen-health.example"
+      },
+      "role": {
+        "title": "Product Data Scientist",
+        "seniority": "mid"
+      },
+      "jobUrl": "https://lumen-health.jobs.personio.de/job/1482051",
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Lumen Health confirmed receipt of the Product Data Scientist application.",
+      "language": "en"
+    }
+  }
+}

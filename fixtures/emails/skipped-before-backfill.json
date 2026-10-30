@@ -1,0 +1,26 @@
+{
+  "id": "skipped-before-backfill",
+  "threadId": "thr-skipped-old",
+  "internalDate": "2026-08-20T15:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Kestrel Pay <no-reply@hire.lever.co>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Thank you for your application to Kestrel Pay",
+    "date": "Thu, 20 Aug 2026 15:00:00 +0000"
+  },
+  "snippet": "Hi Mateo, thank you for applying to Support Engineer at Kestrel Pay. We have received your application.",
+  "bodyText": "Hi Mateo,\n\nThank you for applying to Support Engineer at Kestrel Pay. We have received your application and will review it shortly.\n\nKestrel Pay Talent Team",
+  "demo": false,
+  "expected": {
+    "triage": "skipped",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "skipped"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": null
+  }
+}

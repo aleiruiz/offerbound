@@ -1,0 +1,60 @@
+{
+  "id": "invite-ics-quarry-ai-technical",
+  "threadId": "thr-quarry-ml",
+  "internalDate": "2026-09-10T17:20:05.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Maya Chen <maya.chen@quarry-ai.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Interview with Quarry AI: technical conversation",
+    "date": "Thu, 10 Sep 2026 17:20:05 +0000"
+  },
+  "snippet": "Hi Mateo, we would like to invite you to a technical conversation on Thursday 17 September at 10:00 Monterrey time. The invitation is attached.",
+  "bodyText": "Hi Mateo,\n\nThanks for your patience. We would like to invite you to a 60 minute technical conversation with Elias Novak, our staff ML engineer, on Thursday 17 September at 10:00 Monterrey time (UTC-6).\n\nThe calendar invitation is attached and includes the video link: https://meet.quarry-ai.example/mc-7731\n\nPlease reply if the time does not work.\n\nBest regards,\nMaya Chen\nTalent partner, Quarry AI",
+  "ics": "BEGIN:VCALENDAR\r\nPRODID:-//Fictional Scheduler//Offerbound fixtures//EN\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:quarry-int-0917-a1@quarry-ai.example\r\nDTSTAMP:20260910T172000Z\r\nDTSTART:20260917T160000Z\r\nDTEND:20260917T170000Z\r\nSUMMARY:Quarry AI: technical conversation (Mateo Salgado)\r\nLOCATION:Video call\r\nURL:https://meet.quarry-ai.example/mc-7731\r\nORGANIZER;CN=Maya Chen:mailto:maya.chen@quarry-ai.example\r\nSEQUENCE:0\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_invite",
+    "company": "Quarry AI",
+    "role": "Senior Machine Learning Engineer",
+    "outcome": "applied",
+    "interviewStart": "2026-09-17T16:00:00.000Z"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_invite",
+      "confidence": 0.96,
+      "company": {
+        "name": "Quarry AI",
+        "websiteDomain": "quarry-ai.example"
+      },
+      "role": {
+        "title": "Senior Machine Learning Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Maya Chen",
+        "email": "maya.chen@quarry-ai.example",
+        "title": "Talent partner",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "technical",
+        "startsAt": "2026-09-17T10:00:00-06:00",
+        "endsAt": "2026-09-17T11:00:00-06:00",
+        "timezone": "America/Monterrey",
+        "meetingUrl": "https://meet.quarry-ai.example/mc-7731",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": ["Elias Novak"]
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Quarry AI invited you to a technical interview on 17 September at 10:00.",
+      "language": "en"
+    }
+  }
+}

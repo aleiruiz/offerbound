@@ -1,0 +1,44 @@
+{
+  "id": "reject-es-personio-lumen-health",
+  "threadId": "thr-lumen-health",
+  "internalDate": "2026-10-01T15:00:12.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Lumen Health <noreply@personio.de>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Sobre tu candidatura en Lumen Health",
+    "date": "Thu, 01 Oct 2026 15:00:12 +0000"
+  },
+  "snippet": "Hola Mateo, gracias por tu interés en Lumen Health. Tras revisar tu perfil, hemos decidido avanzar con otras candidaturas para el puesto de Product Data Scientist.",
+  "bodyText": "Hola Mateo,\n\nGracias por tu interés en Lumen Health y por el tiempo que dedicaste a tu candidatura. Tras revisar tu perfil, hemos decidido avanzar con otras candidaturas para el puesto de Product Data Scientist.\n\nTe deseamos mucho éxito en tu búsqueda.\n\nEquipo de Personas de Lumen Health",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Lumen Health",
+    "role": "Product Data Scientist",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.95,
+      "company": {
+        "name": "Lumen Health",
+        "websiteDomain": "lumen-health.example"
+      },
+      "role": {
+        "title": "Product Data Scientist",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Lumen Health decided to continue with other candidates (message in Spanish).",
+      "language": "es"
+    }
+  }
+}

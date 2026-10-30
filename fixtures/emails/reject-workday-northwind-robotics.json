@@ -1,0 +1,44 @@
+{
+  "id": "reject-workday-northwind-robotics",
+  "threadId": "thr-northwind-robotics",
+  "internalDate": "2026-09-30T14:10:09.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Northwind Robotics <northwind@myworkday.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Update on your application to Northwind Robotics",
+    "date": "Wed, 30 Sep 2026 14:10:09 +0000"
+  },
+  "snippet": "Dear Mateo, thank you for interviewing with Northwind Robotics. We have decided to continue with other candidates for the Robotics Software Engineer role.",
+  "bodyHtml": "<html><body>\n<p>Dear Mateo,</p>\n<p>Thank you for interviewing with Northwind Robotics. We have decided to continue with other candidates for the Robotics Software Engineer role (R-10442).</p>\n<p>We appreciate your time and wish you success.</p>\n<p>Northwind Robotics Talent Acquisition</p>\n</body></html>",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Northwind Robotics",
+    "role": "Robotics Software Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.96,
+      "company": {
+        "name": "Northwind Robotics",
+        "websiteDomain": null
+      },
+      "role": {
+        "title": "Robotics Software Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Northwind Robotics chose to continue with other candidates.",
+      "language": "en"
+    }
+  }
+}

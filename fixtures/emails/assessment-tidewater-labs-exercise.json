@@ -1,0 +1,47 @@
+{
+  "id": "assessment-tidewater-labs-exercise",
+  "threadId": "thr-tidewater-labs",
+  "internalDate": "2026-09-14T13:05:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Tidewater Labs Careers <careers@tidewater-labs.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Re: Thank you for applying — Platform Engineer",
+    "date": "Mon, 14 Sep 2026 13:05:00 +0000"
+  },
+  "snippet": "Hello Mateo, as the next step please complete our infrastructure exercise before Friday 18 September at noon Monterrey time.",
+  "bodyText": "Hello Mateo,\n\nAs the next step please complete our infrastructure exercise before Friday 18 September at 12:00 Monterrey time. It should take about two hours.\n\nStart here: https://exercise.tidewater-labs.example/platform/start\n\nTidewater Labs Careers",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "assessment",
+    "company": "Tidewater Labs",
+    "role": "Platform Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "assessment",
+      "confidence": 0.94,
+      "company": {
+        "name": "Tidewater Labs",
+        "websiteDomain": "tidewater-labs.example"
+      },
+      "role": {
+        "title": "Platform Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": {
+        "deadline": "2026-09-18T12:00:00-06:00",
+        "url": "https://exercise.tidewater-labs.example/platform/start"
+      },
+      "leads": [],
+      "summary": "Tidewater Labs sent an infrastructure exercise due 18 September at 12:00.",
+      "language": "en"
+    }
+  }
+}

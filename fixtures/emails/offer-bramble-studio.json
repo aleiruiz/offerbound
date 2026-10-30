@@ -1,0 +1,53 @@
+{
+  "id": "offer-bramble-studio",
+  "threadId": "thr-bramble-studio",
+  "internalDate": "2026-10-14T18:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Ines Duarte <ines.duarte@bramble-studio.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Offer for Platform Engineer at Bramble Studio",
+    "date": "Wed, 14 Oct 2026 18:00:00 +0000"
+  },
+  "snippet": "Hi Mateo, everyone on the team enjoyed meeting you. We would like to offer you the Platform Engineer position at Bramble Studio. Details attached below.",
+  "bodyText": "Hi Mateo,\n\nEveryone on the team enjoyed meeting you. We would like to offer you the Platform Engineer position at Bramble Studio. The offer details are at https://people.bramble-studio.example/offers/pe-0412 and I am happy to walk through them on a call.\n\nBest regards,\nInes Duarte\nHead of people, Bramble Studio",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "offer",
+    "company": "Bramble Studio",
+    "role": "Platform Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": {
+      "id": "offer-bramble-studio",
+      "jobRelated": true,
+      "confidence": 0.97
+    },
+    "extraction": {
+      "category": "offer",
+      "confidence": 0.94,
+      "company": {
+        "name": "Bramble Studio",
+        "websiteDomain": "bramble-studio.example"
+      },
+      "role": {
+        "title": "Platform Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Ines Duarte",
+        "email": "ines.duarte@bramble-studio.example",
+        "title": "Head of people",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Bramble Studio offered you the Platform Engineer position.",
+      "language": "en"
+    }
+  }
+}

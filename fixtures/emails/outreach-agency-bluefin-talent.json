@@ -1,0 +1,65 @@
+{
+  "id": "outreach-agency-bluefin-talent",
+  "threadId": "thr-bluefin-talent",
+  "internalDate": "2026-09-30T19:20:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Priya Raman <priya.raman@bluefin-talent.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Engineering Manager opportunity with a logistics client",
+    "date": "Wed, 30 Sep 2026 19:20:00 +0000"
+  },
+  "snippet": "Hello Mateo, I am a recruiter at Bluefin Talent and I am hiring on behalf of a client, Marlin Freight Systems, for an Engineering Manager in Monterrey.",
+  "bodyText": "Hello Mateo,\n\nI am a recruiter at Bluefin Talent and I am hiring on behalf of a client, Marlin Freight Systems, for an Engineering Manager based in Monterrey (hybrid, three days on site). The salary range is 95,000 to 120,000 MXN per month. Are you open to hearing more?\n\nRegards,\nPriya Raman\nSenior consultant, Bluefin Talent",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "recruiter_outreach",
+    "company": "Marlin Freight Systems",
+    "role": "Engineering Manager",
+    "outcome": "applied",
+    "leads": 1
+  },
+  "llm": {
+    "triage": {
+      "id": "outreach-agency-bluefin-talent",
+      "jobRelated": true,
+      "confidence": 0.96
+    },
+    "extraction": {
+      "category": "recruiter_outreach",
+      "confidence": 0.9,
+      "company": {
+        "name": "Marlin Freight Systems",
+        "websiteDomain": null
+      },
+      "role": {
+        "title": "Engineering Manager",
+        "seniority": "manager"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Priya Raman",
+        "email": "priya.raman@bluefin-talent.example",
+        "title": "Senior consultant",
+        "isAgency": true
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Marlin Freight Systems",
+          "title": "Engineering Manager",
+          "jobUrl": null,
+          "locationText": "Monterrey, Mexico",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": "95,000 to 120,000 MXN per month",
+          "postedAt": null
+        }
+      ],
+      "summary": "Bluefin Talent agency recruiter pitched an Engineering Manager role at Marlin Freight Systems.",
+      "language": "en"
+    }
+  }
+}

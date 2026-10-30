@@ -1,0 +1,65 @@
+{
+  "id": "outreach-direct-wren-aerospace",
+  "threadId": "thr-wren-aerospace",
+  "internalDate": "2026-09-12T16:05:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Oliver Grant <oliver.grant@wren-aero.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Staff Software Engineer at Wren Aerospace",
+    "date": "Sat, 12 Sep 2026 16:05:00 +0000"
+  },
+  "snippet": "Hi Mateo, I lead engineering recruiting at Wren Aerospace. Your background in simulation tooling caught my eye for our Staff Software Engineer opening.",
+  "bodyText": "Hi Mateo,\n\nI lead engineering recruiting at Wren Aerospace. Your background in simulation tooling caught my eye for our Staff Software Engineer opening on the flight software team (remote within Mexico or the US). Would you be open to a short conversation this week?\n\nRole details: https://wren-aero.example/careers/staff-software-engineer\n\nBest regards,\nOliver Grant\nHead of engineering recruiting, Wren Aerospace",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "recruiter_outreach",
+    "company": "Wren Aerospace",
+    "role": "Staff Software Engineer",
+    "outcome": "applied",
+    "leads": 1
+  },
+  "llm": {
+    "triage": {
+      "id": "outreach-direct-wren-aerospace",
+      "jobRelated": true,
+      "confidence": 0.95
+    },
+    "extraction": {
+      "category": "recruiter_outreach",
+      "confidence": 0.93,
+      "company": {
+        "name": "Wren Aerospace",
+        "websiteDomain": "wren-aero.example"
+      },
+      "role": {
+        "title": "Staff Software Engineer",
+        "seniority": "staff_plus"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Oliver Grant",
+        "email": "oliver.grant@wren-aero.example",
+        "title": "Head of engineering recruiting",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Wren Aerospace",
+          "title": "Staff Software Engineer",
+          "jobUrl": "https://wren-aero.example/careers/staff-software-engineer",
+          "locationText": "Remote (Mexico or US)",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "Wren Aerospace recruiter reached out about a Staff Software Engineer role.",
+      "language": "en"
+    }
+  }
+}

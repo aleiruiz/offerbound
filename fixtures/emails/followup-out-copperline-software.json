@@ -1,0 +1,49 @@
+{
+  "id": "followup-out-copperline-software",
+  "threadId": "thr-copperline-software",
+  "internalDate": "2026-10-20T14:45:00.000Z",
+  "labels": ["SENT"],
+  "headers": {
+    "from": "Mateo Salgado <mateo.salgado@owner.example>",
+    "to": ["hannah.brooks@copperline-software.example"],
+    "subject": "Re: Copperline Software: technical interview",
+    "date": "Tue, 20 Oct 2026 14:45:00 +0000"
+  },
+  "snippet": "Hi Hannah, thanks again for the interview last week. I wanted to ask whether there is any news on next steps.",
+  "bodyText": "Hi Hannah,\n\nThanks again for the interview last week. I wanted to ask whether there is any news on next steps.\n\nBest,\nMateo Salgado",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "candidate_outbound",
+    "company": "Copperline Software",
+    "role": "Senior Software Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "candidate_outbound",
+      "confidence": 0.92,
+      "company": {
+        "name": "Copperline Software",
+        "websiteDomain": "copperline-software.example"
+      },
+      "role": {
+        "title": "Senior Software Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Hannah Brooks",
+        "email": "hannah.brooks@copperline-software.example",
+        "title": null,
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "You asked Copperline Software for news on next steps.",
+      "language": "en"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "skipped-spam-prize",
+  "threadId": "thr-skipped-spam",
+  "internalDate": "2026-09-20T09:00:00.000Z",
+  "labels": ["SPAM", "UNREAD"],
+  "headers": {
+    "from": "Prize Desk <winner@prize-desk.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "You have been selected for a $500 reward",
+    "date": "Sun, 20 Sep 2026 09:00:00 +0000"
+  },
+  "snippet": "Claim your reward now. Click the link below within 24 hours to confirm your selection.",
+  "bodyText": "Claim your reward now.\n\nClick the link below within 24 hours: https://prize-desk.example/claim",
+  "demo": false,
+  "expected": {
+    "triage": "skipped",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "skipped"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": null
+  }
+}

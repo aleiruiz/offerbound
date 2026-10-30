@@ -1,0 +1,49 @@
+{
+  "id": "followup-out-quarry-ai",
+  "threadId": "thr-out-quarry-checkin",
+  "internalDate": "2026-09-24T16:30:00.000Z",
+  "labels": ["SENT"],
+  "headers": {
+    "from": "Mateo Salgado <mateo.salgado@owner.example>",
+    "to": ["maya.chen@quarry-ai.example"],
+    "subject": "Checking in on the Senior Machine Learning Engineer role",
+    "date": "Thu, 24 Sep 2026 16:30:00 +0000"
+  },
+  "snippet": "Hi Maya, I wanted to check whether the team has decided how to proceed with the Senior Machine Learning Engineer role. I am still very interested.",
+  "bodyText": "Hi Maya,\n\nI wanted to check whether the team has decided how to proceed with the Senior Machine Learning Engineer role. I am still very interested and happy to talk whenever it suits you.\n\nThanks,\nMateo Salgado",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "candidate_outbound",
+    "company": "Quarry AI",
+    "role": "Senior Machine Learning Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "candidate_outbound",
+      "confidence": 0.93,
+      "company": {
+        "name": "Quarry AI",
+        "websiteDomain": "quarry-ai.example"
+      },
+      "role": {
+        "title": "Senior Machine Learning Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Maya Chen",
+        "email": "maya.chen@quarry-ai.example",
+        "title": null,
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "You followed up with Quarry AI about the Senior Machine Learning Engineer role.",
+      "language": "en"
+    }
+  }
+}

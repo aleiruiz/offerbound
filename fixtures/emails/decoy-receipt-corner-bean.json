@@ -1,0 +1,30 @@
+{
+  "id": "decoy-receipt-corner-bean",
+  "threadId": "thr-decoy-receipt",
+  "internalDate": "2026-09-17T19:05:00.000Z",
+  "labels": ["INBOX", "UNREAD", "CATEGORY_UPDATES"],
+  "headers": {
+    "from": "Corner Bean Coffee <receipts@cornerbean.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Your receipt from Corner Bean Coffee",
+    "date": "Thu, 17 Sep 2026 19:05:00 +0000"
+  },
+  "snippet": "Thanks for stopping by. Order #5521: 1 flat white, 1 almond croissant. Total 118.00 MXN paid by card.",
+  "bodyText": "Thanks for stopping by.\n\nOrder #5521: 1 flat white, 1 almond croissant.\nTotal 118.00 MXN paid by card.",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-receipt-corner-bean",
+      "jobRelated": false,
+      "confidence": 0.99
+    },
+    "extraction": null
+  }
+}

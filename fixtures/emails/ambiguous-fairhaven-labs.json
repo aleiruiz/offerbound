@@ -1,0 +1,54 @@
+{
+  "id": "ambiguous-fairhaven-labs",
+  "threadId": "thr-fairhaven-update",
+  "internalDate": "2026-10-15T17:30:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Gabriel Soto <gabriel.soto@fairhaven-labs.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Status of your application at Fairhaven Labs",
+    "date": "Thu, 15 Oct 2026 17:30:00 +0000"
+  },
+  "snippet": "Hello Mateo, we are scheduling first conversations for the engineering role this week and will contact shortlisted candidates directly.",
+  "bodyText": "Hello Mateo,\n\nWe are scheduling first conversations for the engineering role this week and will contact shortlisted candidates directly. Thank you for your interest in Fairhaven Labs.\n\nGabriel Soto\nTalent lead, Fairhaven Labs",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "status_update_other",
+    "company": "Fairhaven Labs",
+    "role": "Engineer",
+    "outcome": "needs_review",
+    "reviewKind": "ambiguous_match"
+  },
+  "llm": {
+    "triage": {
+      "id": "ambiguous-fairhaven-labs",
+      "jobRelated": true,
+      "confidence": 0.9
+    },
+    "extraction": {
+      "category": "status_update_other",
+      "confidence": 0.86,
+      "company": {
+        "name": "Fairhaven Labs",
+        "websiteDomain": "fairhaven-labs.example"
+      },
+      "role": {
+        "title": "Engineer",
+        "seniority": null
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Gabriel Soto",
+        "email": "gabriel.soto@fairhaven-labs.example",
+        "title": "Talent lead",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Fairhaven Labs is scheduling first conversations for an engineering role this week.",
+      "language": "en"
+    }
+  }
+}

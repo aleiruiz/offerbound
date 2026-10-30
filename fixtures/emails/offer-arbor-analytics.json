@@ -1,0 +1,49 @@
+{
+  "id": "offer-arbor-analytics",
+  "threadId": "thr-arbor-analytics",
+  "internalDate": "2026-10-05T19:30:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Lena Fischer <lena.fischer@arboranalytics.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Offer: Analytics Engineer at Arbor Analytics",
+    "date": "Mon, 05 Oct 2026 19:30:00 +0000"
+  },
+  "snippet": "Hi Mateo, I am delighted to share that we would like to offer you the Analytics Engineer position. The offer letter is linked below.",
+  "bodyText": "Hi Mateo,\n\nI am delighted to share that we would like to offer you the Analytics Engineer position at Arbor Analytics. The full offer letter, with compensation and start date, is here: https://offers.arboranalytics.example/letter/ae-2026-0412\n\nPlease let me know by Friday 9 October if you have questions.\n\nBest regards,\nLena Fischer\nSenior recruiter, Arbor Analytics",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "offer",
+    "company": "Arbor Analytics",
+    "role": "Analytics Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "offer",
+      "confidence": 0.97,
+      "company": {
+        "name": "Arbor Analytics",
+        "websiteDomain": "arboranalytics.example"
+      },
+      "role": {
+        "title": "Analytics Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Lena Fischer",
+        "email": "lena.fischer@arboranalytics.example",
+        "title": "Senior recruiter",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Arbor Analytics offered you the Analytics Engineer position.",
+      "language": "en"
+    }
+  }
+}

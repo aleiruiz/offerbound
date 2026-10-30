@@ -1,0 +1,59 @@
+{
+  "id": "reschedule-text-arbor-analytics",
+  "threadId": "thr-arbor-analytics",
+  "internalDate": "2026-09-22T14:20:17.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Lena Fischer <lena.fischer@arboranalytics.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Re: Arbor Analytics system design interview",
+    "date": "Tue, 22 Sep 2026 14:20:17 +0000"
+  },
+  "snippet": "Hi Mateo, Kofi cannot make Thursday after all. Could we move the interview to Friday 25 September at 11:00 Monterrey time instead?",
+  "bodyText": "Hi Mateo,\n\nKofi cannot make Thursday after all. Could we move the system design interview to Friday 25 September at 11:00 Monterrey time (UTC-6), same video link? I will send a new calendar invitation once you confirm.\n\nBest regards,\nLena Fischer\nSenior recruiter, Arbor Analytics",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_reschedule",
+    "company": "Arbor Analytics",
+    "role": "Analytics Engineer",
+    "outcome": "applied",
+    "interviewStart": "2026-09-25T17:00:00.000Z"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_reschedule",
+      "confidence": 0.9,
+      "company": {
+        "name": "Arbor Analytics",
+        "websiteDomain": "arboranalytics.example"
+      },
+      "role": {
+        "title": "Analytics Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Lena Fischer",
+        "email": "lena.fischer@arboranalytics.example",
+        "title": "Senior recruiter",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "system_design",
+        "startsAt": "2026-09-25T11:00:00-06:00",
+        "endsAt": null,
+        "timezone": "America/Monterrey",
+        "meetingUrl": "https://meet.arboranalytics.example/sd-2291",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": ["Kofi Mensah"]
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Arbor Analytics proposed moving the system design interview to 25 September at 11:00.",
+      "language": "en"
+    }
+  }
+}

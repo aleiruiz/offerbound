@@ -1,0 +1,61 @@
+{
+  "id": "outreach-quarry-ai-research",
+  "threadId": "thr-quarry-research",
+  "internalDate": "2026-10-06T15:45:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Maya Chen <maya.chen@quarry-ai.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Another Quarry AI role you might like",
+    "date": "Tue, 06 Oct 2026 15:45:00 +0000"
+  },
+  "snippet": "Hi Mateo, the hire we paused is back on, and there is also a Research Engineer role on our evaluations team. Would you like to talk about both?",
+  "bodyText": "Hi Mateo,\n\nGood news: the Senior Machine Learning Engineer hire we paused is back on. There is also a Research Engineer role on our evaluations team that looks close to your background. Would you like to talk about both this week?\n\nBest regards,\nMaya Chen\nTalent partner, Quarry AI",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "recruiter_outreach",
+    "company": "Quarry AI",
+    "role": "Research Engineer",
+    "outcome": "applied",
+    "leads": 0
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "recruiter_outreach",
+      "confidence": 0.9,
+      "company": {
+        "name": "Quarry AI",
+        "websiteDomain": "quarry-ai.example"
+      },
+      "role": {
+        "title": "Research Engineer",
+        "seniority": null
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Maya Chen",
+        "email": "maya.chen@quarry-ai.example",
+        "title": "Talent partner",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Quarry AI",
+          "title": "Research Engineer",
+          "jobUrl": null,
+          "locationText": "Remote",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "Quarry AI reopened the machine learning role and mentioned a Research Engineer opening.",
+      "language": "en"
+    }
+  }
+}
