@@ -1,0 +1,30 @@
+{
+  "id": "decoy-bank-fernhill",
+  "threadId": "thr-decoy-bank",
+  "internalDate": "2026-09-06T14:00:00.000Z",
+  "labels": ["INBOX", "UNREAD", "CATEGORY_UPDATES"],
+  "headers": {
+    "from": "Fernhill Bank <alerts@fernhill-bank.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Your August statement is ready",
+    "date": "Sun, 06 Sep 2026 14:00:00 +0000"
+  },
+  "snippet": "Your August statement for the account ending in 4417 is ready to view. Sign in to the Fernhill Bank app to download it.",
+  "bodyText": "Your August statement for the account ending in 4417 is ready to view.\n\nSign in to the Fernhill Bank app to download it. We will never ask for your password by email.",
+  "demo": true,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-bank-fernhill",
+      "jobRelated": false,
+      "confidence": 0.99
+    },
+    "extraction": null
+  }
+}

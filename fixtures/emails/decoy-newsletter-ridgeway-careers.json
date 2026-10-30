@@ -1,0 +1,27 @@
+{
+  "id": "decoy-newsletter-ridgeway-careers",
+  "threadId": "thr-decoy-newsletter",
+  "internalDate": "2026-09-07T11:00:00.000Z",
+  "labels": ["INBOX", "UNREAD", "CATEGORY_PROMOTIONS"],
+  "headers": {
+    "from": "Ridgeway Careers Weekly <weekly@ridgeway-careers.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "10 ways to stand out in a tough hiring market",
+    "date": "Mon, 07 Sep 2026 11:00:00 +0000",
+    "listId": "weekly.ridgeway-careers.example"
+  },
+  "snippet": "This week: ten ways to stand out in a tough hiring market, how to negotiate remote pay, and the résumé mistakes recruiters see most.",
+  "bodyText": "Ridgeway Careers Weekly\n\nThis week: ten ways to stand out in a tough hiring market, how to negotiate remote pay, and the résumé mistakes recruiters see most.\n\nRead online: https://ridgeway-careers.example/weekly/2026-09-07\nUnsubscribe: https://ridgeway-careers.example/unsubscribe",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": null
+  }
+}

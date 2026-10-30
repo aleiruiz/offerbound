@@ -1,0 +1,51 @@
+{
+  "id": "ambiguous-driftwood-software",
+  "threadId": "thr-driftwood-update",
+  "internalDate": "2026-10-07T16:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Noor Haddad <noor.haddad@driftwood-software.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "An update on your application",
+    "date": "Wed, 07 Oct 2026 16:00:00 +0000"
+  },
+  "snippet": "Hi Mateo, thank you for your patience. Our hiring team is now reviewing profiles and we expect to share next steps within two weeks.",
+  "bodyText": "Hi Mateo,\n\nThank you for your patience. Our hiring team is now reviewing profiles and we expect to share next steps within two weeks. There is nothing you need to do for now.\n\nNoor Haddad\nRecruiting coordinator, Driftwood Software",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "status_update_other",
+    "company": "Driftwood Software",
+    "role": null,
+    "outcome": "needs_review",
+    "reviewKind": "ambiguous_match"
+  },
+  "llm": {
+    "triage": {
+      "id": "ambiguous-driftwood-software",
+      "jobRelated": true,
+      "confidence": 0.91
+    },
+    "extraction": {
+      "category": "status_update_other",
+      "confidence": 0.9,
+      "company": {
+        "name": "Driftwood Software",
+        "websiteDomain": "driftwood-software.example"
+      },
+      "role": null,
+      "jobUrl": null,
+      "contact": {
+        "name": "Noor Haddad",
+        "email": "noor.haddad@driftwood-software.example",
+        "title": "Recruiting coordinator",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Driftwood Software said it is reviewing profiles and will share next steps in two weeks.",
+      "language": "en"
+    }
+  }
+}

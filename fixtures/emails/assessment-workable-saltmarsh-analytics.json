@@ -1,0 +1,48 @@
+{
+  "id": "assessment-workable-saltmarsh-analytics",
+  "threadId": "thr-saltmarsh-analytics",
+  "internalDate": "2026-10-01T15:30:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Saltmarsh Analytics <noreply@workablemail.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Saltmarsh Analytics: complete your coding assessment",
+    "date": "Thu, 01 Oct 2026 15:30:00 +0000"
+  },
+  "snippet": "Hi Mateo, as part of your application for Data Engineer at Saltmarsh Analytics, please complete the coding assessment within 5 days.",
+  "bodyText": "Hi Mateo,\n\nAs part of your application for Data Engineer at Saltmarsh Analytics, please complete the 90 minute coding assessment by Wednesday 7 October at 23:59 Monterrey time (UTC-6).\n\nStart the assessment: https://tests.codebench.example/s/ZT44-91LK\n\nJob posting: https://apply.workable.com/saltmarsh-analytics/j/7C3A91F0B2\n\nSaltmarsh Analytics Hiring Team",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "assessment",
+    "company": "Saltmarsh Analytics",
+    "role": "Data Engineer",
+    "jobKey": "workable:saltmarsh-analytics:7C3A91F0B2",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "assessment",
+      "confidence": 0.94,
+      "company": {
+        "name": "Saltmarsh Analytics",
+        "websiteDomain": null
+      },
+      "role": {
+        "title": "Data Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": "https://apply.workable.com/saltmarsh-analytics/j/7C3A91F0B2",
+      "contact": null,
+      "interview": null,
+      "assessment": {
+        "deadline": "2026-10-07T23:59:00-06:00",
+        "url": "https://tests.codebench.example/s/ZT44-91LK"
+      },
+      "leads": [],
+      "summary": "Saltmarsh Analytics sent a coding assessment due 7 October.",
+      "language": "en"
+    }
+  }
+}

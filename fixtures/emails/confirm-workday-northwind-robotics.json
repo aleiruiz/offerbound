@@ -1,0 +1,45 @@
+{
+  "id": "confirm-workday-northwind-robotics",
+  "threadId": "thr-northwind-robotics",
+  "internalDate": "2026-09-03T21:15:33.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Northwind Robotics <northwind@myworkday.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Northwind Robotics: we received your application",
+    "date": "Thu, 03 Sep 2026 21:15:33 +0000"
+  },
+  "snippet": "Thank you for applying to Robotics Software Engineer (R-10442) at Northwind Robotics. We will review your application and contact you if there is a match.",
+  "bodyHtml": "<html><body>\n<p>Hello Mateo,</p>\n<p>Thank you for applying to <b>Robotics Software Engineer (R-10442)</b> at Northwind Robotics. We will review your application and contact you if there is a match.</p>\n<p>Job posting: <a href=\"https://northwind.wd5.myworkdayjobs.com/en-US/Northwind_Careers/job/Austin-TX/Robotics-Software-Engineer_R-10442\">Robotics Software Engineer</a></p>\n<p>This is an automated message. Please do not reply.</p>\n</body></html>",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "application_confirmation",
+    "company": "Northwind Robotics",
+    "role": "Robotics Software Engineer",
+    "jobKey": "workday:northwind:R-10442",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "application_confirmation",
+      "confidence": 0.96,
+      "company": {
+        "name": "Northwind Robotics",
+        "websiteDomain": null
+      },
+      "role": {
+        "title": "Robotics Software Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": "https://northwind.wd5.myworkdayjobs.com/en-US/Northwind_Careers/job/Austin-TX/Robotics-Software-Engineer_R-10442",
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Northwind Robotics confirmed receipt of the Robotics Software Engineer application.",
+      "language": "en"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "reject-es-halyard-health",
+  "threadId": "thr-halyard-health",
+  "internalDate": "2026-09-16T18:20:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Valeria Montes <talento@halyard-health.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Re: Candidatura Data Engineer, Halyard Health",
+    "date": "Wed, 16 Sep 2026 18:20:00 +0000"
+  },
+  "snippet": "Hola Mateo, gracias por escribirnos. Lamentamos informarte que el puesto de Data Engineer ya fue cubierto y no podremos continuar con tu candidatura.",
+  "bodyText": "Hola Mateo,\n\nGracias por escribirnos y por tu interés en Halyard Health. Lamentamos informarte que el puesto de Data Engineer ya fue cubierto y no podremos continuar con tu candidatura.\n\nGuardaremos tu perfil por si surge otra vacante.\n\nSaludos,\nValeria Montes\nTalento, Halyard Health\n\nEl mar, 15 sep 2026 a las 10:04, Mateo Salgado <mateo.salgado@owner.example> escribió:\n> Hola, me gustaría saber si el puesto de Data Engineer sigue abierto.\n> Adjunto mi currículum. Gracias, Mateo",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Halyard Health",
+    "role": "Data Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": {
+      "id": "reject-es-halyard-health",
+      "jobRelated": true,
+      "confidence": 0.93
+    },
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.92,
+      "company": {
+        "name": "Halyard Health",
+        "websiteDomain": "halyard-health.example"
+      },
+      "role": {
+        "title": "Data Engineer",
+        "seniority": null
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Valeria Montes",
+        "email": "talento@halyard-health.example",
+        "title": null,
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Halyard Health said the Data Engineer role was filled (message in Spanish).",
+      "language": "es"
+    }
+  }
+}

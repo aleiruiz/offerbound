@@ -1,0 +1,90 @@
+{
+  "id": "alert-linkedin-five-jobs",
+  "threadId": "thr-alert-linkedin-0915",
+  "internalDate": "2026-09-15T13:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "5 new jobs for senior engineer in Mexico",
+    "date": "Tue, 15 Sep 2026 13:00:00 +0000"
+  },
+  "snippet": "Senior Data Engineer at Pinecrest Pharma, Staff Backend Engineer at Orbital Freight Labs, Machine Learning Engineer at Cedar Health and 2 more new jobs.",
+  "bodyHtml": "<html><body>\n<h2>5 new jobs for senior engineer in Mexico</h2>\n<ul>\n<li><a href=\"https://www.linkedin.com/comm/jobs/view/4318850021/?trackingId=Zx9fQ2lT&refId=a1B2c3\">Senior Data Engineer</a><br>Pinecrest Pharma · Guadalajara, Jalisco, Mexico</li>\n<li><a href=\"https://www.linkedin.com/comm/jobs/view/4318850432/?trackingId=Zx9fQ2lT&refId=a1B2c3\">Staff Backend Engineer</a><br>Orbital Freight Labs · Remote, Mexico</li>\n<li><a href=\"https://www.linkedin.com/comm/jobs/view/4318851007/?trackingId=Zx9fQ2lT&refId=a1B2c3\">Machine Learning Engineer</a><br>Cedar Health · Monterrey, Nuevo León, Mexico</li>\n<li><a href=\"https://www.linkedin.com/comm/jobs/view/4318851650/?trackingId=Zx9fQ2lT&refId=a1B2c3\">Platform Engineer</a><br>Lattice Mobility · Remote, Latin America</li>\n<li><a href=\"https://www.linkedin.com/comm/jobs/view/4318852199/?trackingId=Zx9fQ2lT&refId=a1B2c3\">Analytics Engineer</a><br>Foxglove Data · Mexico City, Mexico</li>\n</ul>\n<p>You are receiving job alert emails.</p>\n</body></html>",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "job_alert",
+    "company": null,
+    "role": null,
+    "outcome": "applied",
+    "leads": 5
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "job_alert",
+      "confidence": 0.97,
+      "company": null,
+      "role": null,
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Pinecrest Pharma",
+          "title": "Senior Data Engineer",
+          "jobUrl": "https://www.linkedin.com/comm/jobs/view/4318850021/?trackingId=Zx9fQ2lT&refId=a1B2c3",
+          "locationText": "Guadalajara, Jalisco, Mexico",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Orbital Freight Labs",
+          "title": "Staff Backend Engineer",
+          "jobUrl": "https://www.linkedin.com/comm/jobs/view/4318850432/?trackingId=Zx9fQ2lT&refId=a1B2c3",
+          "locationText": "Remote, Mexico",
+          "country": "MX",
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Cedar Health",
+          "title": "Machine Learning Engineer",
+          "jobUrl": "https://www.linkedin.com/comm/jobs/view/4318851007/?trackingId=Zx9fQ2lT&refId=a1B2c3",
+          "locationText": "Monterrey, Nuevo León, Mexico",
+          "country": "MX",
+          "workMode": "onsite",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Lattice Mobility",
+          "title": "Platform Engineer",
+          "jobUrl": "https://www.linkedin.com/comm/jobs/view/4318851650/?trackingId=Zx9fQ2lT&refId=a1B2c3",
+          "locationText": "Remote, Latin America",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Foxglove Data",
+          "title": "Analytics Engineer",
+          "jobUrl": "https://www.linkedin.com/comm/jobs/view/4318852199/?trackingId=Zx9fQ2lT&refId=a1B2c3",
+          "locationText": "Mexico City, Mexico",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "LinkedIn alert with 5 new jobs for senior engineer in Mexico.",
+      "language": "en"
+    }
+  }
+}

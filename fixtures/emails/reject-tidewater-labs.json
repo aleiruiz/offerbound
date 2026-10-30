@@ -1,0 +1,44 @@
+{
+  "id": "reject-tidewater-labs",
+  "threadId": "thr-tidewater-labs",
+  "internalDate": "2026-10-02T18:25:40.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Tidewater Labs Careers <careers@tidewater-labs.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Re: Thank you for applying — Platform Engineer",
+    "date": "Fri, 02 Oct 2026 18:25:40 +0000"
+  },
+  "snippet": "Hello Mateo, thank you for completing the exercise. Unfortunately we will not be moving forward with your application at this time.",
+  "bodyText": "Hello Mateo,\n\nThank you for completing the exercise. Unfortunately we will not be moving forward with your application for the Platform Engineer position at this time.\n\nWe will keep your details on file for future openings.\n\nTidewater Labs Careers",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Tidewater Labs",
+    "role": "Platform Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.96,
+      "company": {
+        "name": "Tidewater Labs",
+        "websiteDomain": "tidewater-labs.example"
+      },
+      "role": {
+        "title": "Platform Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Tidewater Labs will not move forward with the Platform Engineer application.",
+      "language": "en"
+    }
+  }
+}

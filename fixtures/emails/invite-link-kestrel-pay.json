@@ -1,0 +1,58 @@
+{
+  "id": "invite-link-kestrel-pay",
+  "threadId": "thr-kestrel-backend",
+  "internalDate": "2026-09-09T18:00:12.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Daniel Okafor <recruiting@kestrel-pay.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Next step: pick a time for your technical screen",
+    "date": "Wed, 09 Sep 2026 18:00:12 +0000"
+  },
+  "snippet": "Hi Mateo, we would like to move you forward to a technical screen. Please choose a time that works for you using the scheduling link below.",
+  "bodyText": "Hi Mateo,\n\nWe would like to move you forward to a 45 minute technical screen with one of our backend engineers. Please choose a time that works for you here:\n\nhttps://schedule.kestrel-pay.example/book/mateo-salgado-9f21\n\nThe link is open for the next ten days.\n\nBest regards,\nDaniel Okafor\nRecruiter, Kestrel Pay",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_invite",
+    "company": "Kestrel Pay",
+    "role": "Senior Backend Engineer, Ledger",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_invite",
+      "confidence": 0.93,
+      "company": {
+        "name": "Kestrel Pay",
+        "websiteDomain": "kestrel-pay.example"
+      },
+      "role": {
+        "title": "Senior Backend Engineer, Ledger",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Daniel Okafor",
+        "email": "recruiting@kestrel-pay.example",
+        "title": "Recruiter",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "technical",
+        "startsAt": null,
+        "endsAt": null,
+        "timezone": null,
+        "meetingUrl": null,
+        "schedulingUrl": "https://schedule.kestrel-pay.example/book/mateo-salgado-9f21",
+        "location": null,
+        "interviewers": []
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Kestrel Pay asked you to pick a time for a technical screen.",
+      "language": "en"
+    }
+  }
+}

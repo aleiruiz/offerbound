@@ -1,0 +1,44 @@
+{
+  "id": "reject-lever-kestrel-pay",
+  "threadId": "thr-kestrel-backend",
+  "internalDate": "2026-09-29T16:45:20.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Kestrel Pay <no-reply@hire.lever.co>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Your application to Kestrel Pay",
+    "date": "Tue, 29 Sep 2026 16:45:20 +0000"
+  },
+  "snippet": "Hi Mateo, thank you for taking the time to speak with us. After careful consideration we have decided not to move forward with your application.",
+  "bodyText": "Hi Mateo,\n\nThank you for taking the time to speak with us about the Senior Backend Engineer, Ledger role. After careful consideration we have decided not to move forward with your application.\n\nWe wish you the best in your search.\n\nKestrel Pay Talent Team",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Kestrel Pay",
+    "role": "Senior Backend Engineer, Ledger",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.97,
+      "company": {
+        "name": "Kestrel Pay",
+        "websiteDomain": "kestrel-pay.example"
+      },
+      "role": {
+        "title": "Senior Backend Engineer, Ledger",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Kestrel Pay declined to move forward with the application.",
+      "language": "en"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "alert-glassdoor-three-jobs",
+  "threadId": "thr-alert-glassdoor-1002",
+  "internalDate": "2026-10-02T14:00:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Glassdoor Jobs <noreply@glassdoor.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Jobs matching your search: software engineer",
+    "date": "Fri, 02 Oct 2026 14:00:00 +0000"
+  },
+  "snippet": "3 new jobs match your search: Senior Software Engineer at Redwood Mobility, Staff Data Engineer at Thistle Learning and Machine Learning Engineer at Marigold Robotics.",
+  "bodyText": "3 new jobs match your search: software engineer\n\nSenior Software Engineer - Redwood Mobility\nRemote\nhttps://www.glassdoor.com/job-listing/senior-software-engineer-redwood-mobility-JV_IC2279010_KO0,24.htm?jl=1009876543210\n\nStaff Data Engineer - Thistle Learning\nGuadalajara, Jalisco\nhttps://www.glassdoor.com/job-listing/staff-data-engineer-thistle-learning-JV_IC2279011_KO0,19.htm?jl=1009876543299\n\nMachine Learning Engineer - Marigold Robotics\nMonterrey, Nuevo León\nhttps://www.glassdoor.com/job-listing/machine-learning-engineer-marigold-robotics-JV_IC2279012_KO0,25.htm?jl=1009876543377\n\nManage your job alerts in your account settings.",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "job_alert",
+    "company": null,
+    "role": null,
+    "outcome": "applied",
+    "leads": 3
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "job_alert",
+      "confidence": 0.96,
+      "company": null,
+      "role": null,
+      "jobUrl": null,
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Redwood Mobility",
+          "title": "Senior Software Engineer",
+          "jobUrl": "https://www.glassdoor.com/job-listing/senior-software-engineer-redwood-mobility-JV_IC2279010_KO0,24.htm?jl=1009876543210",
+          "locationText": "Remote",
+          "country": null,
+          "workMode": "remote",
+          "compensationText": null,
+          "postedAt": null
+        },
+        {
+          "company": "Thistle Learning",
+          "title": "Staff Data Engineer",
+          "jobUrl": "https://www.glassdoor.com/job-listing/staff-data-engineer-thistle-learning-JV_IC2279011_KO0,19.htm?jl=1009876543299",
+          "locationText": "Guadalajara, Jalisco",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": "$4,500 - $5,800 a month",
+          "postedAt": null
+        },
+        {
+          "company": "Marigold Robotics",
+          "title": "Machine Learning Engineer",
+          "jobUrl": "https://www.glassdoor.com/job-listing/machine-learning-engineer-marigold-robotics-JV_IC2279012_KO0,25.htm?jl=1009876543377",
+          "locationText": "Monterrey, Nuevo León",
+          "country": "MX",
+          "workMode": "onsite",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "Glassdoor alert with 3 new software engineer jobs.",
+      "language": "en"
+    }
+  }
+}

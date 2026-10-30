@@ -1,0 +1,60 @@
+{
+  "id": "reschedule-ics-quarry-ai",
+  "threadId": "thr-quarry-ml",
+  "internalDate": "2026-09-14T14:05:42.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Maya Chen <maya.chen@quarry-ai.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Updated invitation: Quarry AI technical conversation",
+    "date": "Mon, 14 Sep 2026 14:05:42 +0000"
+  },
+  "snippet": "Hi Mateo, Elias has a conflict on Thursday. Could we move the conversation to Friday 18 September at 11:00 Monterrey time? Updated invitation attached.",
+  "bodyText": "Hi Mateo,\n\nElias has a conflict on Thursday. Could we move the conversation to Friday 18 September at 11:00 Monterrey time (UTC-6)? The updated invitation is attached; the video link stays the same.\n\nSorry for the change.\n\nBest regards,\nMaya Chen\nTalent partner, Quarry AI",
+  "ics": "BEGIN:VCALENDAR\r\nPRODID:-//Fictional Scheduler//Offerbound fixtures//EN\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:quarry-int-0917-a1@quarry-ai.example\r\nDTSTAMP:20260914T140500Z\r\nDTSTART:20260918T170000Z\r\nDTEND:20260918T180000Z\r\nSUMMARY:Quarry AI: technical conversation (Mateo Salgado)\r\nLOCATION:Video call\r\nURL:https://meet.quarry-ai.example/mc-7731\r\nORGANIZER;CN=Maya Chen:mailto:maya.chen@quarry-ai.example\r\nSEQUENCE:1\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_reschedule",
+    "company": "Quarry AI",
+    "role": "Senior Machine Learning Engineer",
+    "outcome": "applied",
+    "interviewStart": "2026-09-18T17:00:00.000Z"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_reschedule",
+      "confidence": 0.95,
+      "company": {
+        "name": "Quarry AI",
+        "websiteDomain": "quarry-ai.example"
+      },
+      "role": {
+        "title": "Senior Machine Learning Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Maya Chen",
+        "email": "maya.chen@quarry-ai.example",
+        "title": "Talent partner",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "technical",
+        "startsAt": "2026-09-18T11:00:00-06:00",
+        "endsAt": "2026-09-18T12:00:00-06:00",
+        "timezone": "America/Monterrey",
+        "meetingUrl": "https://meet.quarry-ai.example/mc-7731",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": ["Elias Novak"]
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Quarry AI moved the technical interview to 18 September at 11:00.",
+      "language": "en"
+    }
+  }
+}

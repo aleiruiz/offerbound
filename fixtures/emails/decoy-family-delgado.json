@@ -1,0 +1,30 @@
+{
+  "id": "decoy-family-delgado",
+  "threadId": "thr-decoy-family",
+  "internalDate": "2026-09-13T01:40:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Rosa Delgado <rosa@delgado-family.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Comida del domingo",
+    "date": "Sun, 13 Sep 2026 01:40:00 +0000"
+  },
+  "snippet": "Hola Mateo, el domingo comemos en casa de la abuela a las 3. Lleva el postre que prometiste. Un abrazo, Rosa",
+  "bodyText": "Hola Mateo,\n\nEl domingo comemos en casa de la abuela a las 3. Lleva el postre que prometiste, el de limón.\n\nUn abrazo,\nRosa",
+  "demo": false,
+  "expected": {
+    "triage": "triaged_out",
+    "category": null,
+    "company": null,
+    "role": null,
+    "outcome": "triaged_out"
+  },
+  "llm": {
+    "triage": {
+      "id": "decoy-family-delgado",
+      "jobRelated": false,
+      "confidence": 0.98
+    },
+    "extraction": null
+  }
+}

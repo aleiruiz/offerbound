@@ -1,0 +1,59 @@
+{
+  "id": "cancel-ics-quarry-ai",
+  "threadId": "thr-quarry-ml",
+  "internalDate": "2026-09-17T22:10:30.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Maya Chen <maya.chen@quarry-ai.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Canceled: Quarry AI technical conversation",
+    "date": "Thu, 17 Sep 2026 22:10:30 +0000"
+  },
+  "snippet": "Hi Mateo, I am sorry to tell you we need to cancel tomorrow's conversation. The team is pausing the hire while it reviews its plan.",
+  "bodyText": "Hi Mateo,\n\nI am sorry to tell you we need to cancel tomorrow's conversation. The team is pausing the hire while it reviews its plan for the quarter. I will write again as soon as I know more.\n\nBest regards,\nMaya Chen\nTalent partner, Quarry AI",
+  "ics": "BEGIN:VCALENDAR\r\nPRODID:-//Fictional Scheduler//Offerbound fixtures//EN\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nMETHOD:CANCEL\r\nBEGIN:VEVENT\r\nUID:quarry-int-0917-a1@quarry-ai.example\r\nDTSTAMP:20260917T221000Z\r\nDTSTART:20260918T170000Z\r\nDTEND:20260918T180000Z\r\nSUMMARY:Quarry AI: technical conversation (Mateo Salgado)\r\nLOCATION:Video call\r\nORGANIZER;CN=Maya Chen:mailto:maya.chen@quarry-ai.example\r\nSEQUENCE:2\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "interview_cancellation",
+    "company": "Quarry AI",
+    "role": "Senior Machine Learning Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "interview_cancellation",
+      "confidence": 0.96,
+      "company": {
+        "name": "Quarry AI",
+        "websiteDomain": "quarry-ai.example"
+      },
+      "role": {
+        "title": "Senior Machine Learning Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Maya Chen",
+        "email": "maya.chen@quarry-ai.example",
+        "title": "Talent partner",
+        "isAgency": false
+      },
+      "interview": {
+        "kind": "technical",
+        "startsAt": "2026-09-18T11:00:00-06:00",
+        "endsAt": "2026-09-18T12:00:00-06:00",
+        "timezone": "America/Monterrey",
+        "meetingUrl": "https://meet.quarry-ai.example/mc-7731",
+        "schedulingUrl": null,
+        "location": null,
+        "interviewers": ["Elias Novak"]
+      },
+      "assessment": null,
+      "leads": [],
+      "summary": "Quarry AI cancelled the 18 September interview while it pauses the hire.",
+      "language": "en"
+    }
+  }
+}

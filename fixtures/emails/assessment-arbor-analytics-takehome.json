@@ -1,0 +1,52 @@
+{
+  "id": "assessment-arbor-analytics-takehome",
+  "threadId": "thr-arbor-analytics",
+  "internalDate": "2026-09-08T20:00:31.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Lena Fischer <lena.fischer@arboranalytics.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Arbor Analytics: take-home exercise",
+    "date": "Tue, 08 Sep 2026 20:00:31 +0000"
+  },
+  "snippet": "Hi Mateo, the next step is a short take-home exercise on modeling a metrics layer. Please submit it by Tuesday 15 September at 18:00 Monterrey time.",
+  "bodyText": "Hi Mateo,\n\nThe next step is a short take-home exercise on modeling a metrics layer. It should take about three hours. Please submit it by Tuesday 15 September at 18:00 Monterrey time (UTC-6).\n\nInstructions and the dataset: https://assess.arboranalytics.example/take-home/ae-2026-0412\n\nBest regards,\nLena Fischer\nSenior recruiter, Arbor Analytics",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "assessment",
+    "company": "Arbor Analytics",
+    "role": "Analytics Engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "assessment",
+      "confidence": 0.95,
+      "company": {
+        "name": "Arbor Analytics",
+        "websiteDomain": "arboranalytics.example"
+      },
+      "role": {
+        "title": "Analytics Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Lena Fischer",
+        "email": "lena.fischer@arboranalytics.example",
+        "title": "Senior recruiter",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": {
+        "deadline": "2026-09-15T18:00:00-06:00",
+        "url": "https://assess.arboranalytics.example/take-home/ae-2026-0412"
+      },
+      "leads": [],
+      "summary": "Arbor Analytics sent a take-home exercise due 15 September at 18:00.",
+      "language": "en"
+    }
+  }
+}

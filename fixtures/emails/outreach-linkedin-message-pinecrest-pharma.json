@@ -1,0 +1,65 @@
+{
+  "id": "outreach-linkedin-message-pinecrest-pharma",
+  "threadId": "thr-linkedin-pinecrest",
+  "internalDate": "2026-10-09T17:10:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Camila Ortega via LinkedIn <messages-noreply@linkedin.com>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Camila Ortega sent you a message",
+    "date": "Fri, 09 Oct 2026 17:10:00 +0000"
+  },
+  "snippet": "Camila Ortega: Hi Mateo, I am a talent partner at Pinecrest Pharma. We are hiring a Senior Data Engineer for our Guadalajara hub. Open to a chat?",
+  "bodyText": "Camila Ortega sent you a new message\n\nHi Mateo, I am a talent partner at Pinecrest Pharma. We are hiring a Senior Data Engineer for our Guadalajara hub (hybrid) and your profile looks like a great match. Open to a chat this week?\n\nView message: https://www.linkedin.com/messaging/thread/2-ZmFrZS10aHJlYWQtMDAx/\n\nYou are receiving LinkedIn message notifications.",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "recruiter_outreach",
+    "company": "Pinecrest Pharma",
+    "role": "Senior Data Engineer",
+    "outcome": "applied",
+    "leads": 1
+  },
+  "llm": {
+    "triage": {
+      "id": "outreach-linkedin-message-pinecrest-pharma",
+      "jobRelated": true,
+      "confidence": 0.88
+    },
+    "extraction": {
+      "category": "recruiter_outreach",
+      "confidence": 0.89,
+      "company": {
+        "name": "Pinecrest Pharma",
+        "websiteDomain": null
+      },
+      "role": {
+        "title": "Senior Data Engineer",
+        "seniority": "senior"
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Camila Ortega",
+        "email": null,
+        "title": "Talent partner",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [
+        {
+          "company": "Pinecrest Pharma",
+          "title": "Senior Data Engineer",
+          "jobUrl": null,
+          "locationText": "Guadalajara, Mexico",
+          "country": "MX",
+          "workMode": "hybrid",
+          "compensationText": null,
+          "postedAt": null
+        }
+      ],
+      "summary": "A Pinecrest Pharma recruiter messaged you on LinkedIn about a Senior Data Engineer role.",
+      "language": "en"
+    }
+  }
+}

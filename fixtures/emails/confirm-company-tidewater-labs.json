@@ -1,0 +1,49 @@
+{
+  "id": "confirm-company-tidewater-labs",
+  "threadId": "thr-tidewater-labs",
+  "internalDate": "2026-09-08T17:42:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Tidewater Labs Careers <careers@tidewater-labs.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Thank you for applying — Platform Engineer",
+    "date": "Tue, 08 Sep 2026 17:42:00 +0000"
+  },
+  "snippet": "Hello Mateo, thank you for applying to the Platform Engineer position at Tidewater Labs. We have received your application.",
+  "bodyText": "Hello Mateo,\n\nThank you for applying to the Platform Engineer position at Tidewater Labs. We have received your application and a member of the team will review it.\n\nRole: https://tidewater-labs.example/careers/platform-engineer\n\nTidewater Labs Careers",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "application_confirmation",
+    "company": "Tidewater Labs",
+    "role": "Platform Engineer",
+    "jobKey": "url:tidewater-labs.example/careers/platform-engineer",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": {
+      "id": "confirm-company-tidewater-labs",
+      "jobRelated": true,
+      "confidence": 0.95
+    },
+    "extraction": {
+      "category": "application_confirmation",
+      "confidence": 0.96,
+      "company": {
+        "name": "Tidewater Labs",
+        "websiteDomain": "tidewater-labs.example"
+      },
+      "role": {
+        "title": "Platform Engineer",
+        "seniority": "mid"
+      },
+      "jobUrl": "https://tidewater-labs.example/careers/platform-engineer",
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Tidewater Labs confirmed receipt of the Platform Engineer application.",
+      "language": "en"
+    }
+  }
+}

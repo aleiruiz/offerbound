@@ -1,0 +1,45 @@
+{
+  "id": "confirm-lever-kestrel-pay",
+  "threadId": "thr-kestrel-backend",
+  "internalDate": "2026-09-03T14:30:09.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Kestrel Pay <no-reply@hire.lever.co>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Thank you for your application to Kestrel Pay",
+    "date": "Thu, 03 Sep 2026 14:30:09 +0000"
+  },
+  "snippet": "Hi Mateo, thank you for applying to Senior Backend Engineer, Ledger at Kestrel Pay. We have received your application and will review it shortly.",
+  "bodyText": "Hi Mateo,\n\nThank you for applying to Senior Backend Engineer, Ledger at Kestrel Pay. We have received your application and our team will review it shortly.\n\nPosting: https://jobs.lever.co/kestrel-pay/b8e1f2c4-3a7d-4f60-8d19-5c2a9e7b0f41\n\nKestrel Pay Talent Team",
+  "demo": true,
+  "expected": {
+    "triage": "job_related",
+    "category": "application_confirmation",
+    "company": "Kestrel Pay",
+    "role": "Senior Backend Engineer, Ledger",
+    "jobKey": "lever:kestrel-pay:b8e1f2c4-3a7d-4f60-8d19-5c2a9e7b0f41",
+    "outcome": "applied"
+  },
+  "llm": {
+    "triage": null,
+    "extraction": {
+      "category": "application_confirmation",
+      "confidence": 0.98,
+      "company": {
+        "name": "Kestrel Pay",
+        "websiteDomain": "kestrel-pay.example"
+      },
+      "role": {
+        "title": "Senior Backend Engineer, Ledger",
+        "seniority": "senior"
+      },
+      "jobUrl": "https://jobs.lever.co/kestrel-pay/b8e1f2c4-3a7d-4f60-8d19-5c2a9e7b0f41",
+      "contact": null,
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Kestrel Pay confirmed receipt of the Senior Backend Engineer, Ledger application.",
+      "language": "en"
+    }
+  }
+}

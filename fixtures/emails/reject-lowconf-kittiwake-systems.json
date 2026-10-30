@@ -1,0 +1,54 @@
+{
+  "id": "reject-lowconf-kittiwake-systems",
+  "threadId": "thr-kittiwake-systems",
+  "internalDate": "2026-09-28T20:05:00.000Z",
+  "labels": ["INBOX", "UNREAD"],
+  "headers": {
+    "from": "Ruth Alder <ruth.alder@kittiwake-systems.example>",
+    "to": ["mateo.salgado@owner.example"],
+    "subject": "Your profile at Kittiwake Systems",
+    "date": "Mon, 28 Sep 2026 20:05:00 +0000"
+  },
+  "snippet": "Hi Mateo, thanks for your interest. At the moment we are going in a different direction for this team, though we may reach out if that changes.",
+  "bodyText": "Hi Mateo,\n\nThanks for your interest in Kittiwake Systems. At the moment we are going in a different direction for this team, though we may reach out if that changes. Please keep an eye on our careers page.\n\nRuth Alder\nPeople operations, Kittiwake Systems",
+  "demo": false,
+  "expected": {
+    "triage": "job_related",
+    "category": "rejection",
+    "company": "Kittiwake Systems",
+    "role": "Site Reliability Engineer",
+    "outcome": "needs_review",
+    "reviewKind": "low_confidence"
+  },
+  "llm": {
+    "triage": {
+      "id": "reject-lowconf-kittiwake-systems",
+      "jobRelated": true,
+      "confidence": 0.9
+    },
+    "extraction": {
+      "category": "rejection",
+      "confidence": 0.72,
+      "company": {
+        "name": "Kittiwake Systems",
+        "websiteDomain": "kittiwake-systems.example"
+      },
+      "role": {
+        "title": "Site Reliability Engineer",
+        "seniority": null
+      },
+      "jobUrl": null,
+      "contact": {
+        "name": "Ruth Alder",
+        "email": "ruth.alder@kittiwake-systems.example",
+        "title": "People operations",
+        "isAgency": false
+      },
+      "interview": null,
+      "assessment": null,
+      "leads": [],
+      "summary": "Kittiwake Systems said it is going in a different direction, which may be a rejection.",
+      "language": "en"
+    }
+  }
+}
