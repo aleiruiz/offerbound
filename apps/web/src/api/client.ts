@@ -28,7 +28,10 @@ export class ApiClientError extends Error {
 
 export interface ApiFetchInit<T> {
   method?: string;
+  /** A JSON request body. */
   body?: unknown;
+  /** A multipart request body (file uploads); the browser sets the boundary header. */
+  formData?: FormData;
   schema?: ZodType<T>;
   signal?: AbortSignal;
 }
@@ -60,8 +63,10 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit<T> 
   const method = (init.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (method !== "GET") headers["X-Offerbound-Request"] = "1";
-  let body: string | undefined;
-  if (init.body !== undefined) {
+  let body: string | FormData | undefined;
+  if (init.formData !== undefined) {
+    body = init.formData;
+  } else if (init.body !== undefined) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(init.body);
   }

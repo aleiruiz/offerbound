@@ -2,12 +2,12 @@ import { useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router";
 import { setUnauthorizedHandler } from "./api/client";
 import { LoginPage } from "./pages/LoginPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import {
   ApplicationDetailPage,
   ApplicationsPage,
   InterviewsPage,
   LeadsPage,
-  OnboardingPage,
   ReviewPage,
   SettingsPage,
   TodayPage,

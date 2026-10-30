@@ -2,16 +2,18 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import { Navigate, Outlet } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { ApiClientError } from "../api/client";
 import { useMe } from "../api/hooks";
 
 /**
  * Guards every route except /login (AC-1.1): no session means a redirect to the sign-in page.
+ * An owner who has not finished onboarding is sent to /onboarding (TECHNICAL_SPEC §11).
  * While the session loads a skeleton shaped like the page is shown; other failures say what to do.
  */
 export function RequireSession() {
   const me = useMe();
+  const location = useLocation();
 
   if (me.isPending) {
     return (
@@ -40,6 +42,16 @@ export function RequireSession() {
         </Alert>
       </Box>
     );
+  }
+
+  // Setup comes first: until the owner finishes it, every page leads to /onboarding. The public
+  // demo has nothing to set up.
+  if (
+    me.data.mode === "private" &&
+    !me.data.onboardingCompleted &&
+    location.pathname !== "/onboarding"
+  ) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <Outlet />;

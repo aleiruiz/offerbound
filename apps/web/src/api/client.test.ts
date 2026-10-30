@@ -20,6 +20,18 @@ describe("apiFetch", () => {
     expect(await post?.json()).toEqual({ name: "x" });
   });
 
+  it("sends a multipart body with the CSRF header and leaves the content type to the browser", async () => {
+    const api = mockApi({ "POST /api/v1/cv": () => ({ ok: true }) });
+    const formData = new FormData();
+    formData.append("file", new File(["hello"], "cv.pdf", { type: "application/pdf" }));
+    await apiFetch("/cv", { method: "POST", formData });
+    const post = api.calls[0];
+    expect(post?.headers.get("X-Offerbound-Request")).toBe("1");
+    // No JSON content type: the browser adds the multipart one, with its boundary.
+    expect(post?.headers.get("Content-Type")).toBeNull();
+    expect((api.upload(post as Request)?.get("file") as File).name).toBe("cv.pdf");
+  });
+
   it("prefixes /api/v1 and sends credentials same-origin", async () => {
     const api = mockApi({ "GET /api/v1/me": () => ({ ok: true }) });
     await apiFetch("/me");

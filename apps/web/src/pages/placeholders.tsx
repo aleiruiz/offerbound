@@ -19,4 +19,3 @@ export const LeadsPage = () => <PlaceholderPage title="Leads" />;
 export const InterviewsPage = () => <PlaceholderPage title="Interviews" />;
 export const ReviewPage = () => <PlaceholderPage title="Review" />;
 export const SettingsPage = () => <PlaceholderPage title="Settings" />;
-export const OnboardingPage = () => <PlaceholderPage title="Onboarding" />;
