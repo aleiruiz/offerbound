@@ -58,7 +58,7 @@ Component defaults to set in `theme.components`:
 - Material Symbols through `@mui/icons-material`, **Outlined** variants only, 20px in nav and buttons, 18px inside chips.
 - Navigation: Today `TodayOutlined`, Applications `WorkOutline`, Leads `TravelExploreOutlined`, Interviews `EventOutlined`, Review `RuleOutlined`, Settings `SettingsOutlined`. Actions: `SyncOutlined`, `UndoOutlined`, `OpenInNewOutlined` (job posting), `MailOutline` (source email), `BookmarkBorderOutlined` (shortlist), `CloseOutlined` (dismiss).
 - No emoji. Icon-only buttons carry an `aria-label` and a tooltip with the same words.
-- No logo exists yet: set the name "Offerbound" in Overpass 800 wherever a mark would go.
+- Logo: concept B, "destino". A green open ring whose route line runs from a blue start dot to an amber terminus (Applied to Offer), with the name outlined beside it. There are two forms: the **lockup** (mark plus name) for the drawer header, the sign-in panel and the onboarding header, and the **mark** alone where space is tight (the 72px rail, the phone top bar, the favicon). Each has a light and a dark variant, chosen by the MUI theme mode; the sign-in panel is ink in both themes and always takes the dark one. Files: `apps/web/src/assets/brand/{lockup,mark}[-dark].svg` (rendered by `apps/web/src/components/Logo.tsx`) and `apps/web/public/favicon[-dark].svg` (linked in `apps/web/index.html`, the dark one under `prefers-color-scheme: dark`). They are static SVGs with the text already outlined, so no font loads and no scripts or external references. Every logo image carries `alt="Offerbound"`; a duplicate next to the name uses `alt=""`.
 
 ## Accessibility
 

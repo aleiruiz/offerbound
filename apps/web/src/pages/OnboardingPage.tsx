@@ -46,6 +46,7 @@ import { GOOGLE_START_PATH } from "../api/paths";
 import { CvProfileSummary } from "../components/CvProfileSummary";
 import { DropZone } from "../components/DropZone";
 import { FilePicker } from "../components/FilePicker";
+import { Logo } from "../components/Logo";
 import { ErrorState } from "../components/States";
 import { FlagChip } from "../components/StatusChip";
 
@@ -62,7 +63,10 @@ const STEPS = [
   "Start syncing Gmail",
 ] as const;
 const LAST_STEP = STEPS.length - 1;
-/** Steps before the last one can be skipped; the stepper says so under their names. */
+/**
+ * Steps before the last one can be skipped; the stepper says so under their names until the step
+ * is completed or skipped.
+ */
 const isOptional = (index: number) => index < LAST_STEP;
 
 const MB = 1024 * 1024;
@@ -144,12 +148,8 @@ export function OnboardingPage() {
         gap: 3.5,
       }}
     >
-      <Typography
-        component="p"
-        sx={{ fontSize: 22, lineHeight: "28px", fontWeight: 800, letterSpacing: "-0.01em" }}
-      >
-        Offerbound
-      </Typography>
+      {/* 40px artwork in a 28px line, as in the app shell header. */}
+      <Logo height={40} style={{ margin: "-6px 0" }} />
       <Box
         sx={{ width: "100%", maxWidth: 960, display: "flex", flexDirection: "column", gap: 3.5 }}
       >
@@ -177,7 +177,7 @@ export function OnboardingPage() {
                 optional={
                   skipped.has(index) ? (
                     <Typography variant="caption">Skipped</Typography>
-                  ) : isOptional(index) ? (
+                  ) : isOptional(index) && !completed.has(index) ? (
                     <Typography variant="caption">Optional</Typography>
                   ) : undefined
                 }

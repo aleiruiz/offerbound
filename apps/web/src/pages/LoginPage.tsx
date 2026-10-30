@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router";
 import { GOOGLE_START_PATH } from "../api/paths";
+import { Logo } from "../components/Logo";
 
 const DEMO_URL = "https://offerbound.northsoftmx.com";
 
@@ -175,18 +176,12 @@ export function LoginPage() {
             gap: "14px",
           }}
         >
-          <Typography
-            component="p"
-            sx={{
-              fontSize: "clamp(44px, 8.4vw, 132px)",
-              lineHeight: 0.9,
-              fontWeight: 900,
-              letterSpacing: "-0.035em",
-              color: PAPER,
-            }}
-          >
-            Offerbound
-          </Typography>
+          {/* The panel is ink in both themes, so it always takes the dark artwork. */}
+          <Logo
+            mode="dark"
+            height={120}
+            style={{ width: "clamp(220px, 40vw, 560px)", height: "auto" }}
+          />
           <Typography
             component="p"
             sx={{ maxWidth: 460, fontSize: 18, lineHeight: "26px", color: "#c3cbc8" }}

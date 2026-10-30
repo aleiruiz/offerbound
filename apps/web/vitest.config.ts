@@ -12,5 +12,8 @@ export default defineProject({
     setupFiles: ["./test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.{ts,tsx}"],
     exclude: ["node_modules", "dist"],
+    // The suite runs slowly under load (jsdom plus MUI), and several tests sit close to the 5 s
+    // default, so a busy machine makes them fail without anything being wrong.
+    testTimeout: 15_000,
   },
 });

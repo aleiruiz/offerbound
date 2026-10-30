@@ -12,6 +12,7 @@ import {
   type MockApi,
   type MockHandler,
 } from "../../test/mock-api";
+import lockupLight from "../assets/brand/lockup.svg";
 import { renderWithProviders } from "../../test/render";
 import { queryKeys } from "../api/hooks";
 import { OnboardingPage } from "./OnboardingPage";
@@ -130,6 +131,7 @@ describe("OnboardingPage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
     const steps = screen.getByLabelText("Setup steps");
     for (const name of [
       "Upload your CV",
@@ -201,7 +203,13 @@ describe("OnboardingPage", () => {
       expect(
         screen.getByRole("heading", { level: 2, name: "Import your spreadsheet" }),
       ).toBeVisible();
-      expect(within(screen.getByLabelText("Setup steps")).queryByText("Skipped")).toBeNull();
+      const steps = screen.getByLabelText("Setup steps");
+      expect(within(steps).queryByText("Skipped")).toBeNull();
+      // A completed step shows no caption at all; the two steps still to do keep "Optional".
+      expect(
+        within(steps).getByText("Upload your CV").closest("[class*=MuiStepLabel-root]"),
+      ).not.toHaveTextContent(/Optional|Skipped/);
+      expect(within(steps).getAllByText("Optional")).toHaveLength(2);
     });
 
     it("accepts a file dropped on the drop zone, using the first of several", async () => {

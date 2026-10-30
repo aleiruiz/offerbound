@@ -22,6 +22,7 @@ import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
 import { useRef, useState, type ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router";
 import { useNavCounts } from "../api/hooks";
+import { Logo } from "../components/Logo";
 import { ShortcutDialog } from "../components/ShortcutDialog";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { setShortcutDialogOpen, useGlobalShortcuts } from "../lib/shortcuts";
@@ -119,15 +120,9 @@ function IconWithBadge({
   );
 }
 
+/** The lockup is drawn on a 64px-high canvas with padding; the negative margin keeps the 28px line. */
 function Wordmark() {
-  return (
-    <Typography
-      component="span"
-      sx={{ fontSize: 22, lineHeight: "28px", fontWeight: 800, letterSpacing: "-0.01em" }}
-    >
-      Offerbound
-    </Typography>
-  );
+  return <Logo height={40} style={{ margin: "-6px 0" }} />;
 }
 
 function DrawerNav({
@@ -253,6 +248,9 @@ function RailNav({
         aria-label="Main"
         sx={{ display: "flex", flexDirection: "column", flexGrow: 1, px: 1, py: 3 }}
       >
+        <Box sx={{ display: "flex", justifyContent: "center", pb: 2 }}>
+          <Logo variant="mark" height={32} />
+        </Box>
         <List disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           {NAV_ITEMS.map((item) => {
             const selected = item.key === active?.key;
@@ -443,6 +441,7 @@ export function AppShell() {
             sx={{ bgcolor: "background.paper", border: 0, borderBottom: 1, borderColor: "divider" }}
           >
             <Toolbar sx={{ minHeight: 56 }}>
+              <Logo variant="mark" height={28} style={{ marginRight: 12 }} />
               <Typography component="span" variant="h6" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
                 {active?.label ?? "Offerbound"}
               </Typography>
