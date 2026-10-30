@@ -6,11 +6,14 @@ import {
   ApplicationMergeSchema,
   ApplicationPatchSchema,
   CvProfileSchema,
+  CompanyPatchSchema,
   CvUploadFailedSchema,
   DailyActivityBodySchema,
   EmailFixtureSchema,
   InterviewWithApplicationSchema,
   LeadPatchSchema,
+  LeadRerankSchema,
+  LeadsQuerySchema,
   PageSchema,
   ParsedMessageSchema,
   ReviewResolveSchema,
@@ -49,6 +52,31 @@ describe("request bodies", () => {
     expect(
       LeadPatchSchema.safeParse({ status: "dismissed", dismissedReason: "x", version: 1 }).success,
     ).toBe(true);
+  });
+
+  it("reads the leads query: sort defaults to track_fit, limit to 50, and unknown values are refused", () => {
+    expect(LeadsQuerySchema.parse({})).toEqual({ sort: "track_fit", limit: 50 });
+    expect(LeadsQuerySchema.parse({ status: "new", sort: "newest", limit: "25" })).toMatchObject({
+      status: "new",
+      sort: "newest",
+      limit: 25,
+    });
+    expect(LeadsQuerySchema.parse({ q: "  " })).toEqual({ sort: "track_fit", limit: 50 });
+    expect(LeadsQuerySchema.parse({ q: " acme " }).q).toBe("acme");
+    expect(LeadsQuerySchema.safeParse({ sort: "oldest" }).success).toBe(false);
+    expect(LeadsQuerySchema.safeParse({ limit: "201" }).success).toBe(false);
+    expect(LeadsQuerySchema.safeParse({ status: "open" }).success).toBe(false);
+  });
+
+  it("re-ranks only the new leads, and a company patch needs its version", () => {
+    expect(LeadRerankSchema.safeParse({ scope: "new" }).success).toBe(true);
+    expect(LeadRerankSchema.safeParse({ scope: "all" }).success).toBe(false);
+    expect(CompanyPatchSchema.safeParse({ name: "Northwind Labs" }).success).toBe(false);
+    expect(CompanyPatchSchema.safeParse({ version: 1, name: " " }).success).toBe(false);
+    expect(CompanyPatchSchema.parse({ version: 1, groupId: null })).toEqual({
+      version: 1,
+      groupId: null,
+    });
   });
 
   it("lets an application patch rename the company, but not to an empty name", () => {

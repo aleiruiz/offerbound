@@ -366,6 +366,43 @@ export const LeadPatchSchema = z.object({
 });
 export type LeadPatch = z.infer<typeof LeadPatchSchema>;
 
+/** How `GET /leads` orders a page: track priority then fit (AC-12.4, the default), or newest first. */
+export const LeadSortSchema = z.enum(["track_fit", "newest"]);
+export type LeadSort = z.infer<typeof LeadSortSchema>;
+
+/**
+ * `GET /leads` query (TECHNICAL_SPEC §10.1, plus `sort`: the spec lists none, AC-12.4 needs two).
+ * Without `status` every status is listed. `limit` defaults to 50, at most 200.
+ */
+export const LeadsQuerySchema = z.object({
+  status: LeadStatusSchema.optional(),
+  track: z.string().trim().min(1).optional(),
+  /** A blank search is no search. */
+  q: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .transform((q) => (q === "" ? undefined : q)),
+  sort: LeadSortSchema.default("track_fit"),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  cursor: z.string().min(1).optional(),
+});
+export type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
+
+/** `POST /leads/rerank`: only the New leads can be ranked again. */
+export const LeadRerankSchema = z.object({ scope: z.literal("new") });
+export type LeadRerank = z.infer<typeof LeadRerankSchema>;
+
+/** `PATCH /companies/:id` (§10.1). `groupId` names any company of the group; `null` leaves the group. */
+export const CompanyPatchSchema = z.object({
+  version,
+  name: requiredText.optional(),
+  aliases: z.array(z.string()).optional(),
+  groupId: z.uuid().nullable().optional(),
+});
+export type CompanyPatch = z.infer<typeof CompanyPatchSchema>;
+
 export const ReviewActionSchema = z.enum([
   "apply",
   "edit_apply",

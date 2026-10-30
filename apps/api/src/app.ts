@@ -9,9 +9,11 @@ import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
+import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
+import { registerLeadRoutes } from "./routes/leads.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 
@@ -95,6 +97,8 @@ export async function buildApp(
         registerOnboardingRoutes(guarded, deps);
         await registerCvRoutes(guarded, deps);
         await registerImportRoutes(guarded, deps);
+        registerLeadRoutes(guarded, deps);
+        registerCompanyRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
