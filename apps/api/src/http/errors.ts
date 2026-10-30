@@ -101,10 +101,9 @@ export function registerErrorHandling(app: FastifyInstance): void {
       { errorName: name, errorCode: typeof code === "string" ? code : undefined },
       "unhandled error",
     );
-    // The §10 table has no code for an internal failure, so this one is outside ApiErrorCode.
     return reply
-      .code(500)
-      .send({ error: { code: "internal_error", message: "Something went wrong." } });
+      .code(API_ERROR_STATUS.internal_error)
+      .send(errorBody("internal_error", "Something went wrong."));
   });
 }
 

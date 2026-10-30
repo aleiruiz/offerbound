@@ -128,6 +128,7 @@ describe("response shapes", () => {
       "cv_no_text",
       "unsupported_file",
       "rate_limited",
+      "internal_error",
       "upstream_error",
       "not_ready",
     ]) {

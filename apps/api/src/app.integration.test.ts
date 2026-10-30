@@ -1,9 +1,11 @@
 import { Writable } from "node:stream";
 import type { PrismaClient } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
+import pino from "pino";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ApiErrorBodySchema, type API_ERROR_STATUS } from "@offerbound/contracts";
+import { LOG_REDACT_PATHS } from "./app.js";
 import { ApiError } from "./http/errors.js";
 import { buildTestApp } from "../test/app.js";
 
@@ -144,7 +146,7 @@ describe("error envelope", () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/_test/boom" });
     expect(res.statusCode).toBe(500);
     expect(res.body).not.toContain("secret detail");
-    expect(res.json<{ error: { code: string } }>().error.code).toBe("internal_error");
+    expectEnvelope(res.body, "internal_error");
   });
 });
 
@@ -201,6 +203,28 @@ describe("rate limit", () => {
     expect(res.statusCode).toBe(429);
   });
 
+  it("counts mutations that lack the CSRF header on an unknown route", async () => {
+    const { app } = await appWith();
+    for (let i = 0; i < 300; i += 1) {
+      const res = await app.inject({ method: "POST", url: "/api/v1/nope" });
+      expect(res.statusCode).toBe(403);
+    }
+    const res = await app.inject({ method: "POST", url: "/api/v1/nope" });
+    expect(res.statusCode).toBe(429);
+    expectEnvelope(res.body, "rate_limited");
+  });
+
+  it("counts a request once when an unknown-route mutation carries the header", async () => {
+    const { app } = await appWith();
+    for (let i = 0; i < 300; i += 1) {
+      const res = await app.inject({ method: "POST", url: "/api/v1/nope", headers: CSRF });
+      expect(res.statusCode).toBe(404);
+    }
+    expect(
+      (await app.inject({ method: "POST", url: "/api/v1/nope", headers: CSRF })).statusCode,
+    ).toBe(429);
+  });
+
   it("keys on the client IP only when the peer is a trusted proxy", async () => {
     const { app } = await appWith();
     const spoof = { "x-forwarded-for": "203.0.113.9" };
@@ -242,7 +266,7 @@ describe("rate limit", () => {
 });
 
 describe("logging", () => {
-  it("redacts cookies, authorization and content fields and never logs query strings or bodies", async () => {
+  function capture() {
     const lines: string[] = [];
     const logStream = new Writable({
       write(chunk: Buffer, _encoding, done) {
@@ -250,6 +274,11 @@ describe("logging", () => {
         done();
       },
     });
+    return { lines, logStream };
+  }
+
+  it("never logs headers, cookies, query strings, bodies or content fields", async () => {
+    const { lines, logStream } = capture();
     const { app } = await appWith(
       { env: (await import("../test/app.js")).testEnv({ LOG_LEVEL: "info" }) },
       { logStream },
@@ -289,5 +318,54 @@ describe("logging", () => {
     ]) {
       expect(output).not.toContain(secret);
     }
+  });
+
+  it("the redact paths alone remove header secrets (no serializer in the way)", () => {
+    // The app's req/res serializers already drop headers, so the app-level test above cannot tell
+    // whether LOG_REDACT_PATHS still works. This logger has the same paths and no serializers.
+    const { lines, logStream } = capture();
+    const logger = pino({ redact: { paths: LOG_REDACT_PATHS, censor: "[redacted]" } }, logStream);
+    logger.info(
+      {
+        req: { headers: { cookie: "SESSIONVALUE", authorization: "Bearer BEARERVALUE" } },
+        res: { headers: { "set-cookie": "SETCOOKIEVALUE" } },
+        message: { token: "TOKENVALUE", body_text: "BODYTEXTVALUE", subject: "SUBJECTVALUE" },
+        item: { snippet: "SNIPPETVALUE" },
+      },
+      "probe",
+    );
+    const output = lines.join("");
+    expect(output).toContain("probe");
+    expect(output).toContain("[redacted]");
+    for (const secret of [
+      "SESSIONVALUE",
+      "BEARERVALUE",
+      "SETCOOKIEVALUE",
+      "TOKENVALUE",
+      "BODYTEXTVALUE",
+      "SUBJECTVALUE",
+      "SNIPPETVALUE",
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+  });
+
+  it("logs the trust-proxy aware client IP, not the socket address", async () => {
+    const { lines, logStream } = capture();
+    const { testEnv } = await import("../test/app.js");
+    const { app } = await appWith(
+      { env: testEnv({ LOG_LEVEL: "info", TRUSTED_PROXY_IPS: "127.0.0.1" }) },
+      { logStream },
+    );
+    await app.inject({
+      method: "GET",
+      url: "/health",
+      headers: { "x-forwarded-for": "203.0.113.9" },
+    });
+    const requestLine = lines
+      .map((line) => JSON.parse(line) as { req?: { ip?: string; remoteAddress?: unknown } })
+      .find((entry) => entry.req !== undefined);
+    expect(requestLine?.req?.ip).toBe("203.0.113.9");
+    expect(requestLine?.req).not.toHaveProperty("remoteAddress");
   });
 });

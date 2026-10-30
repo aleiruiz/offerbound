@@ -42,7 +42,8 @@ export async function buildApp(
         req: (request) => ({
           method: request.method,
           url: request.url?.split("?")[0],
-          remoteAddress: request.socket?.remoteAddress,
+          // `ip` honours X-Forwarded-For only from trusted proxies (TRUSTED_PROXY_IPS).
+          ip: request.ip,
         }),
       },
       ...(options.logStream ? { stream: options.logStream } : {}),
@@ -55,7 +56,8 @@ export async function buildApp(
   registerErrorHandling(app);
   await registerRateLimit(app);
   registerCsrf(app);
-  // Unknown routes are not routes to the limiter's onRoute hook, so they get the limiter explicitly.
+  // Unknown routes are not routes to the limiter's onRoute hook, so they get the limiter explicitly
+  // (header-less mutations are counted by the CSRF hook, which rejects them first).
   app.setNotFoundHandler({ preValidation: app.rateLimit() }, notFoundHandler);
 
   registerHealthRoutes(app, deps);

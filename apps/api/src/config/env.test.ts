@@ -167,6 +167,7 @@ describe("loadEnv", () => {
     expect(env.searchMaxRounds).toBe(3);
     expect(env.backupRetentionDays).toBe(14);
     expect(env.logLevel).toBe("info");
+    expect(env.port).toBe(3000);
     expect(env.trustedProxyIps).toEqual(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]);
     expect(env.openai?.models).toEqual({
       triage: "gpt-6-luna",
@@ -256,6 +257,15 @@ describe("loadEnv", () => {
       ].sort(),
     );
     expect(error.message).not.toContain("Mars/Olympus");
+  });
+
+  it("reads PORT in both modes and rejects values that are not a valid port", () => {
+    expect(loadEnv(privateEnv({ PORT: "8080" })).port).toBe(8080);
+    expect(loadEnv(demoEnv({ PORT: "4000" })).port).toBe(4000);
+    expect(loadEnv(demoEnv()).port).toBe(3000);
+    for (const bad of ["abc", "0", "65536", "30.5", "-1"]) {
+      expect(failure(privateEnv({ PORT: bad })).invalid, bad).toEqual(["PORT"]);
+    }
   });
 
   it("rejects AI_PRICING entries with missing or negative prices", () => {

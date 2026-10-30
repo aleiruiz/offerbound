@@ -2,8 +2,6 @@ import { buildApp } from "./app.js";
 import { EnvError, loadEnv } from "./config/env.js";
 import { createDeps } from "./deps.js";
 
-const PORT = Number(process.env.PORT ?? 3000);
-
 async function main(): Promise<void> {
   let env;
   try {
@@ -29,7 +27,7 @@ async function main(): Promise<void> {
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
   process.once("SIGINT", () => void shutdown("SIGINT"));
 
-  await app.listen({ host: "0.0.0.0", port: PORT });
+  await app.listen({ host: "0.0.0.0", port: env.port });
 }
 
 main().catch((error: unknown) => {

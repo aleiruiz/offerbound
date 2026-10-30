@@ -65,6 +65,10 @@ importers:
       zod:
         specifier: ^4
         version: 4.6.7
+    devDependencies:
+      pino:
+        specifier: ^10
+        version: 10.4.0
 
   apps/web:
     dependencies:

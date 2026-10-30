@@ -17,6 +17,7 @@ export const API_ERROR_STATUS = {
   cv_no_text: 422,
   unsupported_file: 422,
   rate_limited: 429,
+  internal_error: 500,
   upstream_error: 502,
   not_ready: 503,
 } as const;

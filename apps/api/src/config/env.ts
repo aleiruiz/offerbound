@@ -36,6 +36,7 @@ export type Env = {
   backupRetentionDays: number;
   trustedProxyIps: string[];
   logLevel: string;
+  port: number;
 };
 
 /**
@@ -67,6 +68,7 @@ const DEFAULTS = {
   searchMaxRounds: 3,
   backupRetentionDays: 14,
   logLevel: "info",
+  port: 3000,
   model: "gpt-6-luna",
   // Docker private ranges (TECHNICAL_SPEC §3.4).
   trustedProxyIps: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
@@ -215,6 +217,10 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
   const logLevel = optional("LOG_LEVEL", DEFAULTS.logLevel, (v) =>
     LOG_LEVELS.includes(v) ? v : undefined,
   );
+  const port = optional("PORT", DEFAULTS.port, (v) => {
+    const n = positiveInt(v);
+    return n !== undefined && n <= 65535 ? n : undefined;
+  });
   const trustedProxyIps = optional<string[]>(
     "TRUSTED_PROXY_IPS",
     [...DEFAULTS.trustedProxyIps],
@@ -288,6 +294,7 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
       backupRetentionDays,
       trustedProxyIps,
       logLevel,
+      port,
     };
   }
 
@@ -365,5 +372,6 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
     backupRetentionDays,
     trustedProxyIps,
     logLevel,
+    port,
   };
 }
