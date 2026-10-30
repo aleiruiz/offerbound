@@ -48,6 +48,7 @@ export async function buildTestApp(
     prisma: testPrisma(),
     clock: () => new Date("2026-10-01T12:00:00.000Z"),
     google: new FakeGoogleAuthClient(),
+    fetchLink: () => Promise.reject(new Error("no network in tests: inject a fake fetchLink")),
     ...overrides,
   };
   const app = await buildApp(deps, {

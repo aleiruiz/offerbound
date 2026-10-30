@@ -12,6 +12,7 @@ function workerCtx(): WorkerCtx {
     prisma: testPrisma(),
     clock: () => new Date(),
     google: createDisabledGoogleClient(),
+    fetchLink: () => Promise.reject(new Error("no network in tests")),
     log: pino({ level: "silent" }),
   };
 }
