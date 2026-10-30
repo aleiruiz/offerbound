@@ -1,4 +1,5 @@
-import { buildApp } from "./app.js";
+import pino from "pino";
+import { buildApp, LOG_REDACT_PATHS } from "./app.js";
 import { EnvError, loadEnv } from "./config/env.js";
 import { createDeps } from "./deps.js";
 
@@ -15,7 +16,12 @@ async function main(): Promise<void> {
     throw error;
   }
 
-  const deps = createDeps(env);
+  // A logger for the dependencies (the app builds its own request logger); same redaction.
+  const depsLog = pino({
+    level: env.logLevel,
+    redact: { paths: LOG_REDACT_PATHS, censor: "[redacted]" },
+  });
+  const deps = createDeps(env, depsLog);
   // The API only sends and schedules jobs; the worker runs them. /ready is 503 until this is up.
   await deps.queue.start();
   const app = await buildApp(deps);

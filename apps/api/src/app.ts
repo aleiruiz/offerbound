@@ -9,6 +9,7 @@ import { registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
 import { registerAuthRoutes } from "./routes/auth.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
+import { registerCvRoutes } from "./routes/cv.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
@@ -86,12 +87,12 @@ export async function buildApp(
       if (deps.env.mode === "private") await registerAuthRoutes(api, deps);
 
       // Everything below needs a session. Later tasks register their routes here.
-      await api.register((guarded, _options, done) => {
+      await api.register(async (guarded) => {
         guarded.addHook("preHandler", requireSession(deps));
         registerMeRoutes(guarded, deps);
         registerGmailRoutes(guarded, deps);
         registerOnboardingRoutes(guarded, deps);
-        done();
+        await registerCvRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },

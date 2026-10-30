@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
+    "@fastify/multipart": "^10.1.6",
     "@fastify/rate-limit": "^11.2.1",
     "@googleapis/gmail": "^22.0.2",
     "@offerbound/contracts": "workspace:*",
@@ -26,7 +27,9 @@
     "ical.js": "^2.2.1",
     "ipaddr.js": "^2.5.0",
     "luxon": "^3.7.2",
+    "mammoth": "^1.13.0",
     "openai": "^6",
+    "pdf-parse": "^2.4.5",
     "pg-boss": "^12",
     "pino": "^10",
     "undici": "^8.12.3",
