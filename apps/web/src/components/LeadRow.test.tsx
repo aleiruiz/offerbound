@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { makeLead } from "../../test/factories";
 import { renderWithProviders } from "../../test/render";
+import { createOfferboundTheme } from "../theme";
 import { LeadRow } from "./LeadRow";
 
 const NOW = new Date("2026-10-29T20:00:00Z");
@@ -132,5 +133,36 @@ describe("LeadRow layout and phones", () => {
     );
     await user.click(within(menu).getByRole("menuitem", { name: "Shortlist" }));
     expect(onShortlist).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a new find with a New chip first in the chips and the signal tint on the row", () => {
+    renderRow(makeLead(), { isNew: true });
+    const chip = screen.getByText("New").closest(".MuiChip-root");
+    expect(chip).not.toBeNull();
+    expect(chip).toHaveAttribute("data-tone", "signal");
+    expect(chip?.parentElement?.firstElementChild).toBe(chip);
+    expect(screen.getByRole("listitem")).toHaveStyle({
+      backgroundColor: createOfferboundTheme("light").palette.tokens.signalTint,
+    });
+  });
+
+  it("uses the dark signal tint in the dark theme", () => {
+    renderWithProviders(
+      <ul>
+        <LeadRow lead={makeLead()} timezone="America/Monterrey" now={NOW} isNew />
+      </ul>,
+      { mode: "dark" },
+    );
+    expect(screen.getByRole("listitem")).toHaveStyle({
+      backgroundColor: createOfferboundTheme("dark").palette.tokens.signalTint,
+    });
+  });
+
+  it("shows no New chip and no tint on an ordinary row", () => {
+    renderRow();
+    expect(screen.queryByText("New")).not.toBeInTheDocument();
+    expect(screen.getByRole("listitem")).not.toHaveStyle({
+      backgroundColor: createOfferboundTheme("light").palette.tokens.signalTint,
+    });
   });
 });

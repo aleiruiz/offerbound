@@ -21,6 +21,7 @@ import {
 import { renderWithProviders } from "../../test/render";
 import { heavyIt } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
+import { LEADS_SEEN_KEY } from "../lib/last-visit";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { TodayPage } from "./TodayPage";
 
@@ -306,6 +307,48 @@ describe("TodayPage", () => {
   });
 
   describe("Top new leads", () => {
+    describe("leads found since your last visit", () => {
+      const PREVIOUS = "2026-10-29T10:00:00.000Z";
+      const topLeads = [
+        makeLead({ id: "t1", foundAt: "2026-10-29T13:04:00Z" }),
+        makeLead({
+          id: "t2",
+          company: { id: "c2", name: "Kittiwake Systems" },
+          foundAt: "2026-10-28T09:00:00Z",
+        }),
+      ];
+      const today = () => makeToday({ topLeads });
+
+      it("marks only the leads found after the stored visit, and leaves the stored time alone", async () => {
+        window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
+        setup({ "GET /api/v1/today": today });
+        await loaded();
+        const leads = section("Top new leads");
+        const rowOf = (company: string) =>
+          within(within(leads).getByText(company).closest("li") as HTMLElement);
+        expect(rowOf("Tidewater Labs").getByText("New")).toBeInTheDocument();
+        expect(rowOf("Kittiwake Systems").queryByText("New")).not.toBeInTheDocument();
+        expect(window.localStorage.getItem(LEADS_SEEN_KEY)).toBe(PREVIOUS);
+      });
+
+      it("marks nothing and stores nothing when there is no stored visit", async () => {
+        setup({ "GET /api/v1/today": today });
+        await loaded();
+        expect(within(section("Top new leads")).queryByText("New")).not.toBeInTheDocument();
+        expect(window.localStorage.getItem(LEADS_SEEN_KEY)).toBeNull();
+      });
+
+      it("does not crash and marks nothing when storage throws", async () => {
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+          throw new Error("blocked");
+        });
+        setup({ "GET /api/v1/today": today });
+        await loaded();
+        expect(within(section("Top new leads")).getByText("Tidewater Labs")).toBeInTheDocument();
+        expect(within(section("Top new leads")).queryByText("New")).not.toBeInTheDocument();
+      });
+    });
+
     it("Dismiss patches the lead with its version, says so, and Undo puts it back to new", async () => {
       const dismissed: Lead = makeLead({ status: "dismissed", version: 2 });
       const { api, user } = setup({

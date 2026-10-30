@@ -62,7 +62,13 @@ export function FlagChip({
                   bg: theme.palette.status.withdrawn.tint,
                   fg: theme.palette.status.withdrawn.main,
                 };
-        return { bgcolor: pair.bg, color: pair.fg };
+        // An outlined flag keeps its tint and draws its own text color as the border, so it still
+        // reads as a chip on a row of the same tint.
+        return {
+          bgcolor: pair.bg,
+          color: pair.fg,
+          ...(rest.variant === "outlined" ? { border: 1, borderColor: pair.fg } : {}),
+        };
       }}
     />
   );
