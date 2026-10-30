@@ -9,7 +9,9 @@ import {
 } from "../../test/apply.js";
 import { resetDb, testPrisma } from "../../test/db.js";
 import { interceptTx } from "../../test/intercept.js";
+import { RecordingQueue } from "../../test/queue.js";
 import { testWorkerCtx } from "../../test/worker.js";
+import { jobKey } from "@offerbound/domain";
 import { HANDLERS } from "../jobs/handlers.js";
 import { QUEUES } from "../jobs/queues.js";
 import { applyEligibleMessages, MAX_APPLY_ATTEMPTS } from "./apply.js";
@@ -534,53 +536,19 @@ describe("applyEligibleMessages: failures", () => {
     expect(await stateOf(prisma, "m3")).toBe("extracted");
   });
 
-  it("a create_leads plan fails the message with a review item instead of crashing the worker", async () => {
-    // Until T6.3 wires ingestLeads (stream B), the executor throws NotImplementedError.
-    await seed({
-      id: "alert",
-      at: "2026-10-05T09:00:00.000Z",
-      fromEmail: "alerts@jobs-alerts.example",
-      extraction: extraction({
-        category: "job_alert",
-        company: null,
-        role: null,
-        leads: [
-          {
-            company: "Quarry AI",
-            title: "Platform Engineer",
-            jobUrl: "https://jobs.quarry.example/1",
-            locationText: null,
-            country: null,
-            workMode: "remote",
-            compensationText: null,
-            postedAt: null,
-          },
-        ],
-      }),
-    });
-    await seed({ id: "after", at: "2026-10-05T10:00:00.000Z", extraction: confirmation() });
-
-    // Resolves (does not reject), and the message after it still applies.
-    await expect(applyEligibleMessages(ctx())).resolves.toEqual({ applied: 1 });
-    expect(await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "alert" } })).toMatchObject({
-      state: "failed",
-      lastError: "apply_not_implemented",
-    });
-    expect(await prisma.reviewItem.findMany({ where: { messageId: "alert" } })).toMatchObject([
-      { kind: "extraction_failed", state: "open", reasons: ["apply_failed"] },
-    ]);
-    expect(await stateOf(prisma, "after")).toBe("applied");
-    expect(await prisma.lead.count()).toBe(0);
-  });
-
-  it("a stored extraction that no longer parses fails the message", async () => {
-    await seed({ id: "bad", at: "2026-10-05T10:00:00.000Z" });
+  it("a stored extraction that no longer parses fails the message, and the drain goes on", async () => {
+    await seed({ id: "bad", at: "2026-10-05T09:00:00.000Z" });
     await prisma.gmailMessage.update({ where: { id: "bad" }, data: { extraction: { nope: 1 } } });
-    await applyEligibleMessages(ctx());
+    await seed({ id: "after", at: "2026-10-05T10:00:00.000Z", extraction: confirmation() });
+    await expect(applyEligibleMessages(ctx())).resolves.toEqual({ applied: 1 });
     expect(await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "bad" } })).toMatchObject({
       state: "failed",
       lastError: "stored_extraction_invalid",
     });
+    expect(await prisma.reviewItem.findMany({ where: { messageId: "bad" } })).toMatchObject([
+      { kind: "extraction_failed", state: "open", reasons: ["apply_failed"] },
+    ]);
+    expect(await stateOf(prisma, "after")).toBe("applied");
   });
 
   it("an error while recording a failure does not mask the original error", async () => {
@@ -651,5 +619,192 @@ describe("applyEligibleMessages: failures", () => {
     // With the fault gone the next message applies.
     expect(await applyEligibleMessages(ctx())).toEqual({ applied: 1 });
     expect(await stateOf(prisma, "ok")).toBe("applied");
+  });
+});
+
+describe("applyEligibleMessages: create_leads", () => {
+  const lead = (n: number, over = {}) => ({
+    company: n === 1 ? "Quarry AI" : "Sable Robotics",
+    title: `Platform Engineer ${n}`,
+    jobUrl: `https://boards.greenhouse.io/${n === 1 ? "quarry" : "sable"}/jobs/${100 + n}`,
+    locationText: null,
+    country: null,
+    workMode: "remote" as const,
+    compensationText: null,
+    postedAt: "2026-10-04T08:00:00.000Z",
+    ...over,
+  });
+  const alert = (leads: ReturnType<typeof lead>[]) =>
+    extraction({ category: "job_alert", company: null, role: null, leads, confidence: 0.95 });
+
+  it("a job-alert plan with two leads creates both leads, two lead_created events and the batch", async () => {
+    await seed({
+      id: "alert",
+      at: "2026-10-05T09:00:00.000Z",
+      fromEmail: "alerts@jobs-alerts.example",
+      extraction: alert([lead(1), lead(2)]),
+    });
+    expect(await applyEligibleMessages(ctx())).toEqual({ applied: 1 });
+    expect(await stateOf(prisma, "alert")).toBe("applied");
+
+    const batch = await prisma.intakeBatch.findFirstOrThrow();
+    expect(batch).toMatchObject({
+      kind: "gmail_message",
+      messageId: "alert",
+      counts: { received: 2, duplicates: 0, accepted: 2 },
+    });
+    const leads = await prisma.lead.findMany({ orderBy: { createdAt: "asc" } });
+    expect(leads).toMatchObject([
+      {
+        title: "Platform Engineer 1",
+        source: "gmail_alert",
+        intakeBatchId: batch.id,
+        sourceMessageId: "alert",
+      },
+      { title: "Platform Engineer 2", source: "gmail_alert", intakeBatchId: batch.id },
+    ]);
+    expect(await prisma.company.count()).toBe(2);
+
+    const events = await prisma.event.findMany({ orderBy: { createdAt: "asc" } });
+    expect(events).toHaveLength(2);
+    for (const [index, event] of events.entries()) {
+      const mine = leads[index];
+      expect(event).toMatchObject({
+        type: "lead_created",
+        actor: "system",
+        messageId: "alert",
+        leadId: mine?.id,
+        companyId: mine?.companyId,
+        applicationId: null,
+        undoable: true,
+        occurredAt: new Date("2026-10-05T09:00:00.000Z"),
+      });
+      // Per-event change set: this lead and the company it created, nothing of the other lead.
+      const entries = event.changeSet as { entity: string; id: string; created: boolean }[];
+      expect(entries.map((e) => [e.entity, e.id]).sort()).toEqual(
+        [
+          ["company", mine?.companyId],
+          ["lead", mine?.id],
+        ].sort(),
+      );
+      expect(entries.every((e) => e.created)).toBe(true);
+    }
+  });
+
+  it("a duplicate lead is skipped and counted", async () => {
+    const batch = await prisma.intakeBatch.create({ data: { kind: "manual", counts: {} } });
+    const company = await prisma.company.create({
+      data: { name: "Quarry AI", normalizedName: "quarry ai", createdSource: "manual" },
+    });
+    await prisma.lead.create({
+      data: {
+        companyId: company.id,
+        intakeBatchId: batch.id,
+        title: "Platform Engineer 1",
+        jobUrl: lead(1).jobUrl,
+        jobKey: jobKey(lead(1).jobUrl),
+        statusChangedAt: new Date("2026-09-01T00:00:00Z"),
+        source: "manual",
+      },
+    });
+    await seed({
+      id: "alert",
+      at: "2026-10-05T09:00:00.000Z",
+      extraction: alert([lead(1), lead(2)]),
+    });
+    await applyEligibleMessages(ctx());
+
+    expect(await stateOf(prisma, "alert")).toBe("applied");
+    const created = await prisma.intakeBatch.findFirstOrThrow({ where: { messageId: "alert" } });
+    expect(created.counts).toMatchObject({ received: 2, duplicates: 1, accepted: 1 });
+    expect(await prisma.lead.count()).toBe(2); // the existing one and the new one
+    const events = await prisma.event.findMany();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "lead_created" });
+    const stored = await prisma.lead.findFirstOrThrow({ where: { intakeBatchId: created.id } });
+    expect(events[0]?.leadId).toBe(stored.id);
+    expect(stored.title).toBe("Platform Engineer 2");
+  });
+
+  it("sends the lead checks after the commit, one per stored lead", async () => {
+    await seed({
+      id: "alert",
+      at: "2026-10-05T09:00:00.000Z",
+      extraction: alert([lead(1), lead(2)]),
+    });
+    const queue = new RecordingQueue();
+    const visibleAtSend: number[] = [];
+    const send = queue.send.bind(queue);
+    queue.send = async (name, data, opts) => {
+      // Read through another connection: only committed leads are visible to it.
+      visibleAtSend.push(await prisma.lead.count());
+      await send(name, data, opts);
+    };
+    await applyEligibleMessages(testWorkerCtx({ queue }));
+
+    const batch = await prisma.intakeBatch.findFirstOrThrow();
+    const leads = await prisma.lead.findMany({ orderBy: { createdAt: "asc" } });
+    const checks = queue.sent.filter((s) => s.name === QUEUES.leadsCheck);
+    expect(checks.map((c) => c.data)).toEqual(
+      leads.map((l) => ({ leadId: l.id, batchId: batch.id })),
+    );
+    expect(visibleAtSend.filter((n) => n === 2)).toHaveLength(2);
+  });
+
+  it("sends no checks when the plan is rolled back", async () => {
+    await seed({ id: "alert", at: "2026-10-05T09:00:00.000Z", extraction: alert([lead(1)]) });
+    const queue = new RecordingQueue();
+    const broken = interceptTx(testWorkerCtx({ queue }), "intakeBatch", "create", () =>
+      Promise.reject(new Error("boom")),
+    );
+    await expect(applyEligibleMessages(broken)).rejects.toThrow("boom");
+    expect(queue.sent.filter((s) => s.name === QUEUES.leadsCheck)).toEqual([]);
+    expect(await prisma.lead.count()).toBe(0);
+  });
+
+  it("a failed check send does not undo the applied message", async () => {
+    await seed({ id: "alert", at: "2026-10-05T09:00:00.000Z", extraction: alert([lead(1)]) });
+    const queue = new RecordingQueue();
+    queue.failSendWith = new Error("queue down");
+    await expect(applyEligibleMessages(testWorkerCtx({ queue }))).resolves.toEqual({ applied: 1 });
+    expect(await stateOf(prisma, "alert")).toBe("applied");
+    expect(await prisma.lead.count()).toBe(1);
+  });
+
+  it("a recruiter email creates its lead and links the thread to it, in the lead's change set", async () => {
+    await seed({
+      id: "rec",
+      at: "2026-10-05T09:00:00.000Z",
+      threadId: "thr-rec",
+      fromEmail: "sam@staffing-partners.example",
+      extraction: extraction({
+        category: "recruiter_outreach",
+        company: { name: "Sable Robotics", websiteDomain: null },
+        role: { title: "Staff Engineer", seniority: "staff_plus" },
+        jobUrl: "https://boards.greenhouse.io/sable/jobs/777",
+        contact: {
+          name: "Sam Okafor",
+          email: "sam@staffing-partners.example",
+          title: null,
+          isAgency: true,
+        },
+      }),
+    });
+    await applyEligibleMessages(ctx());
+
+    expect(await stateOf(prisma, "rec")).toBe("applied");
+    const stored = await prisma.lead.findFirstOrThrow();
+    expect(stored).toMatchObject({ source: "gmail_recruiter", title: "Staff Engineer" });
+    expect(
+      await prisma.threadLink.findUniqueOrThrow({ where: { threadId: "thr-rec" } }),
+    ).toMatchObject({
+      leadId: stored.id,
+      applicationId: null,
+    });
+    const event = await prisma.event.findFirstOrThrow();
+    expect(event).toMatchObject({ type: "lead_created", leadId: stored.id });
+    const entities = (event.changeSet as { entity: string }[]).map((e) => e.entity).sort();
+    expect(entities).toEqual(["company", "contact", "lead", "thread_link"]);
+    expect(await prisma.intakeBatch.count()).toBe(1);
   });
 });

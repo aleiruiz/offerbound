@@ -1,17 +1,13 @@
 import type { Prisma } from "@prisma/client";
-import type { ChangePlan, Operation, PlannedEvent } from "@offerbound/domain";
+import { DEFAULT_SETTINGS } from "@offerbound/contracts";
+import type { ChangePlan, IncomingLead, Operation, PlannedEvent } from "@offerbound/domain";
 import { beforeEach, describe, expect, it } from "vitest";
 import { extraction } from "../../test/apply.js";
 import { resetDb, testPrisma } from "../../test/db.js";
 import { writeEvent } from "../db/events.js";
 import { withIntakeLock } from "../db/lock.js";
 import { createReviewItem } from "../review/create.js";
-import {
-  executePlan,
-  NotImplementedError,
-  VersionConflictError,
-  type PlanContext,
-} from "./execute-plan.js";
+import { executePlan, VersionConflictError, type PlanContext } from "./execute-plan.js";
 import { loadPlanSnapshot } from "./snapshot.js";
 
 const prisma = testPrisma();
@@ -35,7 +31,31 @@ const ctxFor = (over: Partial<PlanContext> = {}): PlanContext => ({
   messageId: "m1",
   occurredAt: AT,
   actor: "system",
+  settings: DEFAULT_SETTINGS,
   ...over,
+});
+
+const incoming = (order: number): IncomingLead => ({
+  ref: `new:lead:${order}`,
+  order,
+  source: "gmail_recruiter",
+  companyName: "Sable Robotics",
+  companyDomain: null,
+  title: "Staff Engineer",
+  jobUrl: `https://boards.greenhouse.io/sable/jobs/${900 + order}`,
+  locationText: null,
+  country: null,
+  workMode: "remote",
+  compensationText: null,
+  sponsorshipText: null,
+  postedAt: null,
+  seniority: null,
+  ranking: null,
+  verification: null,
+  pageExcerpt: null,
+  sheetStatus: null,
+  notes: null,
+  contactEmail: null,
 });
 
 function plan(
@@ -504,19 +524,50 @@ describe("executePlan", () => {
     ]);
   });
 
-  it("create_leads is not wired until T6.3: it throws NotImplementedError and writes nothing", async () => {
+  it("create_leads stores the leads, fills the new:lead:N refs and links the thread to the lead", async () => {
+    const result = await run(
+      plan([
+        {
+          op: "create_leads",
+          source: "gmail_recruiter",
+          leads: [incoming(0)],
+        },
+        { op: "link_thread", threadId: "thr-1", application: null, leadRef: "new:lead:0" },
+      ]),
+    );
+    const stored = await prisma.lead.findFirstOrThrow();
+    expect(result.refs["new:lead:0"]).toBe(stored.id);
+    expect(result.leadChecks).toHaveLength(1);
+    expect(result.leadChecks[0]).toMatchObject({ checkIds: [stored.id] });
+    expect(
+      await prisma.threadLink.findUniqueOrThrow({ where: { threadId: "thr-1" } }),
+    ).toMatchObject({
+      leadId: stored.id,
+    });
+    expect(await prisma.event.findMany()).toMatchObject([
+      { type: "lead_created", leadId: stored.id, data: { leadId: stored.id } },
+    ]);
+  });
+
+  it("create_leads rolls back with the rest of the plan", async () => {
     await expect(
       run(
         plan([
-          { op: "create_company", ref: "new:company", company: company() },
-          { op: "create_leads", source: "gmail_alert", leads: [] },
+          { op: "create_leads", source: "gmail_alert", leads: [incoming(0)] },
+          {
+            op: "update_application",
+            application: { id: "00000000-0000-4000-8000-000000000001" },
+            expectedVersion: 1,
+            set: { status: "rejected" },
+          },
         ]),
       ),
-    ).rejects.toBeInstanceOf(NotImplementedError);
+    ).rejects.toBeInstanceOf(VersionConflictError);
+    expect(await prisma.lead.count()).toBe(0);
+    expect(await prisma.intakeBatch.count()).toBe(0);
     expect(await prisma.company.count()).toBe(0);
   });
 });
-
 describe("executePlan: per-event change sets", () => {
   const entities = (changeSet: unknown) =>
     (changeSet as { entity: string }[]).map((e) => e.entity).sort();

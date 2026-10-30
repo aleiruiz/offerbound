@@ -4,9 +4,10 @@ import { planChanges, type ChangePlan, type PlanMessage } from "@offerbound/doma
 import { z } from "zod";
 import { withIntakeLock } from "../db/lock.js";
 import type { WorkerCtx } from "../deps.js";
+import { enqueueLeadChecks } from "../leads/intake.js";
 import { createReviewItem } from "../review/create.js";
 import { getSettings } from "../settings/service.js";
-import { executePlan, NotImplementedError, VersionConflictError } from "./execute-plan.js";
+import { executePlan, VersionConflictError, type LeadChecks } from "./execute-plan.js";
 import { loadPlanSnapshot } from "./snapshot.js";
 import { NO_CONTENT } from "./triage.js";
 
@@ -31,9 +32,8 @@ import { NO_CONTENT } from "./triage.js";
  * - {@link VersionConflictError} (an owner edit landed after the snapshot): the transaction is
  *   abandoned, the message stays `extracted`, and the drain stops here, since later messages must
  *   not pass it. The next sweep plans it again.
- * - A plan the executor cannot run yet (`create_leads` until T6.3 is wired), or a stored
- *   extraction that no longer parses: the message is `failed` with a review item, and the drain
- *   goes on (a failed message holds nothing back).
+ * - A stored extraction that no longer parses: the message is `failed` with a review item, and
+ *   the drain goes on (a failed message holds nothing back).
  * - Anything else (a database error, a bug): counted in `attempts`. The error is rethrown for
  *   pg-boss's retries until {@link MAX_APPLY_ATTEMPTS} are used up, then the message is failed
  *   like the cases above, so one poison message cannot block the pipeline for ever.
@@ -53,7 +53,15 @@ class ApplyFailure extends Error {
 }
 
 type Tx = Prisma.TransactionClient;
-type Step = { kind: "none" } | { kind: "done"; messageId: string; state: "applied" | "other" };
+type Step =
+  | { kind: "none" }
+  | {
+      kind: "done";
+      messageId: string;
+      state: "applied" | "other";
+      /** `leads.check` jobs to send once the transaction has committed. */
+      leadChecks: LeadChecks[];
+    };
 
 const IcsEventsSchema = z.array(IcsEventSchema);
 
@@ -93,7 +101,8 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
     icsEvents: ics.success ? ics.data : [],
   };
 
-  const { automation } = await getSettings(tx);
+  const settings = await getSettings(tx);
+  const { automation } = settings;
   const snapshot = await loadPlanSnapshot(tx, planMessage, extraction, ctx.env.userTimezone);
   const plan: ChangePlan = planChanges(snapshot, planMessage, extraction, {
     autoApplyMinConfidence: automation.autoApplyMinConfidence,
@@ -107,7 +116,7 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
 
   if (plan.autoApply && plan.messageOutcome === "triaged_out") {
     await move({ ...NO_CONTENT, state: "triaged_out" });
-    return { kind: "done", messageId: message.id, state: "other" };
+    return { kind: "done", messageId: message.id, state: "other", leadChecks: [] };
   }
 
   if (!plan.autoApply || plan.review !== null) {
@@ -122,13 +131,14 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
       reasons: review.reasons,
     });
     await move({ state: "needs_review" });
-    return { kind: "done", messageId: message.id, state: "other" };
+    return { kind: "done", messageId: message.id, state: "other", leadChecks: [] };
   }
 
-  const { refs } = await executePlan(tx, plan, {
+  const { refs, leadChecks } = await executePlan(tx, plan, {
     messageId: message.id,
     occurredAt: message.internalDate,
     actor: "system",
+    settings,
   });
   for (const notice of plan.notices) {
     const companyId = "id" in notice.company ? notice.company.id : refs[notice.company.ref];
@@ -143,7 +153,7 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
     });
   }
   await move({ state: "applied" });
-  return { kind: "done", messageId: message.id, state: "applied" };
+  return { kind: "done", messageId: message.id, state: "applied", leadChecks };
 }
 
 /**
@@ -199,6 +209,27 @@ async function recordFailure(
 }
 
 /**
+ * Sends `leads.check` for the leads an applied message stored, after its transaction committed. A
+ * failed send is logged by error name and does not undo the message: the leads wait in `checking`
+ * for the lead jobs' own recovery.
+ */
+async function sendLeadChecks(ctx: WorkerCtx, batches: LeadChecks[]): Promise<void> {
+  for (const batch of batches) {
+    try {
+      await enqueueLeadChecks(ctx.queue, batch);
+    } catch (error) {
+      ctx.log.warn(
+        {
+          errorName: error instanceof Error ? error.name : "unknown",
+          leads: batch.checkIds.length,
+        },
+        "could not queue lead checks",
+      );
+    }
+  }
+}
+
+/**
  * Applies every eligible `extracted` message, oldest first (see the module comment). Returns how
  * many reached `applied`.
  */
@@ -219,9 +250,8 @@ export async function applyEligibleMessages(ctx: WorkerCtx): Promise<{ applied: 
       }
       const messageId = current.id;
       if (messageId === null) throw error;
-      if (error instanceof ApplyFailure || error instanceof NotImplementedError) {
-        const code = error instanceof ApplyFailure ? error.code : "apply_not_implemented";
-        if (await recordFailure(ctx, messageId, code, false)) {
+      if (error instanceof ApplyFailure) {
+        if (await recordFailure(ctx, messageId, error.code, false)) {
           ctx.log.warn({ errorName: error.name }, "a message could not be applied and was failed");
           continue;
         }
@@ -235,6 +265,7 @@ export async function applyEligibleMessages(ctx: WorkerCtx): Promise<{ applied: 
       throw error;
     }
     if (step.kind === "none") break;
+    await sendLeadChecks(ctx, step.leadChecks);
     // Cannot happen under the lock; a guard so a bug can never spin this loop.
     if (step.messageId === previous) break;
     previous = step.messageId;

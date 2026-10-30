@@ -1,6 +1,8 @@
 import type { Actor, Prisma } from "@prisma/client";
+import type { Settings } from "@offerbound/contracts";
 import type { ApplicationSet, ChangePlan, EntityRef, InterviewFields } from "@offerbound/domain";
 import { writeEvent, type ChangeSetEntry } from "../db/events.js";
+import { ingestLeads, type IngestResult } from "../leads/intake.js";
 
 /**
  * Executes a change plan (TECHNICAL_SPEC §6.5, §14) inside the caller's intake-lock transaction.
@@ -22,6 +24,11 @@ import { writeEvent, type ChangeSetEntry } from "../db/events.js";
  * finds `follow_up_due` already false) is skipped, so it neither bumps `version` nor appears in
  * the change set.
  *
+ * `create_leads` runs the lead intake (`ingestLeads`) for the email, in this transaction: the batch,
+ * any new companies and the leads. Each stored lead gets a `lead_created` event, which owns that
+ * lead and the company it created. The `leads.check` jobs are sent by the caller after the commit
+ * (see {@link LeadChecks}); a worker must never look for a lead that is not yet visible.
+ *
  * Nothing here logs: it handles email-derived text.
  */
 
@@ -33,19 +40,26 @@ export class VersionConflictError extends Error {
   }
 }
 
-/** A part of the plan that is not built yet. The apply stage fails the message instead of crashing. */
-export class NotImplementedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotImplementedError";
-  }
-}
-
 export type PlanContext = {
   messageId: string | null;
   /** The email's `internal_date` for email-driven plans. */
   occurredAt: Date;
   actor: Actor;
+  /** The owner's settings, read in this transaction (`create_leads` needs the intake rules). */
+  settings: Settings;
+};
+
+/** What the caller sends once the transaction has committed: `leads.check` for these leads. */
+export type LeadChecks = Pick<IngestResult, "batchId" | "checkIds">;
+
+/** An event to write: who it is about, what it says and which change-set entries are its own. */
+type EventSpec = {
+  subject: { kind: "application" | "lead"; id: string; companyId: string | null };
+  type: string;
+  summary: string;
+  data: object | undefined;
+  /** `entity:id` keys of the entries only this event covers. */
+  owns: string[];
 };
 
 type Tx = Prisma.TransactionClient;
@@ -431,36 +445,103 @@ const INTERVIEW_EVENTS: readonly string[] = [
 /**
  * Splits a plan's change set between its events, so undoing one event (TECHNICAL_SPEC §6.6)
  * reverts only that event's own records and leaves the others alone:
+ * - an event owns the entries it names in `owns` (a `lead_created` event: its lead, and the
+ *   company that lead created);
  * - an interview event carries the entries of the interview it names (`data.interview` or
  *   `data.interviewId`);
- * - everything else (the application, the company, contact, lead, thread link, message link and
- *   daily count it changed or created) goes to the plan's first other event, the one that says
- *   what happened to the application or lead. If every event is an interview event, the first.
+ * - everything else (the application, company, contact, thread link, message link and daily
+ *   count the plan changed or created) goes to the first event that is neither an interview nor
+ *   a `lead_created` event, which says what happened to the application. With none, it goes to
+ *   the first event (a recruiter email: its contact and thread link ride with the lead).
  * An event left with no entries has no change set and is not undoable.
  *
  * Undoing the event that created an application removes the interviews hanging off it too (they
  * cascade with it); their own events go with them.
  */
-function sliceChangeSet(
-  events: { type: string; data: object | undefined }[],
-  entries: ChangeSetEntry[],
-): ChangeSetEntry[][] {
+function sliceChangeSet(events: EventSpec[], entries: ChangeSetEntry[]): ChangeSetEntry[][] {
   const slices: ChangeSetEntry[][] = events.map(() => []);
   if (events.length === 0) return slices;
-  const interviewOwner = new Map<string, number>();
+  const owner = new Map<string, number>();
   for (const [index, event] of events.entries()) {
+    for (const key of event.owns) if (!owner.has(key)) owner.set(key, index);
     if (!INTERVIEW_EVENTS.includes(event.type)) continue;
     const data = (event.data ?? {}) as { interview?: unknown; interviewId?: unknown };
     for (const id of [data.interview, data.interviewId]) {
-      if (typeof id === "string" && !interviewOwner.has(id)) interviewOwner.set(id, index);
+      if (typeof id === "string" && !owner.has(`interview:${id}`)) {
+        owner.set(`interview:${id}`, index);
+      }
     }
   }
-  const primary = events.findIndex((event) => !INTERVIEW_EVENTS.includes(event.type));
+  const primary = events.findIndex(
+    (event) => !INTERVIEW_EVENTS.includes(event.type) && event.type !== "lead_created",
+  );
   for (const entry of entries) {
-    const owner = entry.entity === "interview" ? interviewOwner.get(entry.id) : undefined;
-    slices[owner ?? (primary === -1 ? 0 : primary)]?.push(entry);
+    const index = owner.get(`${entry.entity}:${entry.id}`) ?? (primary === -1 ? 0 : primary);
+    slices[index]?.push(entry);
   }
   return slices;
+}
+
+/**
+ * Records what `ingestLeads` created in the change set (the leads, and the companies it made),
+ * and returns one `lead_created` event per stored lead. Leads intake discarded (duplicates, a
+ * blank company) have no row and no event. The intake batch is not an undoable entity: it stays
+ * as the record of what the email contained.
+ */
+async function recordIngest(
+  tx: Tx,
+  result: IngestResult,
+  changes: ChangeSet,
+): Promise<EventSpec[]> {
+  const leads = await tx.lead.findMany({ where: { id: { in: result.leadIds } } });
+  const byId = new Map(leads.map((lead) => [lead.id, lead]));
+  const companies = await tx.company.findMany({
+    where: {
+      id: { in: [...new Set([...leads.map((l) => l.companyId), ...result.createdCompanyIds])] },
+    },
+    select: { id: true, name: true },
+  });
+  const names = new Map(companies.map((c) => [c.id, c.name]));
+  const created = await tx.company.findMany({ where: { id: { in: result.createdCompanyIds } } });
+  for (const company of created) {
+    changes.record({
+      entity: "company",
+      id: company.id,
+      created: true,
+      before: null,
+      after: createdAfter(company),
+      versionAfter: company.version,
+    });
+  }
+
+  const claimed = new Set<string>();
+  const events: EventSpec[] = [];
+  for (const id of result.leadIds) {
+    const lead = byId.get(id);
+    if (lead === undefined) continue;
+    changes.record({
+      entity: "lead",
+      id: lead.id,
+      created: true,
+      before: null,
+      after: createdAfter(lead),
+      versionAfter: lead.version,
+    });
+    const owns = [`lead:${lead.id}`];
+    // The company a lead created belongs to the first lead of that company.
+    if (result.createdCompanyIds.includes(lead.companyId) && !claimed.has(lead.companyId)) {
+      claimed.add(lead.companyId);
+      owns.push(`company:${lead.companyId}`);
+    }
+    events.push({
+      subject: { kind: "lead", id: lead.id, companyId: lead.companyId },
+      type: "lead_created",
+      summary: `New lead: ${lead.title} at ${names.get(lead.companyId) ?? "a company"}`,
+      data: { leadId: lead.id, source: lead.source, status: lead.status },
+      owns,
+    });
+  }
+  return events;
 }
 
 // --- the executor ----------------------------------------------------------------------------------
@@ -469,12 +550,14 @@ export async function executePlan(
   tx: Tx,
   plan: ChangePlan,
   ctx: PlanContext,
-): Promise<{ refs: Record<string, string>; eventIds: string[] }> {
+): Promise<{ refs: Record<string, string>; eventIds: string[]; leadChecks: LeadChecks[] }> {
   if (!plan.autoApply) {
     throw new Error("A plan that needs review is stored, not executed");
   }
   const refs = new Refs();
   const changes = new ChangeSet();
+  const leadEvents: EventSpec[] = [];
+  const leadChecks: LeadChecks[] = [];
 
   for (const op of plan.operations) {
     switch (op.op) {
@@ -565,11 +648,22 @@ export async function executePlan(
       case "cancel_interview":
         await cancelInterview(tx, op.interviewId, op.expectedVersion, changes);
         break;
-      case "create_leads":
-        // TODO(T6.3, stream B): replace this with ingestLeads (apps/api/src/leads/intake.ts) and
-        // write one lead_created event per stored lead (ingestLeads writes none), add the stored
-        // leads' ids to `refs` as "new:lead:N", and call enqueueLeadChecks after the commit.
-        throw new NotImplementedError("create_leads not wired (T6.3)");
+      case "create_leads": {
+        const result = await ingestLeads(
+          tx,
+          {
+            kind: "gmail_message",
+            ...(ctx.messageId === null ? {} : { messageId: ctx.messageId }),
+          },
+          op.leads,
+          // Leads are found when the email was sent, so a backfilled alert does not look new today.
+          { settings: ctx.settings, now: ctx.occurredAt },
+        );
+        for (const [ref, id] of Object.entries(result.refs)) refs.set(ref, id);
+        leadEvents.push(...(await recordIngest(tx, result, changes)));
+        leadChecks.push({ batchId: result.batchId, checkIds: result.checkIds });
+        break;
+      }
       case "link_thread": {
         if (op.application !== null) {
           await linkThread(
@@ -598,38 +692,43 @@ export async function executePlan(
     }
   }
 
-  const planned = plan.events.map((event) => ({
-    event,
-    data: event.data === null ? undefined : (refs.substitute(event.data) as object),
-  }));
-  const slices = sliceChangeSet(
-    planned.map(({ event, data }) => ({ type: event.type, data })),
-    changes.list(),
-  );
-  const eventIds: string[] = [];
-  for (const [index, { event, data }] of planned.entries()) {
-    const changeSet = slices[index] ?? [];
-    const subjectId = refs.resolve(event.subject);
+  const specs: EventSpec[] = [];
+  for (const event of plan.events) {
+    const id = refs.resolve(event.subject);
     const owner =
       event.subjectType === "application"
-        ? await tx.application.findUnique({ where: { id: subjectId }, select: { companyId: true } })
-        : await tx.lead.findUnique({ where: { id: subjectId }, select: { companyId: true } });
+        ? await tx.application.findUnique({ where: { id }, select: { companyId: true } })
+        : await tx.lead.findUnique({ where: { id }, select: { companyId: true } });
+    specs.push({
+      subject: { kind: event.subjectType, id, companyId: owner?.companyId ?? null },
+      type: event.type,
+      summary: event.summary,
+      data: event.data === null ? undefined : (refs.substitute(event.data) as object),
+      owns: [],
+    });
+  }
+  specs.push(...leadEvents);
+
+  const slices = sliceChangeSet(specs, changes.list());
+  const eventIds: string[] = [];
+  for (const [index, spec] of specs.entries()) {
+    const changeSet = slices[index] ?? [];
     eventIds.push(
       await writeEvent(tx, {
-        ...(event.subjectType === "application"
-          ? { applicationId: subjectId }
-          : { leadId: subjectId }),
-        ...(owner === null ? {} : { companyId: owner.companyId }),
-        type: event.type,
+        ...(spec.subject.kind === "application"
+          ? { applicationId: spec.subject.id }
+          : { leadId: spec.subject.id }),
+        ...(spec.subject.companyId === null ? {} : { companyId: spec.subject.companyId }),
+        type: spec.type as Parameters<typeof writeEvent>[1]["type"],
         actor: ctx.actor,
         occurredAt: ctx.occurredAt,
         ...(ctx.messageId === null ? {} : { messageId: ctx.messageId }),
-        summary: event.summary,
-        ...(data === undefined ? {} : { data }),
+        summary: spec.summary,
+        ...(spec.data === undefined ? {} : { data: spec.data }),
         ...(changeSet.length === 0 ? {} : { changeSet }),
         undoable: changeSet.length > 0,
       }),
     );
   }
-  return { refs: refs.map, eventIds };
+  return { refs: refs.map, eventIds, leadChecks };
 }
