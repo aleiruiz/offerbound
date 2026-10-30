@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Writable } from "node:stream";
 import cookie from "@fastify/cookie";
 import Fastify, { type FastifyInstance } from "fastify";
+import { demoReadOnlyGuard } from "./demo/guard.js";
 import type { AppDeps } from "./deps.js";
 import { registerCsrf } from "./http/csrf.js";
 import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
-import { registerRateLimit } from "./http/rate-limit.js";
+import { registerDemoMutationLimit, registerRateLimit } from "./http/rate-limit.js";
 import { requireSession } from "./http/session-guard.js";
 import { registerAiUsageRoutes } from "./routes/ai-usage.js";
 import { registerApplicationRoutes } from "./routes/applications.js";
@@ -16,6 +17,7 @@ import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCompanyMergeRoutes } from "./routes/company-merge.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerDailyActivityRoutes } from "./routes/daily-activity.js";
+import { registerDemoRoutes } from "./routes/demo.js";
 import { registerDataRoutes } from "./routes/data.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
@@ -89,6 +91,7 @@ export async function buildApp(
   // No CORS plugin, ever: the API sends no Access-Control-* headers (SECURITY §5).
   registerErrorHandling(app);
   await registerRateLimit(app);
+  if (env.mode === "demo") registerDemoMutationLimit(app);
   await app.register(cookie);
   registerCsrf(app);
   // Unknown routes are not routes to the limiter's onRoute hook, so they get the limiter explicitly
@@ -105,6 +108,11 @@ export async function buildApp(
       // Everything below needs a session. Later tasks register their routes here.
       await api.register(async (guarded) => {
         guarded.addHook("preHandler", requireSession(deps));
+        // Demo: no sign-in, and nothing a visitor types is stored (AC-16.6).
+        if (deps.env.mode === "demo") {
+          guarded.addHook("preHandler", demoReadOnlyGuard());
+          registerDemoRoutes(guarded, deps);
+        }
         registerMeRoutes(guarded, deps);
         registerGmailRoutes(guarded, deps);
         registerOnboardingRoutes(guarded, deps);

@@ -4,6 +4,7 @@ import type { Env } from "./config/env.js";
 import { createDisabledGoogleClient, createGoogleAuthClient } from "./auth/google.js";
 import type { GoogleAuthClient } from "./auth/google.js";
 import { createPrisma } from "./db/prisma.js";
+import { createDemoRuntime } from "./demo/runtime.js";
 import { createSafeFetcher, type LinkFetcher } from "./leads/ssrf.js";
 import { createBoss } from "./jobs/boss.js";
 import { PgBossQueue, type JobQueue } from "./jobs/queues.js";
@@ -36,7 +37,7 @@ export type AppDeps = {
 /** Everything a background job needs: the app dependencies plus a logger. */
 export type WorkerCtx = AppDeps & { log: FastifyBaseLogger };
 
-/** The real provider in private mode; the fixture-backed fake in demo mode, which has no key. */
+/** The real provider (private mode). The demo uses the fixture-backed fake, see `createDemoRuntime`. */
 function createLlm(env: Env, prisma: PrismaClient, log?: WarnLogger): LlmProvider {
   if (!env.openai) return FakeLlmProvider.fromFixtures({ emails: [], leadBatches: [], db: prisma });
   return new OpenAiProvider(
@@ -62,14 +63,19 @@ function createLlm(env: Env, prisma: PrismaClient, log?: WarnLogger): LlmProvide
 export function createDeps(env: Env, log?: WarnLogger): AppDeps & { queue: PgBossQueue } {
   const prisma = createPrisma(env.databaseUrl);
   const clock = (): Date => new Date();
+  // The demo reaches nothing outside the process: a mailbox and a model that replay fixtures
+  // (TECHNICAL_SPEC §12), and a link check that is answered locally.
+  const demo = env.mode === "demo" ? createDemoRuntime(prisma) : null;
   return {
     env,
     prisma,
     clock,
     google: env.google ? createGoogleAuthClient(env.google) : createDisabledGoogleClient(),
-    fetchLink: createSafeFetcher(),
-    gmail: createGmailClientFactory({ store: createPrismaConnectionStore(prisma), env, clock }),
+    fetchLink: demo ? demo.fetchLink : createSafeFetcher(),
+    gmail: demo
+      ? demo.gmail
+      : createGmailClientFactory({ store: createPrismaConnectionStore(prisma), env, clock }),
     queue: new PgBossQueue(createBoss(env.databaseUrl, "api")),
-    llm: createLlm(env, prisma, log),
+    llm: demo ? demo.llm : createLlm(env, prisma, log),
   };
 }

@@ -108,7 +108,10 @@ const PriceSchema = z.object({
 });
 const PricingSchema = z.record(z.string().min(1), PriceSchema);
 
-/** Variables that must be absent in demo mode (TECHNICAL_SPEC §3.4, AC-16.1). */
+/**
+ * Variables that must be absent in demo mode (TECHNICAL_SPEC §3.4, AC-16.1), besides everything
+ * starting with `OPENAI_` or `GOOGLE_`.
+ */
 const DEMO_FORBIDDEN_EXACT = [
   "OWNER_EMAIL",
   "GOOGLE_CLIENT_ID",
@@ -269,8 +272,13 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
 
   if (demo) {
     for (const name of Object.keys(raw)) {
-      const forbiddenName = DEMO_FORBIDDEN_EXACT.includes(name) || name.startsWith("OPENAI_");
-      if (forbiddenName && read(name) !== undefined) forbidden.push(name);
+      const forbiddenName =
+        DEMO_FORBIDDEN_EXACT.includes(name) ||
+        name.startsWith("OPENAI_") ||
+        name.startsWith("GOOGLE_");
+      // Present is present: an empty value counts too (a compose file that passes `VAR: ""` still
+      // hands the variable to the process), unlike the optional variables, where empty means unset.
+      if (forbiddenName && raw[name] !== undefined) forbidden.push(name);
     }
     if (missing.length > 0 || forbidden.length > 0 || invalid.length > 0) {
       throw new EnvError(missing, forbidden, invalid);

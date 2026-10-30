@@ -130,6 +130,28 @@ describe("loadEnv", () => {
     expect(error.forbidden).toHaveLength(7);
   });
 
+  it("demo mode counts a forbidden variable set to an empty string as present (AC-16.1)", () => {
+    const error = failure(
+      demoEnv({
+        OPENAI_API_KEY: "",
+        OWNER_EMAIL: "  ",
+        GOOGLE_CLIENT_ID: "",
+        OPENAI_MODEL_RANK: "",
+      }),
+    );
+    expect(error.forbidden.sort()).toEqual(
+      ["GOOGLE_CLIENT_ID", "OPENAI_API_KEY", "OPENAI_MODEL_RANK", "OWNER_EMAIL"].sort(),
+    );
+  });
+
+  it("demo mode refuses any GOOGLE_ variable, not only the client id and secret", () => {
+    expect(failure(demoEnv({ GOOGLE_PROJECT: "x" })).forbidden).toEqual(["GOOGLE_PROJECT"]);
+  });
+
+  it("a variable that is not set at all is not forbidden", () => {
+    expect(loadEnv(demoEnv({ OPENAI_API_KEY: undefined })).mode).toBe("demo");
+  });
+
   it("loads demo mode without any secrets", () => {
     const env = loadEnv(
       demoEnv({ TRUSTED_PROXY_IPS: "10.0.0.0/8, 192.168.0.5", LOG_LEVEL: "warn" }),

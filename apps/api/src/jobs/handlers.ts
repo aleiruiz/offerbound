@@ -17,6 +17,7 @@ import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
+import { resetDemo } from "../demo/reset.js";
 import { runBackup, type BackupDeps } from "../ops/backup.js";
 import { runMaintenance } from "../ops/maintenance.js";
 import { runTimersTick } from "../timers/tick.js";
@@ -263,6 +264,11 @@ const timersTick: JobHandler = async (ctx) => {
   await runTimersTick(ctx);
 };
 
+/** `demo.reset`, hourly on a demo instance (§12). It refuses to run on any other. */
+const demoReset: JobHandler = async (ctx) => {
+  await resetDemo(ctx, ctx.clock());
+};
+
 /**
  * The handlers registered, by queue. A queue without a handler is created but not consumed.
  */
@@ -276,6 +282,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
   [QUEUES.backupNightly]: backupNightlyHandler(),
+  [QUEUES.demoReset]: demoReset,
   [QUEUES.maintenanceDaily]: maintenanceDaily,
   [QUEUES.timersTick]: timersTick,
   [QUEUES.searchRun]: searchRunHandler,

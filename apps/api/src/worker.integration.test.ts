@@ -6,6 +6,9 @@ import { startWorker } from "./worker.js";
 import { testPrisma } from "../test/db.js";
 import { testEnv } from "../test/app.js";
 import { testWorkerCtx } from "../test/worker.js";
+import { demoWorkerCtx } from "../test/demo.js";
+import { loadSeed } from "./demo/seed.js";
+import { resetDb } from "../test/db.js";
 
 const stops: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -50,6 +53,27 @@ describe("worker", () => {
       .filter((name) => name in HANDLERS);
     expect(rows.map((r) => r.name).sort()).toEqual(handled.sort());
     expect(handled).toContain("email.triage");
+  });
+
+  it("in demo mode it seeds the demo at start and schedules demo.reset every hour (TECHNICAL_SPEC §12)", async () => {
+    const prisma = testPrisma();
+    await resetDb(prisma);
+    const ctx = demoWorkerCtx();
+    const worker = await startWorker(ctx);
+    stops.push(worker.stop);
+    expect(await prisma.application.count()).toBe(loadSeed().applications.length);
+
+    const rows = await prisma.$queryRaw<Array<{ name: string; cron: string; timezone: string }>>`
+      select name, cron, timezone from pgboss.schedule order by name`;
+    expect(rows).toContainEqual({
+      name: "demo.reset",
+      cron: "0 * * * *",
+      timezone: ctx.env.userTimezone,
+    });
+    expect(rows.map((r) => r.name)).not.toContain("backup.nightly");
+    await worker.stop();
+    // Leave the shared pg-boss schema as the private-mode tests expect it.
+    await prisma.$executeRaw`delete from pgboss.schedule where name = 'demo.reset'`;
   });
 
   it("stops gracefully on SIGTERM and removes its signal listeners", async () => {
