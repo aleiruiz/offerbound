@@ -46,7 +46,9 @@ const json = (value: object | undefined): string | null =>
 /**
  * Writes an event and returns its id. An event with a `messageId` is idempotent on the unique
  * expression index `(message_id, type, coalesce(application_id, lead_id, '-'))`: writing it a
- * second time changes nothing and returns the id of the first. A conflicting insert inside a
+ * second time changes nothing and returns the id of the first. The index covers live events only
+ * (`undone_at IS NULL`): an undone event frees its slot, so reprocessing an email can write the
+ * same event again. A conflicting insert inside a
  * transaction would abort it, so the conflict is resolved by the statement itself
  * (`ON CONFLICT DO NOTHING`), never by catching an error.
  */
@@ -59,7 +61,7 @@ export async function writeEvent(tx: Prisma.TransactionClient, e: NewEvent): Pro
             ${e.occurredAt}, ${e.messageId ?? null}, ${e.summary},
             ${json(e.data)}::jsonb, ${json(e.changeSet)}::jsonb, ${e.undoable})
     ON CONFLICT (message_id, type, (coalesce(application_id::text, lead_id::text, '-')))
-      WHERE message_id IS NOT NULL
+      WHERE message_id IS NOT NULL AND undone_at IS NULL
     DO NOTHING
     RETURNING id::text AS id`;
   const [inserted] = rows;
@@ -70,6 +72,7 @@ export async function writeEvent(tx: Prisma.TransactionClient, e: NewEvent): Pro
     SELECT id::text AS id FROM event
     WHERE message_id = ${e.messageId}
       AND type = ${e.type}::event_type
+      AND undone_at IS NULL
       AND coalesce(application_id::text, lead_id::text, '-')
           = coalesce(${e.applicationId ?? null}::text, ${e.leadId ?? null}::text, '-')`;
   const [found] = existing;

@@ -293,13 +293,19 @@ async function convertLead(
   if (lead === null || lead.version !== op.expectedVersion || lead.status === "applied") {
     throw new VersionConflictError();
   }
+  // The lead keeps its job key. If another application already holds it (the same posting applied
+  // to some other way), the new application goes without one rather than failing the plan.
+  const keyTaken =
+    lead.jobKey !== null &&
+    (await tx.application.findFirst({ where: { jobKey: lead.jobKey }, select: { id: true } })) !==
+      null;
   const application = await tx.application.create({
     data: {
       companyId: lead.companyId,
       leadId: lead.id,
       title: lead.title,
       jobUrl: lead.jobUrl,
-      jobKey: lead.jobKey,
+      jobKey: keyTaken ? null : lead.jobKey,
       locationText: lead.locationText,
       country: lead.country,
       workMode: lead.workMode,

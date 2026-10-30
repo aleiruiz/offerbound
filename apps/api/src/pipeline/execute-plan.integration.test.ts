@@ -483,6 +483,45 @@ describe("executePlan", () => {
     });
   });
 
+  it("convert_lead creates the application without a job key when another application holds it", async () => {
+    const holder = await seedApplication({ jobKey: "quarry:staff" });
+    const batch = await prisma.intakeBatch.create({ data: { kind: "manual", counts: {} } });
+    const lead = await prisma.lead.create({
+      data: {
+        companyId: holder.companyId,
+        intakeBatchId: batch.id,
+        title: "Staff Engineer",
+        jobKey: "quarry:staff",
+        statusChangedAt: AT,
+        source: "gmail_alert",
+        status: "shortlisted",
+      },
+    });
+    const result = await run(
+      plan([
+        {
+          op: "convert_lead",
+          leadId: lead.id,
+          expectedVersion: 1,
+          applicationRef: "new:application",
+          status: "applied",
+          appliedAt: AT,
+        },
+      ]),
+    );
+    const created = await prisma.application.findUniqueOrThrow({
+      where: { id: result.refs["new:application"] ?? "" },
+    });
+    expect(created).toMatchObject({ leadId: lead.id, jobKey: null, status: "applied" });
+    expect(await prisma.application.findUniqueOrThrow({ where: { id: holder.id } })).toMatchObject({
+      jobKey: "quarry:staff",
+    });
+    expect(await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } })).toMatchObject({
+      status: "applied",
+      applicationId: created.id,
+    });
+  });
+
   it("convert_lead conflicts when the owner changed the lead", async () => {
     const application = await seedApplication();
     const batch = await prisma.intakeBatch.create({ data: { kind: "manual", counts: {} } });
