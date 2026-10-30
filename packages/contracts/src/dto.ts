@@ -23,7 +23,7 @@ import {
   VerificationSchema,
   WorkModeSchema,
 } from "./enums.js";
-import { CompensationSchema, CvProfileSchema, ExtractionSchema, ReportLeadSchema } from "./llm.js";
+import { CompensationSchema, ExtractionSchema, ReportLeadSchema } from "./llm.js";
 import { DailyTargetsSchema } from "./settings.js";
 
 // TECHNICAL_SPEC §10.2 DTOs and §10.1 request bodies.
@@ -454,15 +454,15 @@ export type SheetCommitBody = z.infer<typeof SheetCommitBodySchema>;
 // --- CV (TECHNICAL_SPEC §7.5, §10.1) ---
 
 /**
- * Response of `POST /cv`: 201 with `profileStatus: "ok"` and the profile, or 202 with
- * `profileStatus: "failed"` and `profile: null` when the profile step failed (the text is stored;
- * `POST /cv/retry-profile` re-runs it and answers with a bare `CvProfile`).
+ * The 202 body of `POST /cv` (TECHNICAL_SPEC §10.1): the text was stored but the profile step
+ * failed. A success is a 201 with a bare `CvProfile`; the status code tells the two apart.
+ * `POST /cv/retry-profile` re-runs the profile step and answers with a bare `CvProfile`.
  */
-export const CvUploadResultSchema = z.object({
-  profileStatus: z.enum(["ok", "failed"]),
-  profile: CvProfileSchema.nullable(),
+export const CvUploadFailedSchema = z.object({
+  profileStatus: z.literal("failed"),
+  profile: z.null(),
 });
-export type CvUploadResult = z.infer<typeof CvUploadResultSchema>;
+export type CvUploadFailed = z.infer<typeof CvUploadFailedSchema>;
 
 export const ReportRowAnnotationSchema = z.enum([
   "new",

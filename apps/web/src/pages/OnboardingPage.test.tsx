@@ -77,7 +77,8 @@ function setup(routes: Routes = {}) {
     </Routes>,
     { route: "/onboarding" },
   );
-  return { api, ...rendered, user: userEvent.setup() };
+  // The operating system's picker can hand over any file despite `accept`, so tests bypass it too.
+  return { api, ...rendered, user: userEvent.setup({ applyAccept: false }) };
 }
 
 function file(name: string, type: string, bytes = 8): File {
@@ -130,7 +131,7 @@ describe("OnboardingPage", () => {
   describe("the CV step", () => {
     it("uploads to POST /cv and shows the profile summary", async () => {
       const { api, user } = setup({
-        "POST /api/v1/cv": () => jsonResponse({ profileStatus: "ok", profile: PROFILE }, 201),
+        "POST /api/v1/cv": () => jsonResponse(PROFILE, 201),
       });
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
 
@@ -178,6 +179,54 @@ describe("OnboardingPage", () => {
       );
       expect(await screen.findByRole("alert")).toHaveTextContent("larger than 5 MB");
       expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(0);
+    });
+
+    it("rejects a file that is not a PDF or DOCX in the page, even when the picker allowed it", async () => {
+      const { api, user } = setup();
+      await user.upload(screen.getByLabelText("Choose CV file"), file("notes.txt", "text/plain"));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Offerbound reads PDF and DOCX files. Choose one of those.",
+      );
+      expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(0);
+      expect(screen.getByRole("button", { name: "Skip this step" })).toBeInTheDocument();
+    });
+
+    it("accepts a DOCX by extension even when the browser reports no type", async () => {
+      const { user } = setup({ "POST /api/v1/cv": () => jsonResponse(PROFILE, 201) });
+      await user.upload(screen.getByLabelText("Choose CV file"), file("cv.docx", ""));
+      expect(await screen.findByRole("region", { name: "Your CV profile" })).toBeInTheDocument();
+    });
+
+    it("keeps showing the last good profile when a later upload fails", async () => {
+      let answer: MockHandler = () => jsonResponse(PROFILE, 201);
+      const { user } = setup({ "POST /api/v1/cv": (req) => answer(req) });
+      await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
+      expect(await screen.findByText(PROFILE.headline)).toBeInTheDocument();
+
+      answer = () => apiError(422, "cv_no_text", "No text was found in this file.");
+      await user.upload(screen.getByLabelText("Replace CV"), file("scan.pdf", "application/pdf"));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "We couldn't read text from that file.",
+      );
+      expect(screen.getByText(PROFILE.headline)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+    });
+
+    it("a 202 re-upload replaces the profile with the warning, since the new CV is the one on file", async () => {
+      let status = 201;
+      const { user } = setup({
+        "POST /api/v1/cv": () =>
+          status === 201
+            ? jsonResponse(PROFILE, 201)
+            : jsonResponse({ profileStatus: "failed", profile: null }, 202),
+      });
+      await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
+      expect(await screen.findByText(PROFILE.headline)).toBeInTheDocument();
+      status = 202;
+      await user.upload(screen.getByLabelText("Replace CV"), file("cv2.pdf", "application/pdf"));
+      expect(await screen.findByRole("alert")).toHaveTextContent("its profile isn't ready");
+      expect(screen.queryByText(PROFILE.headline)).not.toBeInTheDocument();
     });
 
     it("keeps going when the CV is saved but its profile failed", async () => {
@@ -271,6 +320,22 @@ describe("OnboardingPage", () => {
       );
       expect(screen.queryByRole("table")).not.toBeInTheDocument();
     });
+    it("rejects a file that is not a CSV in the page, and keeps the preview already shown", async () => {
+      const rendered = await toImport();
+      const { user } = rendered;
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      await screen.findByText("Applications.csv");
+      const before = callsTo(rendered.api, "POST", "/api/v1/import/sheet/preview").length;
+
+      await user.upload(screen.getByLabelText("Replace file"), file("sheet.xlsx", ""));
+      expect(await screen.findByText(/Offerbound imports CSV files\./)).toBeInTheDocument();
+      expect(callsTo(rendered.api, "POST", "/api/v1/import/sheet/preview")).toHaveLength(before);
+      expect(screen.getByText("Applications.csv")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Import 101 rows" })).toBeInTheDocument();
+    });
   });
 
   describe("the brief step", () => {
@@ -299,6 +364,31 @@ describe("OnboardingPage", () => {
         ...settings,
         search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
       });
+      expect(
+        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
+      ).toBeVisible();
+    });
+
+    it("after a successful save, coming back shows Continue and no Skip, whether or not the text was typed", async () => {
+      const { user } = setup({
+        "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+      });
+      await skipTo(user, 2);
+      await user.type(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
+      await user.click(screen.getByRole("button", { name: "Save and continue" }));
+      await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
+      expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
+
+      // Editing again offers to save the change, and still no Skip.
+      await user.type(screen.getByRole("textbox", { name: "Search brief" }), " in Mexico");
+      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Save and continue" }));
       expect(
         await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
       ).toBeVisible();

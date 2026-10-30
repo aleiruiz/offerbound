@@ -1,5 +1,6 @@
 import {
-  CvUploadResultSchema,
+  CvProfileSchema,
+  CvUploadFailedSchema,
   ImportSummarySchema,
   MeSchema,
   MessageDetailSchema,
@@ -7,10 +8,11 @@ import {
   SettingsSchema,
   SheetPreviewSchema,
   SyncStatusSchema,
+  type CvProfile,
   type Settings,
 } from "@offerbound/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "./client";
+import { apiFetch, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
@@ -101,11 +103,29 @@ function fileForm(file: File): FormData {
   return formData;
 }
 
-/** `POST /cv`: upload a PDF or DOCX. The answer carries the profile, or `profileStatus: "failed"`. */
+/** What `POST /cv` came to: a profile (201), or the text stored without one (202). */
+export type CvUploadOutcome =
+  { profileStatus: "ok"; profile: CvProfile } | { profileStatus: "failed"; profile: null };
+
+/**
+ * `POST /cv`: upload a PDF or DOCX. TECHNICAL_SPEC §10.1: 201 with a bare `CvProfile`, or 202 with
+ * `profileStatus: "failed"`; the HTTP status says which.
+ */
 export function useUploadCv() {
   return useMutation({
-    mutationFn: (file: File) =>
-      apiFetch("/cv", { method: "POST", formData: fileForm(file), schema: CvUploadResultSchema }),
+    mutationFn: async (file: File): Promise<CvUploadOutcome> => {
+      const { status, data } = await apiFetchWithStatus<CvProfile | { profileStatus: "failed" }>(
+        "/cv",
+        {
+          method: "POST",
+          formData: fileForm(file),
+          schema: (code) => (code === 202 ? CvUploadFailedSchema : CvProfileSchema),
+        },
+      );
+      return status === 202
+        ? { profileStatus: "failed", profile: null }
+        : { profileStatus: "ok", profile: data as CvProfile };
+    },
   });
 }
 

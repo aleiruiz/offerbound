@@ -20,6 +20,7 @@ import Typography from "@mui/material/Typography";
 import {
   BRIEF_MAX_CHARS,
   DEFAULT_SETTINGS,
+  type CvProfile,
   type SheetPreview,
   type SheetStatus,
   type SheetTarget,
@@ -62,6 +63,15 @@ const CSV_MAX_BYTES = 2 * MB;
 const CV_ACCEPT =
   ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const CSV_ACCEPT = ".csv,text/csv";
+
+/** The OS file picker can bypass `accept`, so the page checks the extension or MIME type too. */
+function hasAllowedType(file: File, accept: string): boolean {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+  return accept
+    .split(",")
+    .some((entry) => (entry.startsWith(".") ? name.endsWith(entry) : type === entry));
+}
 
 const countFormat = new Intl.NumberFormat("en-US");
 
@@ -295,15 +305,35 @@ function cvErrorMessage(error: unknown): string {
 
 function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => void }) {
   const upload = useUploadCv();
-  const [tooLarge, setTooLarge] = useState(false);
+  const [rejected, setRejected] = useState<"unsupported_file" | "too_large" | null>(null);
+  // The last upload that gave a profile. A later upload that fails does not replace it: the server
+  // keeps the previous CV, and so does this page.
+  const [profile, setProfile] = useState<CvProfile | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [profileFailed, setProfileFailed] = useState(false);
 
   const choose = (file: File) => {
-    const oversize = file.size > CV_MAX_BYTES;
-    setTooLarge(oversize);
-    if (!oversize) upload.mutate(file);
+    setProfileFailed(false);
+    const reason = !hasAllowedType(file, CV_ACCEPT)
+      ? "unsupported_file"
+      : file.size > CV_MAX_BYTES
+        ? "too_large"
+        : null;
+    setRejected(reason);
+    if (reason) {
+      upload.reset();
+      return;
+    }
+    upload.mutate(file, {
+      onSuccess: (outcome) => {
+        setSaved(true);
+        setProfileFailed(outcome.profileStatus === "failed");
+        // A new CV whose profile failed is the one on file now: the old profile no longer applies.
+        setProfile(outcome.profile);
+      },
+    });
   };
 
-  const result = upload.data;
   return (
     <>
       <Typography sx={{ maxWidth: 680 }}>
@@ -312,7 +342,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
       </Typography>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
         <FilePicker
-          label={result ? "Replace CV" : "Choose CV file"}
+          label={saved ? "Replace CV" : "Choose CV file"}
           accept={CV_ACCEPT}
           onFile={choose}
           disabled={upload.isPending}
@@ -325,9 +355,9 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
           ) : null}
         </Box>
       </Box>
-      {tooLarge ? (
+      {rejected ? (
         <Alert severity="error" role="alert">
-          {cvErrorMessage(new ApiClientError({ status: 413, code: "too_large", message: "" }))}
+          {cvErrorMessage(new ApiClientError({ status: 422, code: rejected, message: "" }))}
         </Alert>
       ) : null}
       {upload.isError ? (
@@ -335,7 +365,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
           {cvErrorMessage(upload.error)}
         </Alert>
       ) : null}
-      {result?.profileStatus === "failed" ? (
+      {profileFailed ? (
         <Alert severity="warning" role="alert">
           <Box component="span" sx={{ fontWeight: 700 }}>
             Your CV was saved, but its profile isn't ready.
@@ -343,17 +373,17 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
           You can continue and build the profile again later in Settings.
         </Alert>
       ) : null}
-      {result?.profile ? (
+      {profile ? (
         <Box
           aria-label="Your CV profile"
           role="region"
           sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}
         >
-          <CvProfileSummary profile={result.profile} />
+          <CvProfileSummary profile={profile} />
         </Box>
       ) : null}
-      <StepFooter onSkip={upload.isSuccess ? undefined : onSkip}>
-        {upload.isSuccess ? (
+      <StepFooter onSkip={saved ? undefined : onSkip}>
+        {saved ? (
           <Button variant="contained" onClick={onContinue}>
             Continue
           </Button>
@@ -382,13 +412,19 @@ const SHEET_TARGET_LABEL: Record<SheetTarget, string> = {
   application_rejected: "Applications with status Rejected",
 };
 
+const CSV_REJECTED = {
+  unsupported_file:
+    "Offerbound imports CSV files. In Google Sheets, choose File, Download, Comma-separated values, then add that file.",
+  too_large: "That file is larger than 2 MB. Export only the Applications tab and try again.",
+} as const;
+
 function importErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     switch (error.code) {
       case "duplicate_import":
         return "This file was already imported. Skip this step to keep your list as it is.";
       case "too_large":
-        return "That file is larger than 2 MB. Export only the Applications tab and try again.";
+        return CSV_REJECTED.too_large;
       case "not_found":
         return "This preview expired. Add the file again.";
       default:
@@ -444,17 +480,19 @@ function ImportStep({
   const preview = usePreviewSheetImport();
   const commit = useCommitSheetImport();
   const [fileName, setFileName] = useState<string | null>(null);
-  const [tooLarge, setTooLarge] = useState(false);
+  const [rejected, setRejected] = useState<"unsupported_file" | "too_large" | null>(null);
 
   const choose = (file: File) => {
+    // A file the page turns away leaves the preview already on screen as it was.
+    const reason = !hasAllowedType(file, CSV_ACCEPT)
+      ? "unsupported_file"
+      : file.size > CSV_MAX_BYTES
+        ? "too_large"
+        : null;
+    setRejected(reason);
+    if (reason) return;
     setFileName(file.name);
-    const oversize = file.size > CSV_MAX_BYTES;
-    setTooLarge(oversize);
     commit.reset();
-    if (oversize) {
-      preview.reset();
-      return;
-    }
     preview.mutate(file);
   };
 
@@ -521,9 +559,9 @@ function ImportStep({
         </Box>
       )}
 
-      {tooLarge ? (
+      {rejected ? (
         <Alert severity="error" role="alert">
-          {importErrorMessage(new ApiClientError({ status: 413, code: "too_large", message: "" }))}
+          {CSV_REJECTED[rejected]}
         </Alert>
       ) : null}
       {preview.isError ? (
@@ -629,13 +667,22 @@ function BriefStep({
   const initial = stored === DEFAULT_SETTINGS.search.brief ? "" : stored;
   const brief = draft ?? initial;
   const tooLong = brief.length > BRIEF_MAX_CHARS;
-  const saved = save.isSuccess && draft === undefined;
+  // The text last saved from this page. Once there is one, the step is done: Continue replaces Skip.
+  const [savedBrief, setSavedBrief] = useState<string | null>(null);
+  const saved = savedBrief !== null;
+  const unchanged = saved && brief.trim() === savedBrief;
 
   const submit = () => {
     if (!settings.data) return;
+    const text = brief.trim();
     save.mutate(
-      { ...settings.data, search: { ...settings.data.search, brief: brief.trim() } },
-      { onSuccess: onContinue },
+      { ...settings.data, search: { ...settings.data.search, brief: text } },
+      {
+        onSuccess: () => {
+          setSavedBrief(text);
+          onContinue();
+        },
+      },
     );
   };
 
@@ -680,13 +727,19 @@ function BriefStep({
       ) : null}
 
       <StepFooter onBack={onBack} onSkip={saved ? undefined : onSkip}>
-        <Button
-          variant="contained"
-          disabled={!settings.data || brief.trim() === "" || tooLong || save.isPending}
-          onClick={submit}
-        >
-          Save and continue
-        </Button>
+        {unchanged ? (
+          <Button variant="contained" onClick={onContinue}>
+            Continue
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            disabled={!settings.data || brief.trim() === "" || tooLong || save.isPending}
+            onClick={submit}
+          >
+            Save and continue
+          </Button>
+        )}
       </StepFooter>
     </>
   );

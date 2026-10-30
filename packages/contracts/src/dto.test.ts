@@ -4,7 +4,8 @@ import {
   ApiErrorCodeSchema,
   ApplicationCreateSchema,
   ApplicationPatchSchema,
-  CvUploadResultSchema,
+  CvProfileSchema,
+  CvUploadFailedSchema,
   DailyActivityBodySchema,
   EmailFixtureSchema,
   InterviewWithApplicationSchema,
@@ -230,7 +231,7 @@ describe("onboarding request and response shapes", () => {
     expect(SheetCommitBodySchema.safeParse({}).success).toBe(false);
   });
 
-  it("POST /cv answers with a profile, or with profileStatus failed and no profile", () => {
+  it("POST /cv answers 201 with a bare profile, or 202 with profileStatus failed and no profile", () => {
     const profile = {
       headline: "Full-stack engineer",
       yearsExperience: 8,
@@ -243,14 +244,16 @@ describe("onboarding request and response shapes", () => {
       location: null,
       workAuthorization: null,
     };
-    expect(CvUploadResultSchema.parse({ profileStatus: "ok", profile }).profile?.headline).toBe(
-      "Full-stack engineer",
+    expect(CvProfileSchema.parse(profile).headline).toBe("Full-stack engineer");
+    expect(CvUploadFailedSchema.parse({ profileStatus: "failed", profile: null })).toEqual({
+      profileStatus: "failed",
+      profile: null,
+    });
+    expect(CvUploadFailedSchema.safeParse({ profileStatus: "ok", profile: null }).success).toBe(
+      false,
     );
-    expect(
-      CvUploadResultSchema.parse({ profileStatus: "failed", profile: null }).profile,
-    ).toBeNull();
-    expect(
-      CvUploadResultSchema.safeParse({ profileStatus: "pending", profile: null }).success,
-    ).toBe(false);
+    expect(CvUploadFailedSchema.safeParse({ profileStatus: "failed", profile }).success).toBe(
+      false,
+    );
   });
 });

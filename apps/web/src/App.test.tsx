@@ -44,7 +44,6 @@ describe("routing and session", () => {
     ["/interviews", "Interviews"],
     ["/review", "Review"],
     ["/settings/gmail", "Settings"],
-    ["/onboarding", "Set up Offerbound"],
   ])("%s renders its page title as the h1", async (route, title) => {
     mockSignedIn();
     renderWithProviders(<App />, { route });
@@ -70,6 +69,23 @@ describe("routing and session", () => {
       "GET /api/v1/nav-counts": () => makeNavCounts(),
     });
     renderWithProviders(<App />, { route: "/today" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+  });
+
+  it("an owner who has finished onboarding is sent from /onboarding to /today", async () => {
+    mockSignedIn();
+    renderWithProviders(<App />, { route: "/onboarding" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Set up Offerbound" })).not.toBeInTheDocument();
+  });
+
+  it("a demo visitor opening /onboarding is sent to /today", async () => {
+    mockApi({
+      "GET /api/v1/me": () => ({ ...me, mode: "demo", email: null, onboardingCompleted: false }),
+      "GET /api/v1/gmail/status": () => makeSyncStatus(),
+      "GET /api/v1/nav-counts": () => makeNavCounts(),
+    });
+    renderWithProviders(<App />, { route: "/onboarding" });
     expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
   });
 
