@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { Writable } from "node:stream";
+import cookie from "@fastify/cookie";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppDeps } from "./deps.js";
 import { registerCsrf } from "./http/csrf.js";
 import { notFoundHandler, registerErrorHandling } from "./http/errors.js";
 import { registerRateLimit } from "./http/rate-limit.js";
+import { requireSession } from "./http/session-guard.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
+import { registerMeRoutes } from "./routes/me.js";
+import { registerOnboardingRoutes } from "./routes/onboarding.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -55,12 +60,29 @@ export async function buildApp(
   // No CORS plugin, ever: the API sends no Access-Control-* headers (SECURITY §5).
   registerErrorHandling(app);
   await registerRateLimit(app);
+  await app.register(cookie);
   registerCsrf(app);
   // Unknown routes are not routes to the limiter's onRoute hook, so they get the limiter explicitly
   // (header-less mutations are counted by the CSRF hook, which rejects them first).
   app.setNotFoundHandler({ preValidation: app.rateLimit() }, notFoundHandler);
 
   registerHealthRoutes(app, deps);
+
+  await app.register(
+    async (api) => {
+      // Demo mode has no sign-in (TECHNICAL_SPEC §4).
+      if (deps.env.mode === "private") registerAuthRoutes(api, deps);
+
+      // Everything below needs a session. Later tasks register their routes here.
+      await api.register((guarded, _options, done) => {
+        guarded.addHook("preHandler", requireSession(deps));
+        registerMeRoutes(guarded, deps);
+        registerOnboardingRoutes(guarded, deps);
+        done();
+      });
+    },
+    { prefix: "/api/v1" },
+  );
 
   return app;
 }
