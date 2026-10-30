@@ -220,8 +220,8 @@ export const TodaySchema = z.object({
   sync: SyncStatusSchema,
   pipeline: z.object({
     byStatus: z.record(ApplicationStatusSchema, count),
-    responseRate: z.number(),
-    interviewRate: z.number(),
+    responseRate: z.number().min(0).max(1),
+    interviewRate: z.number().min(0).max(1),
   }),
 });
 export type Today = z.infer<typeof TodaySchema>;

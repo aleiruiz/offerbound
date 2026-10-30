@@ -159,6 +159,24 @@ export function toApplicationSummary(
   };
 }
 
+/** Each application's earliest scheduled interview from `now` on (applications with none are absent). */
+export async function nextInterviewAtByApplication(
+  prisma: PrismaClient,
+  applicationIds: string[],
+  now: Date,
+): Promise<Map<string, Date | null>> {
+  const next = await prisma.interview.groupBy({
+    by: ["applicationId"],
+    where: {
+      applicationId: { in: [...new Set(applicationIds)] },
+      status: "scheduled",
+      startsAt: { gte: now },
+    },
+    _min: { startsAt: true },
+  });
+  return new Map(next.map((n) => [n.applicationId, n._min.startsAt]));
+}
+
 async function listInterviews(
   prisma: PrismaClient,
   query: z.infer<typeof InterviewsQuerySchema>,
@@ -179,16 +197,11 @@ async function listInterviews(
   });
   const byId = new Map(rows.map((row) => [row.id, row]));
 
-  const next = await prisma.interview.groupBy({
-    by: ["applicationId"],
-    where: {
-      applicationId: { in: [...new Set(rows.map((r) => r.applicationId))] },
-      status: "scheduled",
-      startsAt: { gte: now },
-    },
-    _min: { startsAt: true },
-  });
-  const nextByApplication = new Map(next.map((n) => [n.applicationId, n._min.startsAt]));
+  const nextByApplication = await nextInterviewAtByApplication(
+    prisma,
+    rows.map((r) => r.applicationId),
+    now,
+  );
 
   const items: InterviewWithApplication[] = [];
   for (const { id } of pageOfKeys) {
