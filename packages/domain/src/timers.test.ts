@@ -16,6 +16,7 @@ const app = (over: Partial<TimerApp> = {}): TimerApp => ({
   createdAt: ago(100 * DAY),
   followUpDue: false,
   followUpDoneAt: null,
+  undoneAbandonAt: null,
   ...over,
 });
 
@@ -58,6 +59,26 @@ describe("evaluateTimers", () => {
     expect(
       evaluateTimers([app({ appliedAt: ago(14 * DAY - HOUR) })], T, NOW).map((a) => a.kind),
     ).toEqual(["flag_follow_up"]);
+  });
+
+  it("an undone abandonment restarts the clock: the later of the clock and the undo decides", () => {
+    // Applied 30 days ago, abandoned, then undone 2 days ago: a fresh window from the undo.
+    const old = { appliedAt: ago(30 * DAY), undoneAbandonAt: ago(2 * DAY) };
+    expect(evaluateTimers([app(old)], T, NOW)).toEqual([]);
+    expect(
+      evaluateTimers([app({ ...old, undoneAbandonAt: ago(7 * DAY) })], T, NOW).map((a) => a.kind),
+    ).toEqual(["flag_follow_up"]);
+    expect(
+      evaluateTimers([app({ ...old, undoneAbandonAt: ago(14 * DAY) })], T, NOW).map((a) => a.kind),
+    ).toEqual(["abandon"]);
+    // Company mail after the undo is the later clock.
+    expect(
+      evaluateTimers(
+        [app({ ...old, undoneAbandonAt: ago(10 * DAY), lastCompanyActivityAt: ago(1 * DAY) })],
+        T,
+        NOW,
+      ),
+    ).toEqual([]);
   });
 
   it("an application already flagged is not flagged again", () => {

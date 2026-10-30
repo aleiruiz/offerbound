@@ -306,6 +306,59 @@ describe("runTimersTick", () => {
     });
   });
 
+  describe("an undone abandonment restarts the clock", () => {
+    const undoLastAbandon = async (applicationId: string, at: Date) => {
+      // What undo does (T5.1): restore the fields and stamp the event.
+      const event = await prisma.event.findFirstOrThrow({
+        where: { applicationId, type: "abandoned" },
+      });
+      await prisma.event.update({ where: { id: event.id }, data: { undoneAt: at } });
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: { status: "applied", statusBeforeAbandon: null, version: { increment: 1 } },
+      });
+    };
+
+    it("is not abandoned again right after the undo, but is once abandonDays have passed since it", async () => {
+      const app = await seedApplication({ appliedAt: ago(30 * DAY) });
+      expect(await runTimersTick(ctx())).toEqual({ abandoned: 1, flagged: 0, completed: 0 });
+      await undoLastAbandon(app.id, NOW);
+
+      expect(await runTimersTick(ctx())).toEqual({ abandoned: 0, flagged: 0, completed: 0 });
+      expect((await prisma.application.findUniqueOrThrow({ where: { id: app.id } })).status).toBe(
+        "applied",
+      );
+
+      const sevenDays = new Date(NOW.getTime() + 7 * DAY);
+      expect(await runTimersTick(testWorkerCtx({ clock: () => sevenDays }))).toEqual({
+        abandoned: 0,
+        flagged: 1,
+        completed: 0,
+      });
+
+      const fourteenDays = new Date(NOW.getTime() + 14 * DAY);
+      expect(await runTimersTick(testWorkerCtx({ clock: () => fourteenDays }))).toEqual({
+        abandoned: 1,
+        flagged: 0,
+        completed: 0,
+      });
+      expect((await prisma.application.findUniqueOrThrow({ where: { id: app.id } })).status).toBe(
+        "abandoned",
+      );
+    });
+
+    it("counts only the undo of its own application", async () => {
+      const first = await seedApplication({ appliedAt: ago(30 * DAY) });
+      const other = await seedApplication({ title: "SRE", appliedAt: ago(30 * DAY) });
+      await runTimersTick(ctx());
+      await undoLastAbandon(first.id, ago(1 * DAY));
+      expect(await runTimersTick(ctx())).toEqual({ abandoned: 0, flagged: 0, completed: 0 });
+      expect((await prisma.application.findUniqueOrThrow({ where: { id: other.id } })).status).toBe(
+        "abandoned",
+      );
+    });
+  });
+
   it("is the handler of the timers.tick queue", async () => {
     await seedApplication({ appliedAt: ago(30 * DAY) });
     const handler = HANDLERS[QUEUES.timersTick];

@@ -33,6 +33,11 @@ export type TimerApp = {
   createdAt: Date;
   followUpDue: boolean;
   followUpDoneAt: Date | null;
+  /**
+   * When the owner last undid an abandonment of this application, or null. An undone abandonment
+   * must stick, so the clock restarts there: the owner gets a fresh window.
+   */
+  undoneAbandonAt: Date | null;
 };
 
 export type TimerAction =
@@ -56,7 +61,8 @@ export function timersGateOpen(
 
 /**
  * What to do for each application in Applied, Screening, Assessment or Interviewing:
- * the company clock is the latest company email, else the applied date, else creation (AC-7.1).
+ * the company clock is the latest company email, else the applied date, else creation (AC-7.1),
+ * or the time an abandonment was last undone when that is later.
  * At `abandonDays` it is abandoned, whatever the owner's follow-ups (AC-7.4). At `followUpDays`
  * it is flagged, unless it already is, or the owner followed up less than `followUpDays` ago
  * (measured from the later of the follow-up and the clock, AC-7.3). Other statuses get nothing.
@@ -71,7 +77,10 @@ export function evaluateTimers(
   const actions: TimerAction[] = [];
   for (const a of apps) {
     if (!TIMED_STATUSES.includes(a.status)) continue;
-    const clock = (a.lastCompanyActivityAt ?? a.appliedAt ?? a.createdAt).getTime();
+    const clock = Math.max(
+      (a.lastCompanyActivityAt ?? a.appliedAt ?? a.createdAt).getTime(),
+      a.undoneAbandonAt?.getTime() ?? Number.NEGATIVE_INFINITY,
+    );
     const elapsed = now.getTime() - clock;
     if (elapsed >= abandonMs) {
       actions.push({

@@ -25,6 +25,9 @@ import { getSettings } from "../settings/service.js";
  * interview completing are recorded but are not offered for undo, because the next tick would
  * put them straight back.
  *
+ * An undone abandonment restarts the application's clock at the undo (an undo that the next
+ * tick reverted would be no undo), read from `event.undone_at`.
+ *
  * Owner edits take no lock, so every write carries the version it was planned against. A record
  * the owner edited since it was read is skipped; the next tick looks at it again.
  *
@@ -82,7 +85,22 @@ async function applyApplicationTimers(
   const rows = await tx.application.findMany({
     where: { status: { in: ["applied", "screening", "assessment", "interviewing"] } },
   });
-  const actions = evaluateTimers(rows, timers, now);
+  // One grouped query: when each application's abandonment was last undone.
+  const undone = await tx.event.groupBy({
+    by: ["applicationId"],
+    where: {
+      type: "abandoned",
+      undoneAt: { not: null },
+      applicationId: { in: rows.map((row) => row.id) },
+    },
+    _max: { undoneAt: true },
+  });
+  const undoneAt = new Map(undone.map((u) => [u.applicationId, u._max.undoneAt]));
+  const actions = evaluateTimers(
+    rows.map((row) => ({ ...row, undoneAbandonAt: undoneAt.get(row.id) ?? null })),
+    timers,
+    now,
+  );
   const byId = new Map(rows.map((row) => [row.id, row]));
   let abandoned = 0;
   let flagged = 0;
