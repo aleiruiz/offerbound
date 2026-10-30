@@ -12,6 +12,7 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
 import { registerCompanyRoutes } from "./routes/companies.js";
+import { registerCompanyMergeRoutes } from "./routes/company-merge.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerDailyActivityRoutes } from "./routes/daily-activity.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -108,6 +109,7 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerCompanyMergeRoutes(guarded, deps);
         registerApplicationRoutes(guarded, deps);
         registerInterviewRoutes(guarded, deps);
         registerTodayRoutes(guarded, deps);
