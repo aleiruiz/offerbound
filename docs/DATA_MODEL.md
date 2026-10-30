@@ -228,7 +228,7 @@ One row per Gmail message Offerbound has seen. **Content columns are null unless
 | `body_text` | text | yes | job-related only; ≤ 15,000 chars |
 | `summary` | text | yes | one line for the timeline |
 | `application_id` | uuid | yes | FK `application`, `on delete set null` |
-| `attempts` | int | no | default 0; failed triage attempts while `discovered`, then resends to extraction while `job_related` (reset when triage decides the message; the fifth resend fails it) |
+| `attempts` | int | no | default 0; failed triage attempts while `discovered`, then resends to extraction while `job_related` (reset when triage decides the message; the fifth resend fails it), then failed apply attempts while `extracted` (reset when extraction stores its result; the third fails the message) |
 | `last_error` | text | yes | error code only, never content |
 | `discovered_at` | timestamptz | no | default now() |
 | `processed_at` | timestamptz | yes | when the message last left a stage; while `job_related` it is a heartbeat (each extraction attempt stamps it) or, after a Gmail `Retry-After`, the deferred job's due time; the resend sweep sends the message again only when this is 10 minutes old |

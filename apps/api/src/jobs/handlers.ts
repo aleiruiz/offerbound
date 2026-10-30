@@ -13,6 +13,7 @@ import {
   runIncrementalSync,
   stopSyncAfterAuthError,
 } from "../gmail/sync.js";
+import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
@@ -233,6 +234,15 @@ const emailExtract: JobHandler = async (ctx, job) => {
 };
 
 /**
+ * `email.apply`, from each finished extraction and the 1-minute sweep. The queue is a singleton
+ * and the job carries no key, so a run that finds the queue busy is dropped: every run drains
+ * all eligible messages, oldest first, instead of applying one (TECHNICAL_SPEC §5.6).
+ */
+const emailApply: JobHandler = async (ctx) => {
+  await applyEligibleMessages(ctx);
+};
+
+/**
  * The handlers registered so far, by queue. Later tasks add theirs here (apply, leads,
  * timers, maintenance). A queue without a handler is created but not consumed.
  */
@@ -241,6 +251,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.gmailBackfill]: gmailBackfill,
   [QUEUES.emailTriage]: emailTriage,
   [QUEUES.emailExtract]: emailExtract,
+  [QUEUES.emailApply]: emailApply,
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,

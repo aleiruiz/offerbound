@@ -170,6 +170,8 @@ export async function runExtract(ctx: WorkerCtx, messageId: string): Promise<voi
       where: { id: messageId, state: "job_related" },
       data: {
         state: "extracted",
+        // The resend count of the `job_related` stage ends here; apply counts its own failures.
+        attempts: 0,
         bodyText: body,
         icsEvents: parsed.icsEvents,
         extraction: extraction,
