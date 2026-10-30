@@ -2,7 +2,7 @@ import { Writable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ApiErrorBody } from "@offerbound/contracts";
-import { seedMessage } from "../../test/apply.js";
+import { seedMessage, stateOf } from "../../test/apply.js";
 import { buildTestApp, testEnv, signIn } from "../../test/app.js";
 import { resetDb, testPrisma } from "../../test/db.js";
 import { emailFixture, seedStartedConnection } from "../../test/gmail.js";
@@ -13,6 +13,7 @@ import type { GmailClient } from "../gmail/client.js";
 import { FakeGmailClient, fakeGmailFactory } from "../gmail/fake-client.js";
 import { runIncrementalSync } from "../gmail/sync.js";
 import { applyEligibleMessages } from "../pipeline/apply.js";
+import { NO_CONTENT } from "../pipeline/triage.js";
 import { resendPendingExtractions, runTriageBatch } from "../pipeline/triage.js";
 
 const prisma = testPrisma();
@@ -30,7 +31,7 @@ async function setup(options: Parameters<typeof buildTestApp>[1] = {}, env = tes
       headers: { cookie, ...CSRF },
       payload,
     });
-  return { ...built, purge };
+  return { ...built, cookie, purge };
 }
 
 beforeEach(async () => {
@@ -89,11 +90,28 @@ describe("POST /data/purge-email-content", () => {
       },
     });
 
+    // What triage, extraction and review write for a skipped or triaged_out message: the content
+    // columns cleared, with `to_emails` an empty array rather than NULL.
+    await prisma.gmailMessage.create({
+      data: {
+        id: "m4",
+        threadId: "thr-m4",
+        internalDate: new Date("2026-10-05T13:00:00.000Z"),
+        direction: "inbound",
+        labelIds: [],
+        state: "triaged_out",
+        ...NO_CONTENT,
+      },
+    });
+    const emptyList = await prisma.$queryRaw<{ empty: boolean }[]>`
+      SELECT to_emails = '{}' AS empty FROM gmail_message WHERE id = 'm4'`;
+    expect(emptyList[0]?.empty).toBe(true);
+
     const res = await purge();
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body)).toEqual({ messagesPurged: 2 });
-    for (const id of ["m1", "m2", "m3"]) {
+    for (const id of ["m1", "m2", "m3", "m4"]) {
       const row = await messageRow(id);
       for (const column of CONTENT) expect(row[column], `${id}.${column}`).toBeNull();
       expect(row.toEmails).toEqual([]);
@@ -205,6 +223,20 @@ describe("POST /data/purge-email-content", () => {
     }
   });
 
+  it("answers 403 csrf_header_missing without the request header", async () => {
+    const { app, cookie } = await setup();
+    await seedApplied("m1", "2026-10-05T10:00:00.000Z");
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/v1/data/purge-email-content",
+      headers: { cookie },
+      payload: { confirm: "DELETE" },
+    });
+    expect(res.statusCode).toBe(403);
+    expect((JSON.parse(res.body) as ApiErrorBody).error.code).toBe("csrf_header_missing");
+    expect((await messageRow("m1")).subject).not.toBeNull();
+  });
+
   it("answers 401 without a session", async () => {
     const { app } = await setup();
     const res = await app.inject({
@@ -218,6 +250,19 @@ describe("POST /data/purge-email-content", () => {
 });
 
 describe("after a purge", () => {
+  it("a purged extracted message still applies, with no sender", async () => {
+    const { purge } = await setup();
+    await seedMessage(prisma, { id: "x1", at: "2026-10-05T10:00:00.000Z", state: "extracted" });
+
+    expect(JSON.parse((await purge()).body)).toEqual({ messagesPurged: 1 });
+    expect((await messageRow("x1")).fromEmail).toBeNull();
+
+    expect(await applyEligibleMessages(testWorkerCtx())).toEqual({ applied: 1 });
+    expect(await stateOf(prisma, "x1")).toBe("applied");
+    expect(await prisma.application.count()).toBe(1);
+    expect(await prisma.reviewItem.count()).toBe(0);
+  });
+
   /** Counts every Gmail fetch the pipeline makes. */
   class CountingClient implements GmailClient {
     fetched: string[] = [];

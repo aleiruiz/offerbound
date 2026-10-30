@@ -20,7 +20,7 @@ async function setup() {
       headers: { cookie, ...CSRF },
       payload,
     });
-  return { ...built, merge };
+  return { ...built, cookie, merge };
 }
 
 beforeEach(async () => {
@@ -71,6 +71,21 @@ describe("POST /companies/:id/merge", () => {
     expect(res.statusCode).toBe(400);
     expect(errorOf(res.body).code).toBe("validation_failed");
     expect(await prisma.company.count()).toBe(1);
+  });
+
+  it("answers 403 csrf_header_missing without the request header", async () => {
+    const { app, cookie } = await setup();
+    const company = await seedCompany("Quarry AI");
+    const other = await seedCompany("Quarry Labs");
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/v1/companies/${company.id}/merge`,
+      headers: { cookie },
+      payload: { intoId: other.id },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(errorOf(res.body).code).toBe("csrf_header_missing");
+    expect(await prisma.company.count()).toBe(2);
   });
 
   it("answers 404 for an unknown source or target, and 400 for a missing intoId", async () => {
