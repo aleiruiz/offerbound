@@ -571,8 +571,8 @@ pg-boss retries with exponential backoff (base 30 s): triage and extraction 4 re
 
 | Queue | Trigger | Concurrency | Retries | Idempotency |
 |---|---|---|---|---|
-| `gmail.sync` | every 5 min (private), *Sync now* | singleton | 3 | inserts ignore existing ids |
-| `gmail.backfill` | *Start syncing*; resumes on worker start while `running` | singleton | 5 | page token persisted per page |
+| `gmail.sync` | every 5 min (private), *Sync now* | singleton | 3 | inserts ignore existing ids; `history_id` is moved by compare-and-set |
+| `gmail.backfill` | *Start syncing*; *Sync now* when the backfill is `failed`; resumes on worker start while `running` | singleton | 5 | page token persisted per page |
 | `email.triage` | after sync/backfill inserts; 1-min sweep | 1, batches of 25 | 4 | state check before work |
 | `email.extract` | per `job_related` message | 4 | 4 | singleton key = message id |
 | `email.apply` | after each extraction; 1-min sweep | singleton | 3 | event unique key `(message_id, type, entity)` |
