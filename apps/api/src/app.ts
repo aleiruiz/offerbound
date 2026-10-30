@@ -15,6 +15,7 @@ import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCompanyMergeRoutes } from "./routes/company-merge.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerDailyActivityRoutes } from "./routes/daily-activity.js";
+import { registerDataRoutes } from "./routes/data.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
 import { registerInterviewRoutes } from "./routes/interviews.js";
@@ -117,6 +118,7 @@ export async function buildApp(
         registerNavCountsRoutes(guarded, deps);
         registerReviewItemRoutes(guarded, deps);
         registerMessageRoutes(guarded, deps);
+        registerDataRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
