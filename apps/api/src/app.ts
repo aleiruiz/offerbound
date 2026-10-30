@@ -23,6 +23,7 @@ import { registerMeRoutes } from "./routes/me.js";
 import { registerNavCountsRoutes } from "./routes/nav-counts.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerTodayRoutes } from "./routes/today.js";
+import { registerSearchRoutes } from "./routes/search.js";
 import { registerReviewItemRoutes } from "./routes/review-items.js";
 
 /**
@@ -113,6 +114,7 @@ export async function buildApp(
         registerTodayRoutes(guarded, deps);
         registerDailyActivityRoutes(guarded, deps);
         registerNavCountsRoutes(guarded, deps);
+        registerSearchRoutes(guarded, deps);
         registerReviewItemRoutes(guarded, deps);
         registerMessageRoutes(guarded, deps);
       });
