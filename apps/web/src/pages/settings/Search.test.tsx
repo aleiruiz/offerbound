@@ -286,7 +286,7 @@ describe("Settings, Recent runs", () => {
     expect(within(failed).getByText("US$0.39")).toBeInTheDocument();
 
     const partial = rows[3] as HTMLElement;
-    expect(within(partial).getByText("Partly done")).toBeInTheDocument();
+    expect(within(partial).getByText("Below target")).toBeInTheDocument();
     expect(within(partial).getByText("One search round failed.")).toBeInTheDocument();
     expect(within(partial).getByText("Run by you")).toBeInTheDocument();
 

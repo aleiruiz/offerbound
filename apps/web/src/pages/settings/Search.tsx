@@ -425,7 +425,7 @@ const visuallyHidden = {
 
 const RUN_RESULT: Record<SearchRun["status"], { label: string; tone: Tone }> = {
   succeeded: { label: "Done", tone: "route" },
-  partial: { label: "Partly done", tone: "signal" },
+  partial: { label: "Below target", tone: "signal" },
   failed: { label: "Failed", tone: "stop" },
   running: { label: "Running", tone: "neutral" },
 };
