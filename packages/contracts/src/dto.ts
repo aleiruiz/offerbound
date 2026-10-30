@@ -84,6 +84,8 @@ export const TimelineEventSchema = z.object({
   actor: ActorSchema,
   summary: z.string(),
   messageId: z.string().nullable(),
+  /** The status a status event moved the application to (from the event payload); null otherwise. */
+  toStatus: ApplicationStatusSchema.nullable(),
   undoable: z.boolean(),
   undoneAt: iso.nullable(),
 });

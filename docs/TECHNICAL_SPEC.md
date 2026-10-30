@@ -676,7 +676,8 @@ ApplicationDetail = ApplicationSummary & {
   leadId: string | null; interviews: Interview[]; messages: MessageSummary[]; timeline: TimelineEvent[]
 }
 TimelineEvent = { id; type: EventType; occurredAt; actor: "system" | "owner" | "import";
-                  summary: string; messageId: string | null; undoable: boolean; undoneAt: string | null }
+                  summary: string; messageId: string | null; toStatus: ApplicationStatus | null;
+                  undoable: boolean; undoneAt: string | null }
 MessageSummary = { id; internalDate; direction; fromName; fromEmail; subject; summary; category }
 Interview = { id; version; applicationId; kind; status; startsAt; endsAt; timezoneHint; meetingUrl;
               schedulingUrl; location; interviewers: string[]; notes }

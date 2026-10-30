@@ -97,10 +97,16 @@ describe("response shapes", () => {
       actor: "system",
       summary: "Moved to Interviewing",
       messageId: null,
+      toStatus: "interviewing",
       undoable: true,
       undoneAt: null,
     };
     expect(TimelineEventSchema.parse(event)).toEqual(event);
+    expect(TimelineEventSchema.parse({ ...event, toStatus: null }).toStatus).toBeNull();
+    expect(TimelineEventSchema.safeParse({ ...event, toStatus: "paused" }).success).toBe(false);
+    const withoutStatus: Partial<typeof event> = { ...event };
+    delete withoutStatus.toStatus;
+    expect(TimelineEventSchema.safeParse(withoutStatus).success).toBe(false);
   });
 
   it("reuses InterviewWithApplication for Today's upcoming interviews", () => {
