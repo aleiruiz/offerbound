@@ -1,5 +1,5 @@
 import { createTheme, type Shadows, type Theme } from "@mui/material/styles";
-import type { ApplicationStatus } from "./api/contracts-stub";
+import type { ApplicationStatus } from "@offerbound/contracts";
 
 export type ThemeMode = "light" | "dark";
 

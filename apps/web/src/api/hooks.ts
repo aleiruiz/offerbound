@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./client";
-import { MeSchema } from "./contracts-stub";
+import { MeSchema } from "@offerbound/contracts";
 
 export const queryKeys = {
   me: ["me"] as const,

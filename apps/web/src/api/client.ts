@@ -1,5 +1,5 @@
 import type { ZodType } from "zod";
-import { ApiErrorBodySchema } from "./contracts-stub";
+import { ApiErrorBodySchema } from "@offerbound/contracts";
 
 const BASE_PATH = "/api/v1";
 

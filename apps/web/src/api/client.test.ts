@@ -80,6 +80,12 @@ describe("apiFetch", () => {
     expect(error).toMatchObject({ status: 502, code: "unexpected_response" });
   });
 
+  it("maps an unknown error code to unexpected_response", async () => {
+    mockApi({ "GET /api/v1/x": () => apiError(500, "brand_new_code", "Something odd.") });
+    const error = (await apiFetch("/x").catch((e: unknown) => e)) as ApiClientError;
+    expect(error).toMatchObject({ status: 500, code: "unexpected_response" });
+  });
+
   it("on a 401 it calls the unauthorized handler and still throws", async () => {
     mockApi({ "GET /api/v1/me": () => apiError(401, "unauthenticated", "Sign in first.") });
     const handler = vi.fn();
