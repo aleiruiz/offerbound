@@ -8,6 +8,7 @@ import { makeMessage, makeNavCounts, makeReviewItem, makeToday } from "../../tes
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
 import { HEAVY_TEST_MS, heavyIt, setValue } from "../../test/speed";
+import { queryKeys } from "../api/hooks";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { ReviewPage } from "./ReviewPage";
 
@@ -316,6 +317,24 @@ describe("ReviewPage", () => {
       await waitFor(() =>
         expect(callsTo(api, "GET", "/api/v1/nav-counts").length).toBeGreaterThan(navBefore),
       );
+    });
+
+    it("resolving an item marks the interviews lists stale, since an invitation can add or move one", async () => {
+      const { queryClient, user } = setup({
+        "POST /api/v1/review-items/r-low_confidence/resolve": () => ({ ...LOW, state: "resolved" }),
+      });
+      // No Interviews page is open, so these lists have no observer; invalidation only marks them.
+      queryClient.setQueryData(queryKeys.interviewList("upcoming"), { pages: [], pageParams: [] });
+      queryClient.setQueryData(queryKeys.interviewList("past"), { pages: [], pageParams: [] });
+      await user.click(
+        (await cardOf("Is this a rejection from Quarry AI?")).getByRole("button", {
+          name: "Apply change",
+        }),
+      );
+      expect(await screen.findByText("Applied the change")).toBeInTheDocument();
+      for (const range of ["upcoming", "past"] as const) {
+        expect(queryClient.getQueryState(queryKeys.interviewList(range))?.isInvalidated).toBe(true);
+      }
     });
 
     // Heavy under jsdom (MUI re-renders on every step); see heavyIt.

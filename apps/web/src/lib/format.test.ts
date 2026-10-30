@@ -8,6 +8,7 @@ import {
   formatTime,
   localDayKey,
   localMidnightIso,
+  localTimeIso,
   zoneCity,
 } from "./format";
 
@@ -120,5 +121,30 @@ describe("localMidnightIso", () => {
     expect(localMidnightIso("", TZ)).toBeNull();
     expect(localMidnightIso("2026-13-40", TZ)).toBeNull();
     expect(localMidnightIso("Oct 5", TZ)).toBeNull();
+  });
+});
+
+describe("localTimeIso", () => {
+  it("is the instant a wall-clock time falls on in the owner's zone", () => {
+    expect(localTimeIso("2026-11-05", "10:00", TZ)).toBe("2026-11-05T16:00:00.000Z");
+    expect(localTimeIso("2026-11-05", "23:30", TZ)).toBe("2026-11-06T05:30:00.000Z");
+    expect(localTimeIso("2026-11-05", "00:00", TZ)).toBe(localMidnightIso("2026-11-05", TZ));
+  });
+
+  it("follows a zone that observes daylight saving time", () => {
+    expect(localTimeIso("2026-07-01", "09:00", "America/New_York")).toBe(
+      "2026-07-01T13:00:00.000Z",
+    );
+    expect(localTimeIso("2026-12-01", "09:00", "America/New_York")).toBe(
+      "2026-12-01T14:00:00.000Z",
+    );
+  });
+
+  it("is null for a day or a time that is not real", () => {
+    expect(localTimeIso("", "10:00", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "24:00", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "9:5", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-31", "10:00", TZ)).toBeNull();
   });
 });

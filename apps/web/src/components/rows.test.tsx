@@ -104,6 +104,36 @@ describe("InterviewRow", () => {
   });
 });
 
+describe("InterviewRow, interviews page extras", () => {
+  it("shows where it is held and marks the row the keyboard is on", () => {
+    renderWithProviders(
+      <ul>
+        <InterviewRow
+          interview={makeInterview({ location: "Phone call; the recruiter will call you" })}
+          timezone={TZ}
+          now={NOW}
+          focused
+        />
+      </ul>,
+    );
+    expect(screen.getByText("Phone call; the recruiter will call you")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveAttribute("aria-current", "true");
+  });
+
+  it("opens the prep notes of the interview", async () => {
+    const user = userEvent.setup({ delay: null });
+    const onPrepNotes = vi.fn();
+    const interview = makeInterview();
+    renderWithProviders(
+      <ul>
+        <InterviewRow interview={interview} timezone={TZ} now={NOW} onPrepNotes={onPrepNotes} />
+      </ul>,
+    );
+    await user.click(screen.getByRole("button", { name: "Prep notes" }));
+    expect(onPrepNotes).toHaveBeenCalledWith(interview);
+  });
+});
+
 describe("TargetMeter", () => {
   it("shows the value, the range, a progressbar with values and the actions", async () => {
     const user = userEvent.setup();

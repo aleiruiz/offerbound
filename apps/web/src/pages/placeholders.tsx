@@ -12,5 +12,4 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-export const InterviewsPage = () => <PlaceholderPage title="Interviews" />;
 export const SettingsPage = () => <PlaceholderPage title="Settings" />;

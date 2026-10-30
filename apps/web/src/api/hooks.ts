@@ -4,6 +4,8 @@ import {
   CvProfileSchema,
   CvUploadFailedSchema,
   DailyCountsSchema,
+  InterviewSchema,
+  InterviewWithApplicationSchema,
   LeadSchema,
   ImportSummarySchema,
   MeSchema,
@@ -25,6 +27,9 @@ import {
   type ApplicationSummary,
   type CvProfile,
   type DailyActivityBody,
+  type Interview,
+  type InterviewCreate,
+  type InterviewPatch,
   type Lead,
   type SearchRun,
   type LeadStatus,
@@ -60,6 +65,9 @@ export const queryKeys = {
   leadCounts: ["leads", "count"] as const,
   leadList: (filters: LeadFilters) => ["leads", "list", filters] as const,
   leadCount: (status: LeadStatus) => ["leads", "count", status] as const,
+  /** Every interviews query: the Upcoming and Past lists. */
+  interviews: ["interviews"] as const,
+  interviewList: (range: InterviewRange) => ["interviews", "list", range] as const,
   searchRuns: ["search-runs"] as const,
   message: (id: string) => ["message", id] as const,
   syncStatus: ["sync-status"] as const,
@@ -646,6 +654,8 @@ export function useUndoEvent(callbacks: MutationCallbacks<{ undone: true }, stri
     void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+      // Undoing an email's change can delete or restore the interviews it made.
+      queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
       queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems }),
       // Undoing *Mark applied* puts the lead back where it was; the tab counts follow in the background.
       queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
@@ -687,7 +697,11 @@ export function useMergeApplication(
       }),
     onSuccess: async (target, variables) => {
       queryClient.setQueryData(queryKeys.application(target.id), target);
-      await refreshAfterApplicationChange(queryClient);
+      // The merged application's interviews now belong to the target.
+      await Promise.all([
+        refreshAfterApplicationChange(queryClient),
+        queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
+      ]);
       callbacks.onSuccess?.(target, variables);
     },
     onError: callbacks.onError,
@@ -747,6 +761,8 @@ export function useResolveReviewItem(
       await Promise.all([
         refreshReview(),
         queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+        // Attaching or reprocessing an invitation creates or moves an interview.
+        queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
         queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
         queryClient.invalidateQueries({ queryKey: queryKeys.today }),
         queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
@@ -760,6 +776,96 @@ export function useResolveReviewItem(
           queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
         ]);
       }
+      callbacks.onError?.(error, variables);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Interviews
+
+export type InterviewRange = "upcoming" | "past";
+
+export const INTERVIEWS_PAGE_SIZE = 25;
+
+/** `GET /interviews`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useInterviews(range: InterviewRange) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.interviewList(range),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ range, limit: String(INTERVIEWS_PAGE_SIZE) });
+      if (pageParam !== null) params.set("cursor", pageParam);
+      return apiFetch(`/interviews?${params.toString()}`, {
+        schema: PageSchema(InterviewWithApplicationSchema),
+        signal,
+      });
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * Everything a change to an interview can alter: both lists, the application it belongs to (its
+ * detail and its next interview), Today and the navigation badge. The answer waits for the lists,
+ * which the next press reads a version from; the rest follows in the background.
+ */
+function refreshAfterInterviewChange(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.applications });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.today });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.navCounts });
+  return queryClient.invalidateQueries({ queryKey: queryKeys.interviews });
+}
+
+export interface InterviewCreation {
+  applicationId: string;
+  body: InterviewCreate;
+}
+
+/** `POST /applications/:id/interviews`: add an interview by hand (AC-8.5). */
+export function useCreateInterview(
+  callbacks: MutationCallbacks<Interview, InterviewCreation> = {},
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ applicationId, body }: InterviewCreation) =>
+      apiFetch(`/applications/${encodeURIComponent(applicationId)}/interviews`, {
+        method: "POST",
+        body,
+        schema: InterviewSchema,
+      }),
+    onSuccess: async (interview, variables) => {
+      await refreshAfterInterviewChange(queryClient);
+      callbacks.onSuccess?.(interview, variables);
+    },
+    onError: callbacks.onError,
+  });
+}
+
+export interface InterviewUpdate {
+  interview: Pick<Interview, "id" | "version">;
+  patch: Omit<InterviewPatch, "version">;
+}
+
+/**
+ * `PATCH /interviews/:id` with the interview's `version` (AC-8.5). A 409 means it changed elsewhere:
+ * the lists are fetched again before `onError` hears of it, so the next try carries the fresh version.
+ */
+export function useUpdateInterview(callbacks: MutationCallbacks<Interview, InterviewUpdate> = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ interview, patch }: InterviewUpdate) =>
+      apiFetch(`/interviews/${encodeURIComponent(interview.id)}`, {
+        method: "PATCH",
+        body: { ...patch, version: interview.version },
+        schema: InterviewSchema,
+      }),
+    onSuccess: async (updated, variables) => {
+      await refreshAfterInterviewChange(queryClient);
+      callbacks.onSuccess?.(updated, variables);
+    },
+    onError: async (error, variables) => {
+      if (isConflict(error)) await refreshAfterInterviewChange(queryClient);
       callbacks.onError?.(error, variables);
     },
   });

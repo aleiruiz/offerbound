@@ -82,18 +82,33 @@ function zoneOffsetMs(instantMs: number, tz: string): number {
 }
 
 /**
- * The instant an owner-local calendar day (`YYYY-MM-DD`) begins, as an ISO string with `Z`. Dates
- * the owner types mean local midnight (DESIGN_SPEC §10). Null when `day` is not a real day.
+ * The instant a wall-clock time (`HH:mm`, 24-hour) on an owner-local calendar day (`YYYY-MM-DD`)
+ * falls on, as an ISO string with `Z`. Null when the day or the time is not real.
  */
-export function localMidnightIso(day: string, tz: string): string | null {
+export function localTimeIso(day: string, time: string, tz: string): string | null {
   if (formatLongDay(day) === null) return null;
+  const clock = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!clock) return null;
+  const hours = Number(clock[1]);
+  const minutes = Number(clock[2]);
+  if (hours > 23 || minutes > 59) return null;
   const [y, m, d] = day.split("-").map(Number) as [number, number, number];
-  const wall = Date.UTC(y, m - 1, d);
+  const wall = Date.UTC(y, m - 1, d, hours, minutes);
+  // A day that overflows its month (November 31) rolls over to the next one: not a real day.
+  if (new Date(wall).getUTCDate() !== d) return null;
   let instant = wall - zoneOffsetMs(wall, tz);
   // Across a daylight-saving change the first guess uses the wrong offset; settle on the right one.
   const settled = wall - zoneOffsetMs(instant, tz);
   if (settled !== instant) instant = settled;
   return new Date(instant).toISOString();
+}
+
+/**
+ * The instant an owner-local calendar day (`YYYY-MM-DD`) begins, as an ISO string with `Z`. Dates
+ * the owner types mean local midnight (DESIGN_SPEC §10). Null when `day` is not a real day.
+ */
+export function localMidnightIso(day: string, tz: string): string | null {
+  return localTimeIso(day, "00:00", tz);
 }
 
 const relative = new Intl.RelativeTimeFormat("en-US", { numeric: "always" });
