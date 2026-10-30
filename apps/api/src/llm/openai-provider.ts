@@ -317,19 +317,25 @@ export class OpenAiProvider implements LlmProvider {
 
     const usage = failure ? (failure.usage ?? emptyUsage(model, elapsed())) : result?.usage;
     if (usage === undefined) throw new Error("unreachable: no usage");
-    await recordLlmCall(
-      this.db,
-      {
-        purpose,
-        usage,
-        status: failure ? "error" : "ok",
-        errorCode: failure?.code ?? null,
-        ...(ctx?.messageId === undefined ? {} : { messageId: ctx.messageId }),
-        ...(ctx?.searchRunId === undefined ? {} : { searchRunId: ctx.searchRunId }),
-      },
-      this.config,
-      this.log,
-    );
+    try {
+      await recordLlmCall(
+        this.db,
+        {
+          purpose,
+          usage,
+          status: failure ? "error" : "ok",
+          errorCode: failure?.code ?? null,
+          ...(ctx?.messageId === undefined ? {} : { messageId: ctx.messageId }),
+          ...(ctx?.searchRunId === undefined ? {} : { searchRunId: ctx.searchRunId }),
+        },
+        this.config,
+        this.log,
+      );
+    } catch (logError) {
+      // On the error path the caller needs the typed LlmError, not the logging failure.
+      if (!failure) throw logError;
+      this.log?.warn({ purpose }, "llm call could not be logged");
+    }
     if (failure) throw failure;
     if (result === undefined) throw new Error("unreachable: no result");
     return result;

@@ -86,7 +86,7 @@ describe("FakeLlmProvider", () => {
     expect(result.output).toMatchObject({ category: "not_job_related", confidence: 0.9 });
   });
 
-  it("the fake returns lead batches in order, then { leads: [], notes: 'no more' }", async () => {
+  it("the fake returns lead batches in order", async () => {
     const fake = make();
     const search = {
       today: "2026-10-30",
@@ -102,9 +102,56 @@ describe("FakeLlmProvider", () => {
     const seen: SearchResult[] = [];
     for (let i = 0; i < leadBatches.length; i += 1) seen.push((await fake.search(search)).output);
     expect(seen).toEqual(leadBatches);
-    const last = await fake.search(search);
-    expect(last.output).toEqual({ leads: [], notes: "no more" });
-    expect(last.usage.webSearchCalls).toBe(0);
+  });
+
+  it("starts the lead batches over after the last one, however many searches run", async () => {
+    const fake = make();
+    const search = {
+      today: "2026-10-30",
+      homeCountry: "MX",
+      brief: "b",
+      cvProfile: null,
+      tracks: [],
+      excludedSeniorities: [],
+      exclusions: [],
+      wanted: 10,
+      round: 1,
+    };
+    const seen: SearchResult[] = [];
+    for (let i = 0; i < leadBatches.length * 2 + 1; i += 1) {
+      seen.push((await fake.search(search)).output);
+    }
+    expect(seen).toEqual([...leadBatches, ...leadBatches, leadBatches[0]]);
+  });
+
+  it("answers search with no leads when there are no batches", async () => {
+    const fake = FakeLlmProvider.fromFixtures({ emails, leadBatches: [] });
+    const result = await fake.search({
+      today: "2026-10-30",
+      homeCountry: "MX",
+      brief: "b",
+      cvProfile: null,
+      tracks: [],
+      excludedSeniorities: [],
+      exclusions: [],
+      wanted: 10,
+      round: 1,
+    });
+    expect(result.output).toEqual({ leads: [], notes: "no more" });
+  });
+
+  it("serves a registered triage answer for a message id, ahead of the fixture", async () => {
+    const fake = make();
+    const f = emails.find((e) => e.llm.triage !== null);
+    if (f === undefined) throw new Error("no triage fixture");
+    const item = { id: f.id, jobRelated: true, confidence: 0.55 };
+    fake.register("triage", { messageId: f.id }, item);
+    const result = await fake.triage([
+      { id: f.id, fromName: null, fromEmail: null, subject: "s", preview: "" },
+      { id: "unregistered", fromName: null, fromEmail: null, subject: "s", preview: "" },
+    ]);
+    expect(result.output.results[0]).toEqual(item);
+    expect(result.output.results[1]).toMatchObject({ id: "unregistered", jobRelated: false });
   });
 
   it("answers rank deterministically for every lead, and parse_report and cv_profile with canned output", async () => {

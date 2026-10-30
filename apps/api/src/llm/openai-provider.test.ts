@@ -362,6 +362,28 @@ describe("OpenAiProvider errors", () => {
     expect(error.retryable).toBe(true);
   });
 
+  it("a failing call log does not hide the typed error on the error path", async () => {
+    const transport: OpenAiTransport = {
+      create: () => Promise.reject(new OpenAI.APIConnectionTimeoutError()),
+    };
+    const db = { llmCall: { create: () => Promise.reject(new Error("db is down")) } };
+    const warnings: Record<string, unknown>[] = [];
+    const provider = new OpenAiProvider(TEST_LLM_CONFIG, db, transport, {
+      warn: (fields) => void warnings.push(fields),
+    });
+    const error: unknown = await provider.extract(extractInput).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(LlmError);
+    expect(error).toMatchObject({ code: "timeout", retryable: true });
+    expect(JSON.stringify(warnings)).not.toContain("db is down");
+  });
+
+  it("a failing call log still fails the ok path", async () => {
+    const transport: OpenAiTransport = { create: () => Promise.resolve(response(extraction())) };
+    const db = { llmCall: { create: () => Promise.reject(new Error("db is down")) } };
+    const provider = new OpenAiProvider(TEST_LLM_CONFIG, db, transport);
+    await expect(provider.extract(extractInput)).rejects.toThrow("db is down");
+  });
+
   it("maps transport timeouts", async () => {
     const error = await fail(new OpenAI.APIConnectionTimeoutError());
     expect(error).toMatchObject({ code: "timeout", retryable: true });
