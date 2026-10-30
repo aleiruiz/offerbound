@@ -18,7 +18,7 @@ export type TriageRuleInput = {
   ownerEmail: string | null;
 };
 
-/** Set members and ignore-list entries are compared case-insensitively, so keep them lower-case. */
+/** Set members and ignore-list entries are compared case-insensitively; any case is accepted. */
 export type TriageLookups = {
   linkedThreadIds: ReadonlySet<string>;
   contactEmails: ReadonlySet<string>;
@@ -35,6 +35,10 @@ export type TriageDecision = {
 
 const SKIPPED_LABELS = ["DRAFT", "SPAM", "TRASH", "CHAT"];
 const NOISE_CATEGORIES = ["CATEGORY_PROMOTIONS", "CATEGORY_FORUMS"];
+
+function lowerCased(values: ReadonlySet<string>): ReadonlySet<string> {
+  return new Set([...values].map((v) => v.trim().toLowerCase()));
+}
 
 /** A company domain is usable only when it is not a mailbox provider, ATS or job board. */
 function isKnownCompanyDomain(address: string, companyDomains: ReadonlySet<string>): boolean {
@@ -54,7 +58,12 @@ function isIgnored(address: string, ignoreList: readonly string[]): boolean {
 }
 
 /** Stage 1a of triage (TECHNICAL_SPEC §5.3): the first matching rule wins. */
-export function triageByRules(input: TriageRuleInput, lookups: TriageLookups): TriageDecision {
+export function triageByRules(input: TriageRuleInput, rawLookups: TriageLookups): TriageDecision {
+  const lookups: TriageLookups = {
+    ...rawLookups,
+    contactEmails: lowerCased(rawLookups.contactEmails),
+    companyDomains: lowerCased(rawLookups.companyDomains),
+  };
   const direction = input.labelIds.includes("SENT") ? "outbound" : "inbound";
   const decide = (
     decision: TriageDecision["decision"],

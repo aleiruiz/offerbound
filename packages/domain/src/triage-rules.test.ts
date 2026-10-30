@@ -268,6 +268,18 @@ const rows: Row[] = [
 ];
 
 describe("triageByRules", () => {
+  it("matches contacts and company domains case-insensitively", () => {
+    const mixed: Partial<TriageLookups> = {
+      contactEmails: new Set(["Rae.Mixed@Quarry.Example"]),
+      companyDomains: new Set(["Lumen.Example"]),
+    };
+    expect(run({ from: "rae.mixed@quarry.example" }, mixed)).toMatchObject({ rule: "R6" });
+    expect(run({ from: "someone@lumen.example" }, mixed)).toMatchObject({ rule: "R6" });
+    expect(
+      run({ labelIds: ["SENT"], from: OWNER, to: ["RAE.MIXED@quarry.example"] }, mixed),
+    ).toMatchObject({ decision: "job_related", rule: "R3" });
+  });
+
   it.each(rows)("%s", (_name, input, expected, extra, l) => {
     const result = run(input, l);
     expect(result).toMatchObject(expected);
