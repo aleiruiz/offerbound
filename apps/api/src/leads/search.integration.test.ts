@@ -339,6 +339,41 @@ describe("prompt input", () => {
     });
   });
 
+  it("caps each excluded name at 120 characters, strips control characters and keeps at most 200 names", async () => {
+    // SECURITY §9: names reach the prompt, so stored or model-supplied text is bounded first.
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx, fake } = setup([batch(searchLead(9))]);
+    await seedLead(ctx, 1);
+    const aliases = [
+      ...Array.from({ length: 250 }, (_, i) => `Alias ${String(i).padStart(3, "0")}`),
+      `Long${"x".repeat(300)}`,
+      "Tab\tBell\u0007Name\u2028End",
+    ];
+    await prisma.company.updateMany({ where: { name: "Seen 1" }, data: { aliases } });
+
+    await runSearch(ctx, "manual");
+
+    const names = (fake.calls[0]?.input as SearchInput).exclusions.flatMap((g) => g.names);
+    expect(names.length).toBeLessThanOrEqual(200);
+    expect(names.length).toBeGreaterThan(100);
+    expect(names.every((n) => n.length <= 120)).toBe(true);
+    expect(names.some((n) => /[\p{Cc}\u2028\u2029]/u.test(n))).toBe(false);
+  });
+
+  it("strips control characters from an excluded name and keeps the rest", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx, fake } = setup([batch(searchLead(9))]);
+    await seedLead(ctx, 1);
+    await prisma.company.updateMany({
+      where: { name: "Seen 1" },
+      data: { aliases: ["Tab\tBell\u0007Name\u2028End"] },
+    });
+    await runSearch(ctx, "manual");
+    expect((fake.calls[0]?.input as SearchInput).exclusions).toEqual([
+      { names: ["Seen 1", "TabBellNameEnd"] },
+    ]);
+  });
+
   it("passes the run id to the model call so its cost is recorded against the run", async () => {
     await seedSettings({ min: 1, max: 2 });
     const { ctx } = setup([batch(searchLead(1))]);
@@ -542,6 +577,58 @@ describe("run record", () => {
     expect(run).toMatchObject({ id: row.id, status: "failed", error: "search_error: Error" });
     expect(fake.calls).toEqual([]);
     expect(await prisma.searchRun.count({ where: { status: "running" } })).toBe(0);
+  });
+
+  it("cuts a round's results to the number wanted before any link is checked", async () => {
+    // SECURITY §9: the model's output is untrusted, so a long answer cannot cost more fetches.
+    await seedSettings({ min: 1, max: 3 });
+    const { ctx, requested } = setup([batch(...[1, 2, 3, 4, 5, 6].map((n) => searchLead(n)))]);
+    const run = await runSearch(ctx, "manual");
+    expect(requested).toEqual(
+      [1, 2, 3].map((n) => `https://careers.company${n}.example/jobs/${n}`),
+    );
+    expect(run).toMatchObject({ returned: 6, accepted: 3, rounds: 1 });
+    expect(await prisma.lead.count()).toBe(3);
+  });
+
+  it("a second round may not go past the target maximum minus what is accepted", async () => {
+    await seedSettings({ min: 4, max: 5 });
+    const { ctx, requested } = setup([
+      batch(searchLead(1), searchLead(2)),
+      batch(...[3, 4, 5, 6, 7].map((n) => searchLead(n))),
+    ]);
+    const run = await runSearch(ctx, "manual");
+    // Round 2 wanted 5 - 2 = 3 leads, so only three of its five are checked.
+    expect(requested).toHaveLength(5);
+    expect(run).toMatchObject({ returned: 7, accepted: 5 });
+  });
+
+  it("recomputes the brief hash from the brief the run uses", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx } = setup([batch(searchLead(1))]);
+    const queued = await requestSearchRun(ctx, "manual");
+    const edited = "A different brief, edited while the job waited.";
+    await saveSettings(prisma, {
+      ...settingsWith({ min: 1, max: 2 }),
+      search: { ...settingsWith({ min: 1, max: 2 }).search, brief: edited },
+    });
+    await runSearch(ctx, "manual", queued.id);
+    const row = await prisma.searchRun.findUniqueOrThrow({ where: { id: queued.id } });
+    expect(row.briefHash).toBe(createHash("sha256").update(edited).digest("hex"));
+  });
+
+  it("puts a fixed message in the run for an invalid model answer, not the validation text", async () => {
+    await seedSettings({ min: 1, max: 2 });
+    const { ctx, fake } = setup([batch(searchLead(1))]);
+    ctx.llm = withSearch(fake, () =>
+      Promise.reject(
+        new LlmError("invalid_output", "Unrecognized key: SecretModelKey at leads[0]", {
+          retryable: false,
+        }),
+      ),
+    );
+    const run = await runSearch(ctx, "manual");
+    expect(run).toMatchObject({ status: "failed", error: "search_error: invalid_output" });
   });
 
   it("counts distinct companies for the stop check, as finalize keeps one lead per company", async () => {
