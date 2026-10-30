@@ -13,6 +13,7 @@ import {
 } from "../../test/factories";
 import { apiError, mockApi, type MockApi, type MockHandler } from "../../test/mock-api";
 import { renderWithProviders } from "../../test/render";
+import { heavyIt } from "../../test/speed";
 import { UndoSnackbar } from "../components/UndoSnackbar";
 import { LeadsPage } from "./LeadsPage";
 
@@ -153,7 +154,7 @@ function setup(
     </>,
     { route, width },
   );
-  return { api, ...rendered, user: userEvent.setup() };
+  return { api, ...rendered, user: userEvent.setup({ delay: null }) };
 }
 
 const callsTo = (api: MockApi, method: string, path: string) =>
@@ -183,26 +184,30 @@ afterEach(() => {
 });
 
 describe("LeadsPage", () => {
-  it("tabs New, Shortlisted, Applied, Dismissed and Suppressed show counts, and the tab is kept in ?tab=", async () => {
-    const { api, user } = setup();
-    expect(await tab("New 2")).toHaveAttribute("aria-selected", "true");
-    expect(await tab("Shortlisted 1")).toHaveAttribute("aria-selected", "false");
-    expect(await tab("Applied 1")).toBeInTheDocument();
-    expect(await tab("Dismissed 1")).toBeInTheDocument();
-    expect(await tab("Suppressed 1")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Leads" })).toBeInTheDocument();
-    expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
-    expect(screen.queryByText("Brightline Learning")).not.toBeInTheDocument();
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "tabs New, Shortlisted, Applied, Dismissed and Suppressed show counts, and the tab is kept in ?tab=",
+    async () => {
+      const { api, user } = setup();
+      expect(await tab("New 2")).toHaveAttribute("aria-selected", "true");
+      expect(await tab("Shortlisted 1")).toHaveAttribute("aria-selected", "false");
+      expect(await tab("Applied 1")).toBeInTheDocument();
+      expect(await tab("Dismissed 1")).toBeInTheDocument();
+      expect(await tab("Suppressed 1")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Leads" })).toBeInTheDocument();
+      expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
+      expect(screen.queryByText("Brightline Learning")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Shortlisted 1" }));
-    expect(await screen.findByText("Brightline Learning")).toBeInTheDocument();
-    expect(screen.getByTestId("where")).toHaveTextContent("/leads?tab=shortlisted");
-    expect(screen.getByRole("tab", { name: "Shortlisted 1" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(lastList(api).searchParams.get("status")).toBe("shortlisted");
-  });
+      await user.click(screen.getByRole("tab", { name: "Shortlisted 1" }));
+      expect(await screen.findByText("Brightline Learning")).toBeInTheDocument();
+      expect(screen.getByTestId("where")).toHaveTextContent("/leads?tab=shortlisted");
+      expect(screen.getByRole("tab", { name: "Shortlisted 1" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(lastList(api).searchParams.get("status")).toBe("shortlisted");
+    },
+  );
 
   it("opens on the tab named in the address, and falls back to New for an unknown one", async () => {
     const first = setup({}, { route: "/leads?tab=dismissed" });
@@ -218,42 +223,46 @@ describe("LeadsPage", () => {
     expect(screen.getByRole("tab", { name: /^New/ })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("track filter chips and the sort 'Track, then fit' / 'Newest first' change the query", async () => {
-    const { api, user } = setup();
-    await screen.findByText("Tidewater Labs");
-    // The default asks for no explicit sort and no track.
-    expect(lastList(api).searchParams.has("sort")).toBe(false);
-    expect(lastList(api).searchParams.has("track")).toBe(false);
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "track filter chips and the sort 'Track, then fit' / 'Newest first' change the query",
+    async () => {
+      const { api, user } = setup();
+      await screen.findByText("Tidewater Labs");
+      // The default asks for no explicit sort and no track.
+      expect(lastList(api).searchParams.has("sort")).toBe(false);
+      expect(lastList(api).searchParams.has("track")).toBe(false);
 
-    const group = screen.getByRole("group", { name: "Filter by track" });
-    expect(within(group).getByRole("button", { name: "All tracks" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await user.click(within(group).getByRole("button", { name: "Relocation" }));
-    expect(await screen.findByText("Kittiwake Systems")).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByText("Tidewater Labs")).not.toBeInTheDocument());
-    expect(lastList(api).searchParams.get("track")).toBe("B");
-    expect(within(group).getByRole("button", { name: "Relocation" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByTestId("where")).toHaveTextContent("track=B");
+      const group = screen.getByRole("group", { name: "Filter by track" });
+      expect(within(group).getByRole("button", { name: "All tracks" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await user.click(within(group).getByRole("button", { name: "Relocation" }));
+      expect(await screen.findByText("Kittiwake Systems")).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText("Tidewater Labs")).not.toBeInTheDocument());
+      expect(lastList(api).searchParams.get("track")).toBe("B");
+      expect(within(group).getByRole("button", { name: "Relocation" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.getByTestId("where")).toHaveTextContent("track=B");
 
-    // Pressing the chosen track again goes back to every track.
-    await user.click(within(group).getByRole("button", { name: "Relocation" }));
-    expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
-    expect(lastList(api).searchParams.has("track")).toBe(false);
+      // Pressing the chosen track again goes back to every track.
+      await user.click(within(group).getByRole("button", { name: "Relocation" }));
+      expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
+      expect(lastList(api).searchParams.has("track")).toBe(false);
 
-    await user.click(screen.getByRole("combobox", { name: "Sort" }));
-    await user.click(await screen.findByRole("option", { name: "Newest first" }));
-    await waitFor(() => expect(lastList(api).searchParams.get("sort")).toBe("newest"));
-    expect(screen.getByTestId("where")).toHaveTextContent("sort=newest");
+      await user.click(screen.getByRole("combobox", { name: "Sort" }));
+      await user.click(await screen.findByRole("option", { name: "Newest first" }));
+      await waitFor(() => expect(lastList(api).searchParams.get("sort")).toBe("newest"));
+      expect(screen.getByTestId("where")).toHaveTextContent("sort=newest");
 
-    await user.click(screen.getByRole("combobox", { name: "Sort" }));
-    await user.click(await screen.findByRole("option", { name: "Track, then fit" }));
-    await waitFor(() => expect(lastList(api).searchParams.has("sort")).toBe(false));
-  });
+      await user.click(screen.getByRole("combobox", { name: "Sort" }));
+      await user.click(await screen.findByRole("option", { name: "Track, then fit" }));
+      await waitFor(() => expect(lastList(api).searchParams.has("sort")).toBe(false));
+    },
+  );
 
   it("keeps the track and the sort when the tab changes", async () => {
     const { api, user } = setup({}, { route: "/leads?track=A&sort=newest" });
@@ -913,7 +922,8 @@ describe("LeadsPage", () => {
       expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
     });
 
-    it("Show more follows the cursor", async () => {
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt("Show more follows the cursor", async () => {
       const many = Array.from({ length: 30 }, (_, i) =>
         makeLead({
           id: `m${i}`,

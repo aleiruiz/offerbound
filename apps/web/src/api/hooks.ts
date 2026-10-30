@@ -1,15 +1,19 @@
 import {
+  AiUsageSchema,
   ApplicationDetailSchema,
   ApplicationSummarySchema,
   CvProfileSchema,
   CvUploadFailedSchema,
   DailyCountsSchema,
+  InterviewSchema,
+  InterviewWithApplicationSchema,
   LeadSchema,
   ImportSummarySchema,
   MeSchema,
   MessageDetailSchema,
   NavCountsSchema,
   PageSchema,
+  ReviewItemSchema,
   SearchRunSchema,
   SearchRunsSchema,
   SettingsSchema,
@@ -17,6 +21,7 @@ import {
   SyncStatusSchema,
   TodaySchema,
   UndoResultSchema,
+  type AiUsage,
   type ApplicationCreate,
   type ApplicationDetail,
   type ApplicationPatch,
@@ -24,9 +29,14 @@ import {
   type ApplicationSummary,
   type CvProfile,
   type DailyActivityBody,
+  type Interview,
+  type InterviewCreate,
+  type InterviewPatch,
   type Lead,
   type SearchRun,
   type LeadStatus,
+  type ReviewItem,
+  type ReviewResolve,
   type Settings,
   type Today,
 } from "@offerbound/contracts";
@@ -48,18 +58,28 @@ export const queryKeys = {
   applicationList: (filters: ApplicationFilters) => ["applications", "list", filters] as const,
   applicationLists: ["applications", "list"] as const,
   application: (id: string) => ["applications", "detail", id] as const,
+  /** Every review query: the Open and Resolved lists. */
   reviewItems: ["review-items"] as const,
+  reviewList: (state: ReviewListState) => ["review-items", "list", state] as const,
   /** Every leads query: lists and the counts behind the tabs. */
   leads: ["leads"] as const,
   leadLists: ["leads", "list"] as const,
   leadCounts: ["leads", "count"] as const,
   leadList: (filters: LeadFilters) => ["leads", "list", filters] as const,
   leadCount: (status: LeadStatus) => ["leads", "count", status] as const,
+  /** Every interviews query: the Upcoming and Past lists. */
+  interviews: ["interviews"] as const,
+  interviewList: (range: InterviewRange) => ["interviews", "list", range] as const,
   searchRuns: ["search-runs"] as const,
   message: (id: string) => ["message", id] as const,
   syncStatus: ["sync-status"] as const,
   navCounts: ["nav-counts"] as const,
   settings: ["settings"] as const,
+  /** The active CV profile, or null when there is none. */
+  cv: ["cv"] as const,
+  /** True after an upload whose profile step failed, until a profile exists again. */
+  cvProfileFailed: ["cv", "profile-failed"] as const,
+  aiUsage: ["ai-usage"] as const,
   today: ["today"] as const,
 };
 
@@ -125,6 +145,32 @@ export function useSyncGmail() {
   });
 }
 
+/** `POST /gmail/disconnect`: revoke Google's access, delete the tokens and stop syncing (AC-2.8). */
+export function useDisconnectGmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/gmail/disconnect", { method: "POST" }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+      ]),
+  });
+}
+
+/** `GET /ai-usage`: month-to-date cost, calls by purpose and the last 30 days (AC-15.1). */
+export function useAiUsage() {
+  return useQuery<AiUsage>({
+    queryKey: queryKeys.aiUsage,
+    queryFn: ({ signal }) => apiFetch("/ai-usage", { schema: AiUsageSchema, signal }),
+  });
+}
+
+/** `POST /auth/logout`: end the session on the server (AC-1.4). */
+export function useSignOut() {
+  return useMutation({ mutationFn: () => apiFetch("/auth/logout", { method: "POST" }) });
+}
+
 /** `GET /settings`: the full settings, which `PUT /settings` replaces as a whole. */
 export function useSettings(options: { enabled?: boolean } = {}) {
   return useQuery({
@@ -154,11 +200,38 @@ function fileForm(file: File): FormData {
 export type CvUploadOutcome =
   { profileStatus: "ok"; profile: CvProfile } | { profileStatus: "failed"; profile: null };
 
+/** `GET /cv`: the active CV profile, or null when none has been uploaded (or its profile failed). */
+export function useCv() {
+  return useQuery({
+    queryKey: queryKeys.cv,
+    queryFn: ({ signal }) => apiFetch("/cv", { schema: CvProfileSchema.nullable(), signal }),
+  });
+}
+
+/**
+ * Whether the last upload of this session stored the CV text without a profile (a 202). `GET /cv`
+ * answers null both then and when there is no CV, so the page remembers the difference itself; a
+ * reload loses it, and the owner is offered a new upload instead.
+ */
+export function useCvProfileFailed(): boolean {
+  return (
+    useQuery({
+      queryKey: queryKeys.cvProfileFailed,
+      queryFn: () => false,
+      initialData: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    }).data ?? false
+  );
+}
+
 /**
  * `POST /cv`: upload a PDF or DOCX. TECHNICAL_SPEC §10.1: 201 with a bare `CvProfile`, or 202 with
- * `profileStatus: "failed"`; the HTTP status says which.
+ * `profileStatus: "failed"`; the HTTP status says which. The answer also updates the cached
+ * profile, so Settings shows it without another request.
  */
 export function useUploadCv() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (file: File): Promise<CvUploadOutcome> => {
       const { status, data } = await apiFetchWithStatus<CvProfile | { profileStatus: "failed" }>(
@@ -173,6 +246,32 @@ export function useUploadCv() {
         ? { profileStatus: "failed", profile: null }
         : { profileStatus: "ok", profile: data as CvProfile };
     },
+    onSuccess: (outcome) => {
+      // A new CV whose profile failed is the one on file now: the old profile no longer applies.
+      queryClient.setQueryData(queryKeys.cv, outcome.profile);
+      queryClient.setQueryData(queryKeys.cvProfileFailed, outcome.profileStatus === "failed");
+    },
+  });
+}
+
+/** `POST /cv/retry-profile`: build the profile again from the stored CV text. */
+export function useRetryCvProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/cv/retry-profile", { method: "POST", schema: CvProfileSchema }),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.cv, profile);
+      queryClient.setQueryData(queryKeys.cvProfileFailed, false);
+    },
+  });
+}
+
+/** `POST /leads/rerank`: rank the new leads again against the current CV profile (AC-11.4). */
+export function useRerankLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/leads/rerank", { method: "POST", body: { scope: "new" } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
   });
 }
 
@@ -376,7 +475,7 @@ export function useMarkLeadApplied(callbacks: MutationCallbacks<ApplicationDetai
     },
     onError: async (error, lead) => {
       // Converted elsewhere in the meantime: show the lead as it is now.
-      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      if (isConflict(error)) await refresh();
       callbacks.onError?.(error, lead);
     },
   });
@@ -396,7 +495,7 @@ export function useReconsiderLead(callbacks: MutationCallbacks<Lead, Lead> = {})
       callbacks.onSuccess?.(updated, lead);
     },
     onError: async (error, lead) => {
-      if (error instanceof ApiClientError && error.status === 409) await refresh();
+      if (isConflict(error)) await refresh();
       callbacks.onError?.(error, lead);
     },
   });
@@ -565,6 +664,11 @@ export function isApiError(error: unknown, code: string): boolean {
   return error instanceof ApiClientError && error.code === code;
 }
 
+/** Any 409: the record changed elsewhere, whatever code the API puts on it. */
+export function isConflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.status === 409;
+}
+
 /** Everything a change to an application can alter: the lists, Today and the navigation badges. */
 function refreshAfterApplicationChange(queryClient: QueryClient) {
   return Promise.all([
@@ -636,6 +740,8 @@ export function useUndoEvent(callbacks: MutationCallbacks<{ undone: true }, stri
     void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+      // Undoing an email's change can delete or restore the interviews it made.
+      queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
       queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems }),
       // Undoing *Mark applied* puts the lead back where it was; the tab counts follow in the background.
       queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
@@ -677,9 +783,176 @@ export function useMergeApplication(
       }),
     onSuccess: async (target, variables) => {
       queryClient.setQueryData(queryKeys.application(target.id), target);
-      await refreshAfterApplicationChange(queryClient);
+      // The merged application's interviews now belong to the target.
+      await Promise.all([
+        refreshAfterApplicationChange(queryClient),
+        queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
+      ]);
       callbacks.onSuccess?.(target, variables);
     },
     onError: callbacks.onError,
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Review
+
+export type ReviewListState = "open" | "resolved";
+
+export const REVIEW_PAGE_SIZE = 25;
+
+/** `GET /review-items`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useReviewItems(state: ReviewListState) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.reviewList(state),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ state, limit: String(REVIEW_PAGE_SIZE) });
+      if (pageParam !== null) params.set("cursor", pageParam);
+      return apiFetch(`/review-items?${params.toString()}`, {
+        schema: PageSchema(ReviewItemSchema),
+        signal,
+      });
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export interface ReviewResolution {
+  item: Pick<ReviewItem, "id" | "kind">;
+  resolve: ReviewResolve;
+}
+
+/**
+ * `POST /review-items/:id/resolve` (AC-5.3): the owner's choice runs through the same code path as
+ * an automatic change, so it can touch applications, interviews, companies and leads. All of them,
+ * Today and the badges are fetched again. A 409 means the item or what it points at changed
+ * elsewhere: the lists are fetched again before `onError` hears of it.
+ */
+export function useResolveReviewItem(
+  callbacks: MutationCallbacks<ReviewItem, ReviewResolution> = {},
+) {
+  const queryClient = useQueryClient();
+  const refreshReview = () => queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems });
+  return useMutation({
+    mutationFn: ({ item, resolve }: ReviewResolution) =>
+      apiFetch(`/review-items/${encodeURIComponent(item.id)}/resolve`, {
+        method: "POST",
+        body: resolve,
+        schema: ReviewItemSchema,
+      }),
+    onSuccess: async (resolved, variables) => {
+      // Tab counts of the Leads page (a merge can suppress leads) follow in the background.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
+      await Promise.all([
+        refreshReview(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+        // Attaching or reprocessing an invitation creates or moves an interview.
+        queryClient.invalidateQueries({ queryKey: queryKeys.interviews }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+      ]);
+      callbacks.onSuccess?.(resolved, variables);
+    },
+    onError: async (error, variables) => {
+      if (isConflict(error)) {
+        await Promise.all([
+          refreshReview(),
+          queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+        ]);
+      }
+      callbacks.onError?.(error, variables);
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Interviews
+
+export type InterviewRange = "upcoming" | "past";
+
+export const INTERVIEWS_PAGE_SIZE = 25;
+
+/** `GET /interviews`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useInterviews(range: InterviewRange) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.interviewList(range),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ range, limit: String(INTERVIEWS_PAGE_SIZE) });
+      if (pageParam !== null) params.set("cursor", pageParam);
+      return apiFetch(`/interviews?${params.toString()}`, {
+        schema: PageSchema(InterviewWithApplicationSchema),
+        signal,
+      });
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * Everything a change to an interview can alter: both lists, the application it belongs to (its
+ * detail and its next interview), Today and the navigation badge. The answer waits for the lists,
+ * which the next press reads a version from; the rest follows in the background.
+ */
+function refreshAfterInterviewChange(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.applications });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.today });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.navCounts });
+  return queryClient.invalidateQueries({ queryKey: queryKeys.interviews });
+}
+
+export interface InterviewCreation {
+  applicationId: string;
+  body: InterviewCreate;
+}
+
+/** `POST /applications/:id/interviews`: add an interview by hand (AC-8.5). */
+export function useCreateInterview(
+  callbacks: MutationCallbacks<Interview, InterviewCreation> = {},
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ applicationId, body }: InterviewCreation) =>
+      apiFetch(`/applications/${encodeURIComponent(applicationId)}/interviews`, {
+        method: "POST",
+        body,
+        schema: InterviewSchema,
+      }),
+    onSuccess: async (interview, variables) => {
+      await refreshAfterInterviewChange(queryClient);
+      callbacks.onSuccess?.(interview, variables);
+    },
+    onError: callbacks.onError,
+  });
+}
+
+export interface InterviewUpdate {
+  interview: Pick<Interview, "id" | "version">;
+  patch: Omit<InterviewPatch, "version">;
+}
+
+/**
+ * `PATCH /interviews/:id` with the interview's `version` (AC-8.5). A 409 means it changed elsewhere:
+ * the lists are fetched again before `onError` hears of it, so the next try carries the fresh version.
+ */
+export function useUpdateInterview(callbacks: MutationCallbacks<Interview, InterviewUpdate> = {}) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ interview, patch }: InterviewUpdate) =>
+      apiFetch(`/interviews/${encodeURIComponent(interview.id)}`, {
+        method: "PATCH",
+        body: { ...patch, version: interview.version },
+        schema: InterviewSchema,
+      }),
+    onSuccess: async (updated, variables) => {
+      await refreshAfterInterviewChange(queryClient);
+      callbacks.onSuccess?.(updated, variables);
+    },
+    onError: async (error, variables) => {
+      if (isConflict(error)) await refreshAfterInterviewChange(queryClient);
+      callbacks.onError?.(error, variables);
+    },
   });
 }

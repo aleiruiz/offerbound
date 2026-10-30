@@ -141,7 +141,7 @@ describe("AppShell", () => {
   });
 
   it("g then i goes to Interviews and ? lists the shortcuts", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderShell(1000);
     await user.keyboard("?");
     expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
@@ -151,28 +151,30 @@ describe("AppShell", () => {
     expect(await screen.findByRole("heading", { name: "Interviews" })).toBeInTheDocument();
   });
 
-  it("has a visible Keyboard shortcuts control in the drawer, the rail and the More menu", async () => {
-    const user = userEvent.setup();
-    const close = async () => {
-      await user.keyboard("{Escape}");
-      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    };
-    const { unmount } = renderShell(1000);
-    await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
-    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
-    await close();
-    unmount();
+  // One test per layout: each renders its own shell and opens a dialog, so together they were the
+  // slowest test in the file and sat close to vitest's 5 s default under load.
+  describe("Keyboard shortcuts control", () => {
+    it("is visible in the drawer", async () => {
+      const user = userEvent.setup({ delay: null });
+      renderShell(1000);
+      await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+      expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    });
 
-    const rail = renderShell(700);
-    await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
-    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
-    await close();
-    rail.unmount();
+    it("is visible in the rail", async () => {
+      const user = userEvent.setup({ delay: null });
+      renderShell(700);
+      await user.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+      expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    });
 
-    renderShell(400);
-    await user.click(screen.getByRole("button", { name: "More" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Keyboard shortcuts" }));
-    expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    it("is in the More menu on phones", async () => {
+      const user = userEvent.setup({ delay: null });
+      renderShell(400);
+      await user.click(screen.getByRole("button", { name: "More" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Keyboard shortcuts" }));
+      expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    });
   });
 
   it("at md width the drawer footer holds the sync status above Keyboard shortcuts", async () => {

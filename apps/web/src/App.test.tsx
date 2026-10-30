@@ -4,6 +4,7 @@ import { makeNavCounts, makeSyncStatus } from "../test/factories";
 import { apiError, mockApi } from "../test/mock-api";
 import { renderWithProviders } from "../test/render";
 import { App } from "./App";
+import { ColorModeProvider } from "./ColorModeProvider";
 
 const me = {
   mode: "private",
@@ -46,7 +47,13 @@ describe("routing and session", () => {
     ["/settings/gmail", "Settings"],
   ])("%s renders its page title as the h1", async (route, title) => {
     mockSignedIn();
-    renderWithProviders(<App />, { route });
+    // Settings reads the theme choice from the provider that main.tsx puts around the app.
+    renderWithProviders(
+      <ColorModeProvider>
+        <App />
+      </ColorModeProvider>,
+      { route },
+    );
     expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
   });
 

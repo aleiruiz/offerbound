@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { DEFAULT_TIMEZONE, formatTime, localDayKey } from "../lib/format";
+import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 import { RowActions } from "./RowActions";
 import { FlagChip } from "./StatusChip";
@@ -39,6 +40,10 @@ export interface InterviewRowProps {
   now?: Date;
   /** Shown as a *Prep notes* button when given. */
   onPrepNotes?: (interview: InterviewWithApplication) => void;
+  /** Marks the row the keyboard is on (`aria-current`). */
+  focused?: boolean;
+  /** Props from `useListKeyboard().getRowProps(i)`. */
+  rowProps?: object;
 }
 
 /** One interview (DESIGN_SPEC §6.5): the time column, kind, company and role, people, call link, actions. */
@@ -47,7 +52,15 @@ export function InterviewRow({
   timezone = DEFAULT_TIMEZONE,
   now,
   onPrepNotes,
+  focused,
+  rowProps,
 }: InterviewRowProps) {
+  const linkSx = useLinkSx({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 0.75,
+    alignSelf: "flex-start",
+  });
   const current = now ?? new Date();
   const { application } = interview;
   const scheduled = interview.startsAt !== null;
@@ -69,6 +82,8 @@ export function InterviewRow({
   return (
     <Box
       component="li"
+      {...rowProps}
+      {...(focused ? { "aria-current": "true" } : {})}
       sx={{
         display: "flex",
         flexWrap: "wrap",
@@ -79,6 +94,11 @@ export function InterviewRow({
         listStyle: "none",
         borderTop: 1,
         borderColor: "divider",
+        "&[aria-current='true']": {
+          bgcolor: (theme) => theme.palette.tokens.surfaceSunken,
+          outline: (theme) => `2px solid ${theme.palette.primary.main}`,
+          outlineOffset: -2,
+        },
       }}
     >
       <Typography
@@ -107,19 +127,18 @@ export function InterviewRow({
         <Typography variant="caption" color="text.secondary" component="p">
           {`${application.company.name}, ${application.title}.${people}`}
         </Typography>
+        {interview.location ? (
+          <Typography variant="caption" color="text.secondary" component="p">
+            {interview.location}
+          </Typography>
+        ) : null}
         {isHttpUrl(interview.meetingUrl) ? (
           <Link
             href={interview.meetingUrl}
             target="_blank"
             rel="noopener noreferrer"
             underline="none"
-            variant="subtitle2"
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 0.75,
-              alignSelf: "flex-start",
-            }}
+            sx={linkSx}
           >
             <VideocamOutlined fontSize="small" />
             Join video call

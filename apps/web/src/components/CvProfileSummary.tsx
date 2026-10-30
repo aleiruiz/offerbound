@@ -7,7 +7,14 @@ import type { CvProfile } from "@offerbound/contracts";
  * The read-only summary of the CV profile (AC-11.3): headline, a line of facts, core skills and
  * recent roles. The profile is personal content: it is only ever rendered, never logged.
  */
-export function CvProfileSummary({ profile }: { profile: CvProfile }) {
+export function CvProfileSummary({
+  profile,
+  showSecondary = false,
+}: {
+  profile: CvProfile;
+  /** Also list the secondary skills, after the core ones (Settings does; onboarding does not). */
+  showSecondary?: boolean;
+}) {
   const facts = [
     profile.yearsExperience !== null
       ? `${profile.yearsExperience} ${profile.yearsExperience === 1 ? "year" : "years"} of experience`
@@ -30,6 +37,26 @@ export function CvProfileSummary({ profile }: { profile: CvProfile }) {
       {profile.coreSkills.length > 0 ? (
         <Box component="ul" aria-label="Core skills" sx={chipList}>
           {profile.coreSkills.map((skill) => (
+            <li key={skill}>
+              <Chip
+                size="small"
+                label={skill}
+                sx={
+                  showSecondary
+                    ? (theme) => ({
+                        bgcolor: theme.palette.tokens.routeTint,
+                        color: theme.palette.primary.main,
+                      })
+                    : undefined
+                }
+              />
+            </li>
+          ))}
+        </Box>
+      ) : null}
+      {showSecondary && profile.secondarySkills.length > 0 ? (
+        <Box component="ul" aria-label="Secondary skills" sx={chipList}>
+          {profile.secondarySkills.map((skill) => (
             <li key={skill}>
               <Chip size="small" label={skill} />
             </li>

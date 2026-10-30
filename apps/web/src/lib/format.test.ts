@@ -3,11 +3,16 @@ import {
   formatCompensation,
   formatDate,
   formatLongDay,
+  formatCount,
   formatRelative,
+  formatUsd,
+  plural,
+  rowsLabel,
   formatShortDate,
   formatTime,
   localDayKey,
   localMidnightIso,
+  localTimeIso,
   zoneCity,
 } from "./format";
 
@@ -120,5 +125,48 @@ describe("localMidnightIso", () => {
     expect(localMidnightIso("", TZ)).toBeNull();
     expect(localMidnightIso("2026-13-40", TZ)).toBeNull();
     expect(localMidnightIso("Oct 5", TZ)).toBeNull();
+  });
+});
+
+describe("localTimeIso", () => {
+  it("is the instant a wall-clock time falls on in the owner's zone", () => {
+    expect(localTimeIso("2026-11-05", "10:00", TZ)).toBe("2026-11-05T16:00:00.000Z");
+    expect(localTimeIso("2026-11-05", "23:30", TZ)).toBe("2026-11-06T05:30:00.000Z");
+    expect(localTimeIso("2026-11-05", "00:00", TZ)).toBe(localMidnightIso("2026-11-05", TZ));
+  });
+
+  it("follows a zone that observes daylight saving time", () => {
+    expect(localTimeIso("2026-07-01", "09:00", "America/New_York")).toBe(
+      "2026-07-01T13:00:00.000Z",
+    );
+    expect(localTimeIso("2026-12-01", "09:00", "America/New_York")).toBe(
+      "2026-12-01T14:00:00.000Z",
+    );
+  });
+
+  it("is null for a day or a time that is not real", () => {
+    expect(localTimeIso("", "10:00", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "24:00", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-05", "9:5", TZ)).toBeNull();
+    expect(localTimeIso("2026-11-31", "10:00", TZ)).toBeNull();
+  });
+});
+
+describe("counts and money", () => {
+  it("formats counts with separators and singular or plural words", () => {
+    expect(formatCount(2148)).toBe("2,148");
+    expect(rowsLabel(1)).toBe("1 row");
+    expect(rowsLabel(1020)).toBe("1,020 rows");
+    expect(plural(1, "new lead", "new leads")).toBe("1 new lead");
+    expect(plural(0, "new lead", "new leads")).toBe("0 new leads");
+  });
+
+  it("formats millionths of a dollar", () => {
+    expect(formatUsd(610_000)).toBe("US$0.61");
+    expect(formatUsd(0)).toBe("US$0.00");
+    expect(formatUsd(1_840_000)).toBe("US$1.84");
+    expect(formatUsd(3_000)).toBe("<US$0.01");
+    expect(formatUsd(12_345_678)).toBe("US$12.35");
   });
 });

@@ -1,14 +1,19 @@
-import type {
-  ApplicationDetail,
-  ApplicationSummary,
-  InterviewWithApplication,
-  Lead,
-  MessageDetail,
-  NavCounts,
-  ReviewItem,
-  SyncStatus,
-  TimelineEvent,
-  Today,
+import {
+  DEFAULT_SETTINGS,
+  type AiUsage,
+  type ApplicationDetail,
+  type ApplicationSummary,
+  type CvProfile,
+  type InterviewWithApplication,
+  type Lead,
+  type MessageDetail,
+  type NavCounts,
+  type ReviewItem,
+  type SearchRun,
+  type Settings,
+  type SyncStatus,
+  type TimelineEvent,
+  type Today,
 } from "@offerbound/contracts";
 
 /** Test data builders. Companies and people are fictional. */
@@ -247,6 +252,74 @@ export function makeToday(overrides: Partial<Today> = {}): Today {
       responseRate: 0.46,
       interviewRate: 0.2,
     },
+    ...overrides,
+  };
+}
+
+/** The default settings, with any part replaced. */
+export function makeSettings(overrides: Partial<Settings> = {}): Settings {
+  return {
+    ...DEFAULT_SETTINGS,
+    search: {
+      ...DEFAULT_SETTINGS.search,
+      brief: "Senior full-stack roles, remote from Mexico or with relocation support.",
+      enabled: true,
+    },
+    ...overrides,
+  };
+}
+
+export function makeSearchRun(overrides: Partial<SearchRun> = {}): SearchRun {
+  return {
+    id: "sr1",
+    trigger: "schedule",
+    status: "succeeded",
+    startedAt: "2026-10-30T13:00:00Z",
+    finishedAt: "2026-10-30T13:09:00Z",
+    rounds: 3,
+    returned: 36,
+    accepted: 24,
+    suppressed: 9,
+    duplicates: 3,
+    dead: 3,
+    webSearchCalls: 58,
+    costMicros: 610_000,
+    error: null,
+    ...overrides,
+  };
+}
+
+export function makeCvProfile(overrides: Partial<CvProfile> = {}): CvProfile {
+  return {
+    headline: "Senior software engineer, 8 years, full-stack with a frontend focus",
+    yearsExperience: 8,
+    coreSkills: ["React", "TypeScript", "Node.js"],
+    secondarySkills: ["Python", "Azure"],
+    domains: ["Payments"],
+    recentRoles: [{ title: "Senior Engineer", company: "Harbor Pay", years: "2021 to 2026" }],
+    leadership: null,
+    languages: ["English", "Spanish"],
+    location: "Monterrey, Mexico",
+    workAuthorization: null,
+    ...overrides,
+  };
+}
+
+/** Thirty days of AI cost ending 2026-10-30, a little more on the weekdays. */
+export function makeAiUsage(overrides: Partial<AiUsage> = {}): AiUsage {
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date(Date.UTC(2026, 9, 30) - (29 - i) * 86_400_000);
+    return { date: date.toISOString().slice(0, 10), costMicros: 20_000 + (i % 7) * 15_000 };
+  });
+  return {
+    monthToDateMicros: 1_840_000,
+    byPurpose: [
+      { purpose: "triage", calls: 640, costMicros: 310_000, unknownCostCalls: 0 },
+      { purpose: "extract", calls: 212, costMicros: 590_000, unknownCostCalls: 0 },
+      { purpose: "rank", calls: 96, costMicros: 240_000, unknownCostCalls: 0 },
+      { purpose: "search", calls: 14, costMicros: 700_000, unknownCostCalls: 2 },
+    ],
+    last30Days,
     ...overrides,
   };
 }

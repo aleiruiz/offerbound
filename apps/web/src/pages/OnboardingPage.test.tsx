@@ -14,6 +14,7 @@ import {
 } from "../../test/mock-api";
 import lockupLight from "../assets/brand/lockup.svg";
 import { renderWithProviders } from "../../test/render";
+import { heavyIt, setValue } from "../../test/speed";
 import { queryKeys } from "../api/hooks";
 import { OnboardingPage } from "./OnboardingPage";
 
@@ -106,19 +107,6 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-/** Types by pasting: one event instead of one per key, which is slow on the multiline field. */
-async function typeText(
-  user: ReturnType<typeof userEvent.setup>,
-  field: HTMLElement,
-  text: string,
-) {
-  await user.click(field);
-  if (field instanceof HTMLTextAreaElement) {
-    field.setSelectionRange(field.value.length, field.value.length);
-  }
-  await user.paste(text);
-}
-
 async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
   for (let i = 0; i < steps; i += 1) {
     await user.click(await screen.findByRole("button", { name: "Skip this step" }));
@@ -126,40 +114,44 @@ async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
 }
 
 describe("OnboardingPage", () => {
-  it("shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped", async () => {
-    const { user } = setup();
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
-    const steps = screen.getByLabelText("Setup steps");
-    for (const name of [
-      "Upload your CV",
-      "Import your spreadsheet",
-      "Write your search brief",
-      "Start syncing Gmail",
-    ]) {
-      expect(within(steps).getByText(name)).toBeInTheDocument();
-    }
-    expect(within(steps).getByText("Upload your CV").closest("[aria-current]")).toHaveAttribute(
-      "aria-current",
-      "step",
-    );
+  // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+  heavyIt(
+    "shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped",
+    async () => {
+      const { user } = setup();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
+      const steps = screen.getByLabelText("Setup steps");
+      for (const name of [
+        "Upload your CV",
+        "Import your spreadsheet",
+        "Write your search brief",
+        "Start syncing Gmail",
+      ]) {
+        expect(within(steps).getByText(name)).toBeInTheDocument();
+      }
+      expect(within(steps).getByText("Upload your CV").closest("[aria-current]")).toHaveAttribute(
+        "aria-current",
+        "step",
+      );
 
-    // Steps 1 to 3 can be skipped, and the Back button is there from step 2 on.
-    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-    await skipTo(user, 3);
-    expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toHaveFocus();
-    expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
-    expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
-    expect(within(steps).queryByText("Optional")).toBeNull();
+      // Steps 1 to 3 can be skipped, and the Back button is there from step 2 on.
+      expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+      await skipTo(user, 3);
+      expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toHaveFocus();
+      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
+      expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
+      expect(within(steps).queryByText("Optional")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: "Back" }));
-    expect(
-      screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
-    ).toBeVisible();
-  });
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
+      ).toBeVisible();
+    },
+  );
 
   it("marks steps 1 to 3 Optional in the stepper until they are skipped, and never the last", async () => {
     const { user } = setup();
@@ -515,7 +507,7 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText(/This file was already imported\./)).toBeInTheDocument();
+      expect(await screen.findByText("This file was already imported")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Skip this step" })).toBeInTheDocument();
     });
 
@@ -569,7 +561,7 @@ describe("OnboardingPage", () => {
       expect(screen.getByText("Applications.csv")).toBeInTheDocument();
     });
 
-    it("says import isn't available yet on a server error from the preview", async () => {
+    it("shows a generic message on a server error from the preview", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
           apiError(500, "internal_error", "Something went wrong."),
@@ -579,13 +571,14 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+        "Couldn't import the file. Try again.",
       );
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
     });
 
-    it("keeps the commit's own message for a server error or an unreadable answer", async () => {
+    it("shows the generic message for a commit server error or an unreadable answer", async () => {
       let answer: MockHandler = () => apiError(500, "internal_error", "Something went wrong.");
-      const { user } = await toImport({
+      const { api, user } = await toImport({
         "POST /api/v1/import/sheet/commit": (req) => answer(req),
       });
       await user.upload(
@@ -593,16 +586,20 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText("Something went wrong.")).toBeVisible();
+      expect(await screen.findByText("Couldn't import the file. Try again.")).toBeVisible();
+      expect(screen.queryByText("Something went wrong.")).not.toBeInTheDocument();
       expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
 
       answer = () => new Response("<html>Bad gateway</html>", { status: 502 });
       await user.click(screen.getByRole("button", { name: "Import 101 rows" }));
-      expect(await screen.findByText("The server answered with status 502.")).toBeVisible();
-      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(callsTo(api, "POST", "/api/v1/import/sheet/commit")).toHaveLength(2),
+      );
+      expect(await screen.findByText("Couldn't import the file. Try again.")).toBeVisible();
+      expect(screen.queryByText("The server answered with status 502.")).not.toBeInTheDocument();
     });
 
-    it("says import isn't available yet, not 'expired', when the preview route is missing", async () => {
+    it("does not call a preview that is not found 'expired': only the commit can say that", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () => apiError(404, "not_found", "Not found."),
       });
@@ -611,9 +608,10 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+        "Couldn't import the file. Try again.",
       );
       expect(screen.queryByText(/expired/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
 
       // The way on stays open: Skip is visible and moves to the next step.
       await user.click(screen.getByRole("button", { name: "Skip this step" }));
@@ -623,7 +621,7 @@ describe("OnboardingPage", () => {
       expect(within(screen.getByLabelText("Setup steps")).getAllByText("Skipped")).toHaveLength(2);
     });
 
-    it("says the same when the preview call fails on the server or answers without the usual error body", async () => {
+    it("says the same when the preview answers without the usual error body, or never arrives", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
           new Response("<html>Bad gateway</html>", { status: 502 }),
@@ -633,9 +631,59 @@ describe("OnboardingPage", () => {
         file("Applications.csv", "text/csv"),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Spreadsheet import isn't available yet.",
+        "Couldn't import the file. Try again.",
       );
       expect(screen.getByRole("button", { name: "Skip this step" })).toBeVisible();
+    });
+
+    it("says the same when the request never reaches the server", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () => Promise.reject(new TypeError("Failed to fetch")),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't import the file. Try again.",
+      );
+    });
+
+    it("shows the server's message when the preview finds no header row", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () =>
+          apiError(
+            400,
+            "validation_failed",
+            "Offerbound couldn't find a header row with Company, Role and Status.",
+            { file: "no_header_row" },
+          ),
+      });
+      await user.upload(screen.getByLabelText("Choose CSV file"), file("notes.csv", "text/csv"));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Offerbound couldn't find a header row with Company, Role and Status.",
+      );
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    });
+
+    it("says a file the server finds too large is over 2 MB, and a repeated file was already imported", async () => {
+      let answer: MockHandler = () => apiError(413, "too_large", "Too large.");
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": (req) => answer(req),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent("File is over 2 MB");
+
+      answer = () => apiError(409, "duplicate_import", "Imported before.");
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByText("This file was already imported")).toBeVisible();
+      expect(screen.queryByText("File is over 2 MB")).not.toBeInTheDocument();
     });
 
     it("says the preview expired only when the commit can't find it, and Skip still works", async () => {
@@ -654,10 +702,10 @@ describe("OnboardingPage", () => {
       ).toBeVisible();
     });
 
-    it("shows the preview's error when the file can't be read", async () => {
+    it("shows the preview's own message when the file fails validation", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () =>
-          apiError(422, "unsupported_file", "No Company, Role and Status columns were found."),
+          apiError(400, "validation_failed", "No Company, Role and Status columns were found."),
       });
       await user.upload(screen.getByLabelText("Choose CSV file"), file("other.csv", "text/csv"));
       expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -684,64 +732,67 @@ describe("OnboardingPage", () => {
   });
 
   describe("the brief step", () => {
-    it("saves through PUT /settings with the edited brief and the rest of the settings unchanged", async () => {
-      const settings: Settings = {
-        ...DEFAULT_SETTINGS,
-        search: { ...DEFAULT_SETTINGS.search, brief: "Old brief", enabled: true },
-      };
-      const { api, user } = setup({
-        "GET /api/v1/settings": () => settings,
-        "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
-      });
-      await skipTo(user, 2);
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "saves through PUT /settings with the edited brief and the rest of the settings unchanged",
+      async () => {
+        const settings: Settings = {
+          ...DEFAULT_SETTINGS,
+          search: { ...DEFAULT_SETTINGS.search, brief: "Old brief", enabled: true },
+        };
+        const { api, user } = setup({
+          "GET /api/v1/settings": () => settings,
+          "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+        });
+        await skipTo(user, 2);
 
-      const field = await screen.findByRole("textbox", { name: "Search brief" });
-      expect(field).toHaveValue("Old brief");
-      await user.clear(field);
-      await typeText(user, field, "Senior roles, remote from Mexico.");
-      expect(screen.getByText("33 of 12,000 characters")).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        const field = await screen.findByRole("textbox", { name: "Search brief" });
+        expect(field).toHaveValue("Old brief");
+        setValue(field, "Senior roles, remote from Mexico.");
+        expect(screen.getByText("33 of 12,000 characters")).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
 
-      await waitFor(() => expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(1));
-      const put = callsTo(api, "PUT", "/api/v1/settings")[0];
-      expect(put?.headers.get("X-Offerbound-Request")).toBe("1");
-      expect(await put?.json()).toEqual({
-        ...settings,
-        search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
-      });
-      expect(
-        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-      ).toBeVisible();
-    });
+        await waitFor(() => expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(1));
+        const put = callsTo(api, "PUT", "/api/v1/settings")[0];
+        expect(put?.headers.get("X-Offerbound-Request")).toBe("1");
+        expect(await put?.json()).toEqual({
+          ...settings,
+          search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
+        });
+        expect(
+          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
+        ).toBeVisible();
+      },
+    );
 
-    it("after a successful save, coming back shows Continue and no Skip, whether or not the text was typed", async () => {
-      const { user } = setup({
-        "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
-      });
-      await skipTo(user, 2);
-      await typeText(
-        user,
-        await screen.findByRole("textbox", { name: "Search brief" }),
-        "Remote roles",
-      );
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
-      await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "after a successful save, coming back shows Continue and no Skip, whether or not the text was typed",
+      async () => {
+        const { user } = setup({
+          "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+        });
+        await skipTo(user, 2);
+        setValue(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
 
-      await user.click(screen.getByRole("button", { name: "Back" }));
-      expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
-      expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
-      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Back" }));
+        expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
+        expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
 
-      // Editing again offers to save the change, and still no Skip.
-      await typeText(user, screen.getByRole("textbox", { name: "Search brief" }), " in Mexico");
-      expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
-      expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Save and continue" }));
-      expect(
-        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-      ).toBeVisible();
-    });
+        // Editing again offers to save the change, and still no Skip.
+        setValue(screen.getByRole("textbox", { name: "Search brief" }), "Remote roles in Mexico");
+        expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Save and continue" }));
+        expect(
+          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
+        ).toBeVisible();
+      },
+    );
 
     it("starts with an empty field instead of the shipped example text", async () => {
       const { user } = setup();
@@ -755,8 +806,7 @@ describe("OnboardingPage", () => {
       const { user } = setup();
       await skipTo(user, 2);
       const field = await screen.findByRole("textbox", { name: "Search brief" });
-      await user.click(field);
-      await user.paste("a".repeat(12_001));
+      setValue(field, "a".repeat(12_001));
       expect(
         screen.getByText(/12,001 of 12,000 characters\. Shorten it to save\./),
       ).toBeInTheDocument();
@@ -769,11 +819,7 @@ describe("OnboardingPage", () => {
           apiError(502, "upstream_error", "The database didn't answer."),
       });
       await skipTo(user, 2);
-      await typeText(
-        user,
-        await screen.findByRole("textbox", { name: "Search brief" }),
-        "Remote roles",
-      );
+      setValue(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save your brief.");
       expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
@@ -781,46 +827,50 @@ describe("OnboardingPage", () => {
   });
 
   describe("the Gmail step", () => {
-    it("Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today", async () => {
-      let status = makeSyncStatus({ started: false, lastSyncAt: null });
-      const { api, user, queryClient } = setup({
-        "GET /api/v1/gmail/status": () => status,
-        "POST /api/v1/gmail/start": () => {
-          status = makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          });
-          return jsonResponse(status, 202);
-        },
-        "POST /api/v1/onboarding/complete": () => ME,
-      });
-      await skipTo(user, 3);
-      expect(screen.getByRole("list", { name: "What Offerbound reads" })).toBeInTheDocument();
+    // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
+    heavyIt(
+      "Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today",
+      async () => {
+        let status = makeSyncStatus({ started: false, lastSyncAt: null });
+        const { api, user, queryClient } = setup({
+          "GET /api/v1/gmail/status": () => status,
+          "POST /api/v1/gmail/start": () => {
+            status = makeSyncStatus({
+              started: true,
+              lastSyncAt: null,
+              backfill: { state: "running", listed: 400, processed: 120 },
+            });
+            return jsonResponse(status, 202);
+          },
+          "POST /api/v1/onboarding/complete": () => ME,
+        });
+        await skipTo(user, 3);
+        expect(screen.getByRole("list", { name: "What Offerbound reads" })).toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Start syncing" }));
+        await user.click(screen.getByRole("button", { name: "Start syncing" }));
 
-      const progress = await screen.findByText(/120 of 400 checked\./);
-      expect(progress).toBeInTheDocument();
-      expect(screen.getByRole("progressbar", { name: "First sync" })).toHaveAttribute(
-        "aria-valuenow",
-        "30",
-      );
-      const start = callsTo(api, "POST", "/api/v1/gmail/start")[0];
-      expect(start?.headers.get("X-Offerbound-Request")).toBe("1");
-      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
+        const progress = await screen.findByText(/120 of 400 checked\./);
+        expect(progress).toBeInTheDocument();
+        expect(screen.getByRole("progressbar", { name: "First sync" })).toHaveAttribute(
+          "aria-valuenow",
+          "30",
+        );
+        const start = callsTo(api, "POST", "/api/v1/gmail/start")[0];
+        expect(start?.headers.get("X-Offerbound-Request")).toBe("1");
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
 
-      // The next status check says the first sync is done.
-      status = makeSyncStatus({
-        started: true,
-        backfill: { state: "done", listed: 400, processed: 400 },
-      });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
+        // The next status check says the first sync is done.
+        status = makeSyncStatus({
+          started: true,
+          backfill: { state: "done", listed: 400, processed: 400 },
+        });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
 
-      expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
-      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
-      expect(queryClient.getQueryData(queryKeys.me)).toEqual(ME);
-    });
+        expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
+        expect(queryClient.getQueryData(queryKeys.me)).toEqual(ME);
+      },
+    );
 
     it("Go to Today finishes setup while the first sync is still running", async () => {
       const { api, user } = setup({
