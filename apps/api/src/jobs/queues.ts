@@ -77,7 +77,7 @@ export const QUEUE_CONFIG: Record<QueueName, QueueConfig> = {
   [QUEUES.emailTriage]: {
     policy: "singleton",
     retryLimit: 4,
-    retryDelay: 60,
+    retryDelay: 30,
     concurrency: 1,
     expireInSeconds: 600,
   },
