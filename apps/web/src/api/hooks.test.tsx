@@ -2,10 +2,11 @@ import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { makeApplicationDetail, makeEvent } from "../../test/factories";
 import { apiError, mockApi } from "../../test/mock-api";
 import { setUnauthorizedHandler } from "./client";
 import { createQueryClient } from "./query-client";
-import { useMe, useNavCounts, useSyncStatus } from "./hooks";
+import { queryKeys, useMe, useMergeApplication, useNavCounts, useSyncStatus } from "./hooks";
 
 function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -66,5 +67,29 @@ describe("useSyncStatus and useNavCounts", () => {
     const counts = renderHook(() => useNavCounts(), { wrapper: wrapper(client) });
     await waitFor(() => expect(status.result.current.isError).toBe(true));
     await waitFor(() => expect(counts.result.current.isError).toBe(true));
+  });
+});
+
+describe("useMergeApplication", () => {
+  it("answers with the target, keeps it in the cache and refreshes everything the merge touched", async () => {
+    const target = makeApplicationDetail({ id: "a2", timeline: [makeEvent({ type: "merged" })] });
+    mockApi({ "POST /api/v1/applications/a1/merge": () => target });
+    const client = createQueryClient();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useMergeApplication(), { wrapper: wrapper(client) });
+    result.current.mutate({ id: "a1", intoId: "a2" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(client.getQueryData(queryKeys.application("a2"))).toEqual(target);
+    for (const key of [
+      queryKeys.applicationLists,
+      queryKeys.today,
+      queryKeys.navCounts,
+      queryKeys.interviews,
+      // a lead linked to the source goes back to shortlisted (TECHNICAL_SPEC §6.6)
+      queryKeys.leadLists,
+      queryKeys.leadCounts,
+    ]) {
+      expect(invalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: key }));
+    }
   });
 });

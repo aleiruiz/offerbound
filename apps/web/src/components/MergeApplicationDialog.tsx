@@ -42,10 +42,8 @@ function Form({
     return () => clearTimeout(timer);
   }, [text]);
 
-  const search = useApplications(
-    { status: [], followUpDue: false, q, sort: "last_activity" },
-    { enabled: q !== "" },
-  );
+  // Without a search the picker offers the most recently active applications.
+  const search = useApplications({ status: [], followUpDue: false, q, sort: "last_activity" });
   const candidates = useMemo(
     () => (search.data?.pages.flatMap((p) => p.items) ?? []).filter((a) => a.id !== source.id),
     [search.data, source.id],
@@ -80,7 +78,7 @@ function Form({
           autoFocus
           fullWidth
         />
-        {q === "" ? null : search.isError ? (
+        {search.isError ? (
           <ErrorState
             what="applications"
             error={search.error}
