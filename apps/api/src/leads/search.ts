@@ -161,6 +161,28 @@ export async function registerSearchSchedule(
 
 type ExclusionGroup = { names: string[] };
 
+/** Longest company name sent in the exclusion list. */
+export const EXCLUSION_NAME_MAX_CHARS = 120;
+/** Most names sent in the exclusion list, over all groups. */
+export const EXCLUSION_MAX_NAMES = 200;
+
+/**
+ * A name that is safe to put in the prompt: control characters removed (including line and
+ * paragraph separators), trimmed, at most 120 characters and never ending on half a surrogate
+ * pair. Company names come from stored records and from model output, which is untrusted
+ * (SECURITY §9). Returns null when nothing is left.
+ */
+function cleanName(name: string): string | null {
+  let clean = name.replace(/[\p{Cc}\u2028\u2029]/gu, "").trim();
+  if (clean.length > EXCLUSION_NAME_MAX_CHARS) {
+    clean = clean.slice(0, EXCLUSION_NAME_MAX_CHARS);
+    const last = clean.charCodeAt(clean.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) clean = clean.slice(0, -1);
+    clean = clean.trim();
+  }
+  return clean === "" ? null : clean;
+}
+
 function sameName(a: string, b: string): boolean {
   return a.normalize("NFC").toLowerCase() === b.normalize("NFC").toLowerCase();
 }
@@ -169,8 +191,9 @@ function sameName(a: string, b: string): boolean {
  * Every company the owner has already seen: any company with a lead or application, plus the other
  * members of its corporate group, each with its name and aliases; one group per corporate group
  * (AC-10.3). `extra` holds company names returned by earlier rounds of this run that are not
- * stored (a dead posting's company), each its own group. Sorted, so the same data gives the same
- * prompt.
+ * stored (a dead posting's company), each its own group. Every name is cleaned (`cleanName`) and
+ * the list holds at most 200 names: stored groups come first, then `extra`, and later names are
+ * left out. Sorted, so the same data gives the same prompt.
  */
 async function buildExclusions(
   prisma: PrismaClient,
@@ -194,11 +217,32 @@ async function buildExclusions(
     byRoot.set(root, [...(byRoot.get(root) ?? []), company.name, ...company.aliases]);
   }
 
-  const groups: ExclusionGroup[] = [...byRoot.values()].map((names) => ({
-    names: [...new Set(names)].sort((a, b) => a.localeCompare(b)),
-  }));
+  let room = EXCLUSION_MAX_NAMES;
+  const groups: ExclusionGroup[] = [];
+  const take = (names: readonly string[]): ExclusionGroup | null => {
+    const cleaned = [...new Set(names.map(cleanName).filter((n): n is string => n !== null))]
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, room);
+    room -= cleaned.length;
+    return cleaned.length === 0 ? null : { names: cleaned };
+  };
+  const stored = [...byRoot.values()]
+    .map((names) => [...names].sort((a, b) => a.localeCompare(b)))
+    .sort((a, b) => (a[0] ?? "").localeCompare(b[0] ?? ""));
+  for (const names of stored) {
+    const group = take(names);
+    if (group !== null) groups.push(group);
+  }
   for (const name of extra) {
-    if (!groups.some((g) => g.names.some((n) => sameName(n, name)))) groups.push({ names: [name] });
+    const group = take([name]);
+    if (
+      group !== null &&
+      !groups.some((g) => g.names.some((n) => sameName(n, group.names[0] ?? "")))
+    ) {
+      groups.push(group);
+    } else if (group !== null) {
+      room += 1;
+    }
   }
   return groups.sort((a, b) => (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
 }
@@ -343,6 +387,10 @@ async function ingestRound(
 
 /** A short, content-free error for the run record (DATA_MODEL §3.12, SECURITY §4). */
 function describeError(error: unknown): string {
+  // The validation text names keys the model returned, so an invalid answer gets a fixed message.
+  if (error instanceof LlmError && error.code === "invalid_output") {
+    return "search_error: invalid_output";
+  }
   if (error instanceof LlmError) return `llm_${error.code}: ${error.message}`.slice(0, 300);
   return `search_error: ${error instanceof Error ? error.name : "unknown"}`;
 }
@@ -421,6 +469,13 @@ export async function runSearch(
     // Inside the try: a failed read closes the run as failed instead of leaving it `running`.
     settings ??= await getSettings(prisma);
     leadTarget = settings.search.leadTarget;
+    if (runId !== undefined) {
+      // The brief may have been edited since the run was requested: the hash is of the brief used.
+      await prisma.searchRun.update({
+        where: { id },
+        data: { briefHash: createHash("sha256").update(settings.search.brief).digest("hex") },
+      });
+    }
     const cvProfile = await getActiveProfile(prisma);
     let wanted = leadTarget.max;
     for (let round = 1; round <= maxRounds; round += 1) {
@@ -439,11 +494,14 @@ export async function runSearch(
         },
         { searchRunId: id },
       );
-      roundCompanies.push(...output.leads.map((lead) => lead.company));
+      // The answer is untrusted: never check more links than were asked for, nor more than the
+      // target maximum leaves room for (SECURITY §9). `returned` still counts what came back.
+      const taken = output.leads.slice(0, Math.max(0, Math.min(wanted, leadTarget.max - accepted)));
+      roundCompanies.push(...taken.map((lead) => lead.company));
 
-      const outcome = await ingestRound(ctx, id, round, output.leads, settings);
+      const outcome = await ingestRound(ctx, id, round, taken, settings);
       batchIds.push(outcome.batchId);
-      returned += outcome.returned;
+      returned += output.leads.length;
       accepted += outcome.accepted;
 
       const totals = await totalsOf(prisma, batchIds);
