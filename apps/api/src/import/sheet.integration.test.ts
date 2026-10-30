@@ -431,6 +431,63 @@ describe("POST /import/sheet/commit", () => {
     expect(await prisma.company.findFirst({ where: { name: "Birch Systems Example" } })).toBeNull();
   });
 
+  describe("rows with a role similar to an existing record's (word overlap of at least 0.6)", () => {
+    it("are skipped as existing: same words in another order at the same company", async () => {
+      await seedApplication("Acme Example", "Senior Backend Engineer");
+      const body = await preview(
+        csv(["Acme Example,Backend Engineer Senior,Mexico,Remote,2026-09-01,Applied,,,,"]),
+      );
+      expect(body.existingMatches).toBe(1);
+      expect(body.mappings).toEqual([]);
+
+      const summary = await commitOk(body.previewId);
+      expect(summary.applicationsCreated).toBe(0);
+      expect(summary.skippedExisting).toBe(1);
+      expect(await prisma.application.count()).toBe(1);
+    });
+
+    it("are skipped against an existing lead's title too", async () => {
+      await seedLead("Acme Example", "Senior Backend Engineer", "https://acme.example.test/jobs/1");
+      const body = await preview(
+        csv(["Acme Example,Backend Engineer Senior,Mexico,Remote,,To research,,,,"]),
+      );
+      expect(body.existingMatches).toBe(1);
+      expect(body.mappings).toEqual([]);
+    });
+
+    it("a different role at the same company is imported", async () => {
+      await seedApplication("Acme Example", "Senior Backend Engineer");
+      const body = await preview(
+        csv(["Acme Example,Product Designer,Mexico,Remote,2026-09-01,Applied,,,,"]),
+      );
+      expect(body.existingMatches).toBe(0);
+      const summary = await commitOk(body.previewId);
+      expect(summary.applicationsCreated).toBe(1);
+      expect(await prisma.application.count()).toBe(2);
+    });
+
+    it("the same title at a different company is imported", async () => {
+      await seedApplication("Acme Example", "Senior Backend Engineer");
+      const body = await preview(
+        csv(["Birch Systems Example,Senior Backend Engineer,Mexico,Remote,2026-09-01,Applied,,,,"]),
+      );
+      expect(body.existingMatches).toBe(0);
+      const summary = await commitOk(body.previewId);
+      expect(summary.applicationsCreated).toBe(1);
+    });
+
+    it("rows in the file that are only similar to each other are both kept", async () => {
+      const body = await preview(
+        csv([
+          "Acme Example,Senior Backend Engineer,Mexico,Remote,2026-09-01,Applied,,,,",
+          "Acme Example,Backend Engineer Senior,Mexico,Remote,2026-09-02,Applied,,,,",
+        ]),
+      );
+      expect(body.duplicatesInFile).toEqual([]);
+      expect(body.mappings.reduce((sum, m) => sum + m.rows, 0)).toBe(2);
+    });
+  });
+
   it("compares with the records again at commit, not as they were at preview", async () => {
     const body = await preview(
       csv(["Fir Logistics Example,SRE,Mexico,Remote,2026-09-01,Applied,,,,"]),

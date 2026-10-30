@@ -88,6 +88,15 @@ function roleJaccard(a: string | null, b: string): number {
   return shared / (setA.size + setB.size - shared);
 }
 
+/**
+ * Whether two role titles are close enough to be the same job: word-set Jaccard of at least 0.6,
+ * the test an email's role gets against an application's. Other callers (the sheet import) use
+ * it so both agree on what "similar" means.
+ */
+export function rolesSimilar(a: string, b: string): boolean {
+  return roleJaccard(a, b) >= ROLE_JACCARD_MIN;
+}
+
 function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
