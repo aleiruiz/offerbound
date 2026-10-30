@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiError, mockApi } from "../../test/mock-api";
 import { setUnauthorizedHandler } from "./client";
 import { createQueryClient } from "./query-client";
-import { useMe } from "./hooks";
+import { useMe, useNavCounts, useSyncStatus } from "./hooks";
 
 function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -52,5 +52,19 @@ describe("useMe", () => {
     const { result } = renderHook(() => useMe(), { wrapper: wrapper(createQueryClient()) });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(api.calls).toHaveLength(1);
+  });
+});
+
+describe("useSyncStatus and useNavCounts", () => {
+  it("fail on a response that does not match the schema", async () => {
+    mockApi({
+      "GET /api/v1/gmail/status": () => ({ connection: "unknown" }),
+      "GET /api/v1/nav-counts": () => ({ openReview: -1 }),
+    });
+    const client = createQueryClient();
+    const status = renderHook(() => useSyncStatus(), { wrapper: wrapper(client) });
+    const counts = renderHook(() => useNavCounts(), { wrapper: wrapper(client) });
+    await waitFor(() => expect(status.result.current.isError).toBe(true));
+    await waitFor(() => expect(counts.result.current.isError).toBe(true));
   });
 });

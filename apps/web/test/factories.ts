@@ -3,6 +3,8 @@ import type {
   InterviewWithApplication,
   Lead,
   MessageDetail,
+  NavCounts,
+  SyncStatus,
   TimelineEvent,
 } from "@offerbound/contracts";
 
@@ -125,6 +127,28 @@ export function makeMessage(overrides: Partial<MessageDetail> = {}): MessageDeta
     category: "interview_invite",
     bodyText: "Hello",
     toEmails: ["me@owner.example"],
+    ...overrides,
+  };
+}
+
+export function makeSyncStatus(overrides: Partial<SyncStatus> = {}): SyncStatus {
+  return {
+    connection: "active",
+    started: true,
+    lastSyncAt: "2026-10-30T11:58:00Z",
+    lastError: null,
+    backfill: { state: "done", listed: 400, processed: 400 },
+    queue: { discovered: 0, jobRelated: 0, extracted: 0, needsReview: 0, failed: 0 },
+    ...overrides,
+  };
+}
+
+export function makeNavCounts(overrides: Partial<NavCounts> = {}): NavCounts {
+  return {
+    openApplications: 20,
+    newLeads: 24,
+    upcomingInterviews: 3,
+    openReview: 4,
     ...overrides,
   };
 }
