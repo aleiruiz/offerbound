@@ -448,7 +448,7 @@ describe("OnboardingPage", () => {
         "What you see first: a preview with counts, rows with errors and duplicates in the file. Nothing is saved until you press Import.",
       );
       expect(items[3]).toHaveTextContent(
-        "Duplicates: rows that match records you already have are skipped, and the same file can't be imported twice.",
+        "Duplicates: rows that match records you already have are skipped, so the same file can be imported again.",
       );
       expect(items[4]).toHaveTextContent("Your spreadsheet: it isn't changed.");
 

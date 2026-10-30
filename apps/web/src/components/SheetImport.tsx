@@ -122,7 +122,7 @@ const EXPECTATIONS: readonly { lead: string; text: string }[] = [
   },
   {
     lead: "Duplicates:",
-    text: "rows that match records you already have are skipped, and the same file can't be imported twice.",
+    text: "rows that match records you already have are skipped, so the same file can be imported again.",
   },
   { lead: "Your spreadsheet:", text: "it isn't changed." },
 ];
