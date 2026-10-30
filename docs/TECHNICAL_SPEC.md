@@ -784,6 +784,7 @@ Routes: `/login`, `/onboarding` (steps: start syncing → CV → sheet import �
 | Domain unit | Vitest, table-driven | job keys, company normalisation and resolution, triage rules, status mapping/transitions, matching, `planChanges`, intake rules, timers, undo change sets |
 | API integration | Vitest + real Postgres (CI service; `compose.yaml` locally) | every endpoint's happy path and listed errors; auth guard; CSRF; version conflicts |
 | Pipeline integration | Fake Gmail client + `FakeLlmProvider` + fixtures | discovered → applied for every fixture; ordering watermark; idempotency (run twice); undo |
+| Journey integration | Vitest + real Postgres, the API through `inject` + the pipeline with fakes | `apps/api/src/journeys`: the owner's first run (sign in, Start syncing, sign in again mid-setup, backfill, review, sheet import twice, brief, finish setup, lead to application, new mail and undo); Gmail access lost, restored, disconnected and reconnected |
 | Web | Vitest + Testing Library | Today, application detail timeline + undo, review resolution, lead actions, onboarding |
 | Evaluation (live) | `pnpm eval:emails` | AC-17.4 bar on `fixtures/emails`; `pnpm eval:emails --private` reads `private/eval/` |
 | Demo smoke (1.1) | Playwright | demo loads, simulate email changes a status |
