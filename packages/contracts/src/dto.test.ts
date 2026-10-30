@@ -4,6 +4,7 @@ import {
   ApiErrorCodeSchema,
   ApplicationCreateSchema,
   ApplicationPatchSchema,
+  CvUploadResultSchema,
   DailyActivityBodySchema,
   EmailFixtureSchema,
   InterviewWithApplicationSchema,
@@ -11,6 +12,7 @@ import {
   PageSchema,
   ParsedMessageSchema,
   ReviewResolveSchema,
+  SheetCommitBodySchema,
   TodaySchema,
   TimelineEventSchema,
   type EmailFixture,
@@ -218,6 +220,37 @@ describe("mail and fixtures", () => {
         ...fixture,
         expected: { ...fixture.expected, outcome: "done" },
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe("onboarding request and response shapes", () => {
+  it("POST /import/sheet/commit takes only the preview id", () => {
+    expect(SheetCommitBodySchema.parse({ previewId: "p1" })).toEqual({ previewId: "p1" });
+    expect(SheetCommitBodySchema.safeParse({}).success).toBe(false);
+  });
+
+  it("POST /cv answers with a profile, or with profileStatus failed and no profile", () => {
+    const profile = {
+      headline: "Full-stack engineer",
+      yearsExperience: 8,
+      coreSkills: ["TypeScript"],
+      secondarySkills: [],
+      domains: [],
+      recentRoles: [{ title: "Engineer", company: "Tidewater Labs", years: "2020-2024" }],
+      leadership: null,
+      languages: ["English"],
+      location: null,
+      workAuthorization: null,
+    };
+    expect(CvUploadResultSchema.parse({ profileStatus: "ok", profile }).profile?.headline).toBe(
+      "Full-stack engineer",
+    );
+    expect(
+      CvUploadResultSchema.parse({ profileStatus: "failed", profile: null }).profile,
+    ).toBeNull();
+    expect(
+      CvUploadResultSchema.safeParse({ profileStatus: "pending", profile: null }).success,
     ).toBe(false);
   });
 });

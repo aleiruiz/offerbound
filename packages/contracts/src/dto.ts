@@ -23,7 +23,7 @@ import {
   VerificationSchema,
   WorkModeSchema,
 } from "./enums.js";
-import { CompensationSchema, ExtractionSchema, ReportLeadSchema } from "./llm.js";
+import { CompensationSchema, CvProfileSchema, ExtractionSchema, ReportLeadSchema } from "./llm.js";
 import { DailyTargetsSchema } from "./settings.js";
 
 // TECHNICAL_SPEC §10.2 DTOs and §10.1 request bodies.
@@ -446,6 +446,23 @@ export const ImportSummarySchema = z.object({
   errorRows: count,
 });
 export type ImportSummary = z.infer<typeof ImportSummarySchema>;
+
+/** `POST /import/sheet/commit` request body. */
+export const SheetCommitBodySchema = z.object({ previewId: id });
+export type SheetCommitBody = z.infer<typeof SheetCommitBodySchema>;
+
+// --- CV (TECHNICAL_SPEC §7.5, §10.1) ---
+
+/**
+ * Response of `POST /cv`: 201 with `profileStatus: "ok"` and the profile, or 202 with
+ * `profileStatus: "failed"` and `profile: null` when the profile step failed (the text is stored;
+ * `POST /cv/retry-profile` re-runs it and answers with a bare `CvProfile`).
+ */
+export const CvUploadResultSchema = z.object({
+  profileStatus: z.enum(["ok", "failed"]),
+  profile: CvProfileSchema.nullable(),
+});
+export type CvUploadResult = z.infer<typeof CvUploadResultSchema>;
 
 export const ReportRowAnnotationSchema = z.enum([
   "new",
