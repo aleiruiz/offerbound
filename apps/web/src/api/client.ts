@@ -28,9 +28,18 @@ export class ApiClientError extends Error {
 
 export interface ApiFetchInit<T> {
   method?: string;
+  /** A JSON request body. */
   body?: unknown;
-  schema?: ZodType<T>;
+  /** A multipart request body (file uploads); the browser sets the boundary header. */
+  formData?: FormData;
+  /** Validates the response body. A function picks the schema by HTTP status. */
+  schema?: ZodType<T> | ((status: number) => ZodType<T>);
   signal?: AbortSignal;
+}
+
+export interface ApiResponse<T> {
+  status: number;
+  data: T;
 }
 
 type UnauthorizedHandler = () => void;
@@ -57,11 +66,21 @@ async function readJson(res: Response): Promise<unknown> {
 }
 
 export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit<T> = {}): Promise<T> {
+  return (await apiFetchWithStatus(path, init)).data;
+}
+
+/** Like `apiFetch`, but also says which 2xx status answered (for routes whose body depends on it). */
+export async function apiFetchWithStatus<T = unknown>(
+  path: string,
+  init: ApiFetchInit<T> = {},
+): Promise<ApiResponse<T>> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (method !== "GET") headers["X-Offerbound-Request"] = "1";
-  let body: string | undefined;
-  if (init.body !== undefined) {
+  let body: string | FormData | undefined;
+  if (init.formData !== undefined) {
+    body = init.formData;
+  } else if (init.body !== undefined) {
     headers["Content-Type"] = "application/json";
     body = JSON.stringify(init.body);
   }
@@ -95,10 +114,11 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit<T> 
     throw error;
   }
 
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) return { status: res.status, data: undefined as T };
   const json = await readJson(res);
-  if (!init.schema) return json as T;
-  const parsed = init.schema.safeParse(json);
+  const schema = typeof init.schema === "function" ? init.schema(res.status) : init.schema;
+  if (!schema) return { status: res.status, data: json as T };
+  const parsed = schema.safeParse(json);
   if (!parsed.success) {
     throw new ApiClientError({
       status: res.status,
@@ -107,5 +127,5 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit<T> 
       body: json,
     });
   }
-  return parsed.data;
+  return { status: res.status, data: parsed.data };
 }

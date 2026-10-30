@@ -76,6 +76,23 @@ describe("UndoSnackbar", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
+  it("says the record changed elsewhere on a version conflict", async () => {
+    const user = userEvent.setup();
+    const err = new ApiClientError({ status: 409, code: "version_conflict", message: "Stale." });
+    renderWithProviders(
+      <>
+        <Trigger onUndo={() => Promise.reject(err)} />
+        <UndoSnackbar />
+      </>,
+    );
+    await user.click(screen.getByRole("button", { name: "Go" }));
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(
+      await screen.findByText("Can't undo: changes were made elsewhere. Reload to see the latest."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
   it("shows a message without an action when there is nothing to undo", async () => {
     const user = userEvent.setup();
     renderWithProviders(

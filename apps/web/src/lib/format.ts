@@ -121,3 +121,17 @@ export function formatCompensation(c: Lead["compensation"]): string | null {
   }
   return `${body}${period}`;
 }
+
+/** "Thursday, October 29" for an owner-local calendar day written as `YYYY-MM-DD`; null otherwise. */
+export function formatLongDay(day: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const date = new Date(`${day}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return formatter("UTC", { weekday: "long", month: "long", day: "numeric" }).format(date);
+}
+
+/** "Monterrey" for `America/Monterrey`: the city part of an IANA zone, for "midnight, Monterrey time". */
+export function zoneCity(tz: string): string {
+  const name = tz.split("/").pop() ?? tz;
+  return name.replace(/_/g, " ");
+}

@@ -447,6 +447,23 @@ export const ImportSummarySchema = z.object({
 });
 export type ImportSummary = z.infer<typeof ImportSummarySchema>;
 
+/** `POST /import/sheet/commit` request body. */
+export const SheetCommitBodySchema = z.object({ previewId: id });
+export type SheetCommitBody = z.infer<typeof SheetCommitBodySchema>;
+
+// --- CV (TECHNICAL_SPEC §7.5, §10.1) ---
+
+/**
+ * The 202 body of `POST /cv` (TECHNICAL_SPEC §10.1): the text was stored but the profile step
+ * failed. A success is a 201 with a bare `CvProfile`; the status code tells the two apart.
+ * `POST /cv/retry-profile` re-runs the profile step and answers with a bare `CvProfile`.
+ */
+export const CvUploadFailedSchema = z.object({
+  profileStatus: z.literal("failed"),
+  profile: z.null(),
+});
+export type CvUploadFailed = z.infer<typeof CvUploadFailedSchema>;
+
 export const ReportRowAnnotationSchema = z.enum([
   "new",
   "duplicate",

@@ -44,11 +44,49 @@ describe("routing and session", () => {
     ["/interviews", "Interviews"],
     ["/review", "Review"],
     ["/settings/gmail", "Settings"],
-    ["/onboarding", "Onboarding"],
   ])("%s renders its page title as the h1", async (route, title) => {
     mockSignedIn();
     renderWithProviders(<App />, { route });
     expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+  });
+
+  it("an owner who has not finished onboarding is sent to /onboarding from any page", async () => {
+    mockApi({
+      "GET /api/v1/me": () => ({ ...me, onboardingCompleted: false }),
+      "GET /api/v1/gmail/status": () => makeSyncStatus({ started: false, lastSyncAt: null }),
+    });
+    renderWithProviders(<App />, { route: "/applications" });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Set up Offerbound" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Main" })).not.toBeInTheDocument();
+  });
+
+  it("the public demo is never sent to onboarding", async () => {
+    mockApi({
+      "GET /api/v1/me": () => ({ ...me, mode: "demo", email: null, onboardingCompleted: false }),
+      "GET /api/v1/gmail/status": () => makeSyncStatus(),
+      "GET /api/v1/nav-counts": () => makeNavCounts(),
+    });
+    renderWithProviders(<App />, { route: "/today" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+  });
+
+  it("an owner who has finished onboarding is sent from /onboarding to /today", async () => {
+    mockSignedIn();
+    renderWithProviders(<App />, { route: "/onboarding" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Set up Offerbound" })).not.toBeInTheDocument();
+  });
+
+  it("a demo visitor opening /onboarding is sent to /today", async () => {
+    mockApi({
+      "GET /api/v1/me": () => ({ ...me, mode: "demo", email: null, onboardingCompleted: false }),
+      "GET /api/v1/gmail/status": () => makeSyncStatus(),
+      "GET /api/v1/nav-counts": () => makeNavCounts(),
+    });
+    renderWithProviders(<App />, { route: "/onboarding" });
+    expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
   });
 
   it("shows an error with Try again when /me fails with a server error", async () => {

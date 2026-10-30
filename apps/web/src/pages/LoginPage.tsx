@@ -7,8 +7,8 @@ import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router";
+import { GOOGLE_START_PATH } from "../api/paths";
 
-const SIGN_IN_URL = "/api/v1/auth/google/start";
 const DEMO_URL = "https://offerbound.northsoftmx.com";
 
 // Colours of the identity band and route line (DESIGN_SPEC §5.9, Login.dc.html).
@@ -231,7 +231,7 @@ export function LoginPage() {
           {expired && <Alert severity="error">Sign-in took too long. Try again.</Alert>}
           <Button
             component="a"
-            href={SIGN_IN_URL}
+            href={GOOGLE_START_PATH}
             variant="contained"
             fullWidth
             sx={{ height: 48, px: 3, fontSize: 16, lineHeight: "22px", fontWeight: 700 }}

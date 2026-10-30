@@ -228,7 +228,12 @@ describe("AppShell nav badges", () => {
     await waitFor(() =>
       expect(queryClient.getQueryState(queryKeys.navCounts)?.status).toBe("success"),
     );
+    // Let React render the loaded counts before asserting that nothing was drawn for them.
+    await act(async () => {
+      await Promise.resolve();
+    });
     const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(within(nav).queryByText("0")).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Review" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Leads" })).toBeInTheDocument();
   });

@@ -1,7 +1,8 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../../test/render";
-import { PipelineRoute } from "./PipelineRoute";
+import { PipelineRoute, type PipelineRouteProps } from "./PipelineRoute";
 
 const byStatus = {
   applied: 12,
@@ -14,6 +15,8 @@ const byStatus = {
   withdrawn: 1,
   abandoned: 3,
 };
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("PipelineRoute", () => {
   it("links each stop to /applications?status=<s>, draws a hollow stop for 0, and shows the Closed branch counts", () => {
@@ -61,6 +64,35 @@ describe("PipelineRoute", () => {
     expect(marker).toHaveStyle({ transition: "left 400ms ease-out" });
     await waitFor(() => expect(marker.style.left).toBe("70%"));
     expect(marker).toHaveAttribute("data-stop", "interviewing");
+  });
+
+  it("a second movement starts again from its own old stop", () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
+    const flush = () =>
+      act(() => {
+        frames.splice(0).forEach((cb) => cb(0));
+      });
+    let move: (m: PipelineRouteProps["movement"]) => void = () => undefined;
+    function Harness() {
+      const [movement, setMovement] = useState<PipelineRouteProps["movement"]>({
+        from: "applied",
+        to: "screening",
+        key: "first",
+      });
+      move = setMovement;
+      return <PipelineRoute byStatus={byStatus} movement={movement} />;
+    }
+    renderWithProviders(<Harness />);
+    expect(screen.getByTestId("route-marker").style.left).toBe("10%");
+    flush();
+    expect(screen.getByTestId("route-marker").style.left).toBe("30%");
+
+    // Without a new key the marker would keep its element and start from Screening.
+    act(() => move({ from: "assessment", to: "interviewing", key: "second" }));
+    expect(screen.getByTestId("route-marker").style.left).toBe("50%");
+    flush();
+    expect(screen.getByTestId("route-marker").style.left).toBe("70%");
   });
 
   it("jumps under reduced motion", () => {
