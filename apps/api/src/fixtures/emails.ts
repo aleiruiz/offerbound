@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import { EmailFixtureSchema, type EmailFixture } from "@offerbound/contracts";
+import { repoRoot } from "./root.js";
 
 /** The fictional owner address every fixture is sent to (or from, when outbound). Also in the README. */
 export const FIXTURE_OWNER_EMAIL = "mateo.salgado@owner.example";
@@ -42,17 +42,6 @@ export const FIXTURE_SEED_APPLICATIONS: readonly FixtureSeedApplication[] = [
     appliedOn: "2026-09-12",
   },
 ];
-
-/** Walks up from this file to the directory that holds pnpm-workspace.yaml. */
-function repoRoot(): string {
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) throw new Error("Could not find the repository root (pnpm-workspace.yaml)");
-    dir = parent;
-  }
-}
 
 /**
  * Reads every `*.json` file directly inside `dir` (a relative `dir` is resolved from the
