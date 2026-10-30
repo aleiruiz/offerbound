@@ -6,6 +6,8 @@ import {
   formatRelative,
   formatShortDate,
   formatTime,
+  localDayKey,
+  localMidnightIso,
   zoneCity,
 } from "./format";
 
@@ -98,5 +100,25 @@ describe("formatLongDay and zoneCity", () => {
     expect(zoneCity("America/Monterrey")).toBe("Monterrey");
     expect(zoneCity("America/Mexico_City")).toBe("Mexico City");
     expect(zoneCity("UTC")).toBe("UTC");
+  });
+});
+
+describe("localMidnightIso", () => {
+  it("is the instant a calendar day begins in the owner's zone (UTC-6 all year in Monterrey)", () => {
+    expect(localMidnightIso("2026-10-05", TZ)).toBe("2026-10-05T06:00:00.000Z");
+    expect(localMidnightIso("2026-01-15", TZ)).toBe("2026-01-15T06:00:00.000Z");
+    expect(localDayKey(localMidnightIso("2026-10-05", TZ)!, TZ)).toBe("2026-10-05");
+  });
+
+  it("follows a zone that observes daylight saving time", () => {
+    expect(localMidnightIso("2026-07-01", "America/New_York")).toBe("2026-07-01T04:00:00.000Z");
+    expect(localMidnightIso("2026-12-01", "America/New_York")).toBe("2026-12-01T05:00:00.000Z");
+    expect(localMidnightIso("2026-07-01", "Europe/Madrid")).toBe("2026-06-30T22:00:00.000Z");
+  });
+
+  it("is null for anything that is not a calendar day", () => {
+    expect(localMidnightIso("", TZ)).toBeNull();
+    expect(localMidnightIso("2026-13-40", TZ)).toBeNull();
+    expect(localMidnightIso("Oct 5", TZ)).toBeNull();
   });
 });

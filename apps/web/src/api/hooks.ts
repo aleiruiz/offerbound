@@ -1,5 +1,6 @@
 import {
   ApplicationDetailSchema,
+  ApplicationSummarySchema,
   CvProfileSchema,
   CvUploadFailedSchema,
   DailyCountsSchema,
@@ -8,11 +9,17 @@ import {
   MeSchema,
   MessageDetailSchema,
   NavCountsSchema,
+  PageSchema,
   SearchRunSchema,
   SettingsSchema,
   SheetPreviewSchema,
   SyncStatusSchema,
   TodaySchema,
+  UndoResultSchema,
+  type ApplicationCreate,
+  type ApplicationDetail,
+  type ApplicationPatch,
+  type ApplicationStatus,
   type ApplicationSummary,
   type CvProfile,
   type DailyActivityBody,
@@ -20,12 +27,24 @@ import {
   type Settings,
   type Today,
 } from "@offerbound/contracts";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { DEFAULT_TIMEZONE } from "../lib/format";
 import { ApiClientError, apiFetch, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
+  /** Every applications query: lists and details. */
+  applications: ["applications"] as const,
+  applicationList: (filters: ApplicationFilters) => ["applications", "list", filters] as const,
+  applicationLists: ["applications", "list"] as const,
+  application: (id: string) => ["applications", "detail", id] as const,
+  reviewItems: ["review-items"] as const,
   message: (id: string) => ["message", id] as const,
   syncStatus: ["sync-status"] as const,
   navCounts: ["nav-counts"] as const,
@@ -283,5 +302,196 @@ export function useSetLeadStatus() {
     onError: async (error) => {
       if (error instanceof ApiClientError && error.code === "version_conflict") await refresh();
     },
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Applications
+
+export type ApplicationSort = "last_activity" | "applied" | "status";
+
+/** What the Applications list asks for (AC-6.1). An empty `status` list means every status. */
+export interface ApplicationFilters {
+  status: ApplicationStatus[];
+  followUpDue: boolean;
+  q: string;
+  sort: ApplicationSort;
+}
+
+export const APPLICATIONS_PAGE_SIZE = 25;
+
+function applicationsQuery(filters: ApplicationFilters, cursor: string | null): string {
+  const params = new URLSearchParams();
+  for (const status of filters.status) params.append("status", status);
+  if (filters.followUpDue) params.set("followUpDue", "true");
+  const q = filters.q.trim();
+  if (q !== "") params.set("q", q);
+  params.set("sort", filters.sort);
+  params.set("limit", String(APPLICATIONS_PAGE_SIZE));
+  if (cursor !== null) params.set("cursor", cursor);
+  return params.toString();
+}
+
+/** `GET /applications`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useApplications(filters: ApplicationFilters, options: { enabled?: boolean } = {}) {
+  return useInfiniteQuery({
+    enabled: options.enabled ?? true,
+    queryKey: queryKeys.applicationList(filters),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      apiFetch(`/applications?${applicationsQuery(filters, pageParam)}`, {
+        schema: PageSchema(ApplicationSummarySchema),
+        signal,
+      }),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+/**
+ * The count behind each status chip: the pipeline totals of `GET /today`. It shares Today's cache
+ * but does not poll, because the Applications page does not refresh by itself.
+ */
+export function usePipelineCounts() {
+  return useQuery({
+    queryKey: queryKeys.today,
+    queryFn: ({ signal }) => apiFetch("/today", { schema: TodaySchema, signal }),
+    select: (today) => today.pipeline.byStatus,
+  });
+}
+
+/** `GET /applications/:id`: the record, its interviews, emails and timeline. */
+export function useApplication(id: string) {
+  return useQuery({
+    queryKey: queryKeys.application(id),
+    queryFn: ({ signal }) =>
+      apiFetch(`/applications/${encodeURIComponent(id)}`, {
+        schema: ApplicationDetailSchema,
+        signal,
+      }),
+  });
+}
+
+/** What a mutation reports back to the screen. Passed to the hook, never to `mutate`. */
+export interface MutationCallbacks<TData, TVariables> {
+  onSuccess?: (data: TData, variables: TVariables) => void;
+  onError?: (error: Error, variables: TVariables) => void;
+}
+
+export function isApiError(error: unknown, code: string): boolean {
+  return error instanceof ApiClientError && error.code === code;
+}
+
+/** Everything a change to an application can alter: the lists, Today and the navigation badges. */
+function refreshAfterApplicationChange(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.applicationLists }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+  ]);
+}
+
+/** `POST /applications`: add an application by hand (AC-6.3). */
+export function useCreateApplication(
+  callbacks: MutationCallbacks<ApplicationDetail, ApplicationCreate> = {},
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ApplicationCreate) =>
+      apiFetch("/applications", { method: "POST", body, schema: ApplicationDetailSchema }),
+    onSuccess: async (detail, body) => {
+      queryClient.setQueryData(queryKeys.application(detail.id), detail);
+      await refreshAfterApplicationChange(queryClient);
+      callbacks.onSuccess?.(detail, body);
+    },
+    onError: callbacks.onError,
+  });
+}
+
+export interface ApplicationUpdate {
+  application: Pick<ApplicationSummary, "id" | "version">;
+  patch: Omit<ApplicationPatch, "version">;
+}
+
+/**
+ * `PATCH /applications/:id` with the record's `version`. A `409 version_conflict` means it changed
+ * elsewhere: the record and the lists are fetched again before `onError` hears of it, so the
+ * screen shows the fresh record and the next try carries the fresh version (TECHNICAL_SPEC §11).
+ */
+export function useUpdateApplication(
+  callbacks: MutationCallbacks<ApplicationDetail, ApplicationUpdate> = {},
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ application, patch }: ApplicationUpdate) =>
+      apiFetch(`/applications/${encodeURIComponent(application.id)}`, {
+        method: "PATCH",
+        body: { ...patch, version: application.version },
+        schema: ApplicationDetailSchema,
+      }),
+    onSuccess: async (detail, update) => {
+      queryClient.setQueryData(queryKeys.application(detail.id), detail);
+      await refreshAfterApplicationChange(queryClient);
+      callbacks.onSuccess?.(detail, update);
+    },
+    onError: async (error, update) => {
+      if (isApiError(error, "version_conflict")) {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: queryKeys.application(update.application.id) }),
+          refreshAfterApplicationChange(queryClient),
+        ]);
+      }
+      callbacks.onError?.(error, update);
+    },
+  });
+}
+
+/** `POST /events/:id/undo`: undo an automatic change (AC-4.3). Everything it touched is fetched again. */
+export function useUndoEvent(callbacks: MutationCallbacks<{ undone: true }, string> = {}) {
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+    ]);
+  return useMutation({
+    mutationFn: (eventId: string) =>
+      apiFetch(`/events/${encodeURIComponent(eventId)}/undo`, {
+        method: "POST",
+        schema: UndoResultSchema,
+      }),
+    onSuccess: async (result, eventId) => {
+      await refresh();
+      callbacks.onSuccess?.(result, eventId);
+    },
+    onError: async (error, eventId) => {
+      // `changed_since` or a version conflict: show the record as it is now, with its entries' flags.
+      if (isApiError(error, "changed_since") || isApiError(error, "version_conflict")) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.applications });
+      }
+      callbacks.onError?.(error, eventId);
+    },
+  });
+}
+
+/** `POST /applications/:id/merge`: fold one application into another; the answer is the target. */
+export function useMergeApplication(
+  callbacks: MutationCallbacks<ApplicationDetail, { id: string; intoId: string }> = {},
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, intoId }: { id: string; intoId: string }) =>
+      apiFetch(`/applications/${encodeURIComponent(id)}/merge`, {
+        method: "POST",
+        body: { intoId },
+        schema: ApplicationDetailSchema,
+      }),
+    onSuccess: async (target, variables) => {
+      queryClient.setQueryData(queryKeys.application(target.id), target);
+      await refreshAfterApplicationChange(queryClient);
+      callbacks.onSuccess?.(target, variables);
+    },
+    onError: callbacks.onError,
   });
 }
