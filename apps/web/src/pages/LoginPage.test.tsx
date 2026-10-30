@@ -1,12 +1,13 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import lockupDark from "../assets/brand/lockup-dark.svg";
 import { renderWithProviders } from "../../test/render";
 import { LoginPage } from "./LoginPage";
 
 describe("LoginPage", () => {
   it("the sign-in page renders the wordmark, 'Welcome back' and one 'Sign in with Google' link to /api/v1/auth/google/start", () => {
     renderWithProviders(<LoginPage />, { route: "/login" });
-    expect(screen.getByText("Offerbound")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupDark);
     expect(
       screen.getByText(
         /Every application, interview and lead, kept current from your inbox\. Next stop: the offer\./,

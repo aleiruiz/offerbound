@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../api/hooks";
 import { makeNavCounts, makeSyncStatus } from "../../test/factories";
 import { mockApi } from "../../test/mock-api";
+import lockupLight from "../assets/brand/lockup.svg";
+import markLight from "../assets/brand/mark.svg";
 import { renderWithProviders } from "../../test/render";
 import { AppShell } from "./AppShell";
 
@@ -67,6 +69,27 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toContainElement(
       screen.getByRole("heading", { name: "Today" }),
     );
+  });
+
+  it("shows the Offerbound lockup in the drawer header, in the theme's variant", () => {
+    renderShell(1000);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    expect(within(nav).getByRole("img", { name: "Offerbound" })).toHaveAttribute(
+      "src",
+      lockupLight,
+    );
+  });
+
+  it("shows the mark in the rail and in the phone top bar, both named Offerbound", () => {
+    const rail = renderShell(700);
+    expect(
+      within(screen.getByRole("navigation", { name: "Main" })).getByRole("img", {
+        name: "Offerbound",
+      }),
+    ).toHaveAttribute("src", markLight);
+    rail.unmount();
+    renderShell(400);
+    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", markLight);
   });
 
   it("at sm width the rail shows all six destinations as icon links with accessible names", () => {

@@ -12,6 +12,7 @@ import {
   type MockApi,
   type MockHandler,
 } from "../../test/mock-api";
+import lockupLight from "../assets/brand/lockup.svg";
 import { renderWithProviders } from "../../test/render";
 import { queryKeys } from "../api/hooks";
 import { OnboardingPage } from "./OnboardingPage";
@@ -130,6 +131,7 @@ describe("OnboardingPage", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
     const steps = screen.getByLabelText("Setup steps");
     for (const name of [
       "Upload your CV",
