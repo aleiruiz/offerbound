@@ -178,6 +178,18 @@ describe("checkLink", () => {
     }
   });
 
+  it("a board root carrying the tracking parameters of TECHNICAL_SPEC §6.1 is still a root", async () => {
+    for (const finalUrl of [
+      "https://jobs.lever.co/quarry?lever-source=feed",
+      "https://jobs.ashbyhq.com/quarry?refId=a1B2c3",
+      "https://jobs.ashbyhq.com/quarry?trackingId=Zx9fQ2lT&refId=a1B2c3",
+      "https://boards.greenhouse.io/quarry?gh_src=abc&src=mail&trk=x&source=li",
+    ]) {
+      const { fetch } = stubFetcher({ finalUrl });
+      expect((await checkLink(URL_OK, fetch)).verdict, finalUrl).toBe("dead");
+    }
+  });
+
   it("a company page on its own domain is not a board root", async () => {
     const { fetch } = stubFetcher({ finalUrl: "https://quarry.example/careers" });
     expect((await checkLink(URL_OK, fetch)).verdict).toBe("verified");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { atsSlug, jobKey } from "./job-key.js";
+import { atsSlug, isTrackingParam, jobKey } from "./job-key.js";
 
 const ASHBY = "1b2c3d4e-0000-4000-8000-000000000001";
 const LEVER = "0a1b2c3d-1111-4111-8111-111111111111";
@@ -249,5 +249,31 @@ describe("atsSlug", () => {
     ["not a url", null],
   ])("%s -> %s", (input, expected) => {
     expect(atsSlug(input)).toBe(expected);
+  });
+});
+
+describe("isTrackingParam", () => {
+  it("knows every tracking parameter of TECHNICAL_SPEC §6.1, in any letter case", () => {
+    for (const name of [
+      "utm_source",
+      "UTM_Campaign",
+      "gh_src",
+      "lever-source",
+      "source",
+      "ref",
+      "refId",
+      "REFID",
+      "trk",
+      "trackingId",
+      "src",
+    ]) {
+      expect(isTrackingParam(name), name).toBe(true);
+    }
+  });
+
+  it("does not treat a parameter that can name a posting as tracking", () => {
+    for (const name of ["gh_jid", "jk", "currentJobId", "id", "job-id", "lng"]) {
+      expect(isTrackingParam(name), name).toBe(false);
+    }
   });
 });
