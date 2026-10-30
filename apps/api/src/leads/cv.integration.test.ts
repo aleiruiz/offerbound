@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import { readFileSync } from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { Writable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -325,6 +327,48 @@ describe("authentication", () => {
     expect(await prisma.candidateProfile.count()).toBe(0);
   });
 
+  it("an unauthenticated POST is answered while its body is still unsent (the body is never read first)", async () => {
+    // A real socket: the request headers go out, the multipart body never ends. If anything read
+    // the body before the session check, the 401 would not arrive until the upload finished.
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = app.server.address() as AddressInfo;
+    let req: http.ClientRequest | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    let status: number;
+    try {
+      status = await new Promise<number>((resolve, reject) => {
+        // If the body were read first, no response would come: give up with 0, not a hook timeout.
+        timer = setTimeout(() => resolve(0), 3000);
+        req = http.request(
+          {
+            host: "127.0.0.1",
+            port,
+            method: "POST",
+            path: "/api/v1/cv",
+            headers: {
+              ...CSRF,
+              "content-type": "multipart/form-data; boundary=x",
+              "content-length": String(1024 * 1024),
+            },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code !== "ECONNRESET") reject(error);
+        });
+        req.write("--x\r\n"); // headers sent, body deliberately left open
+      });
+    } finally {
+      clearTimeout(timer);
+      req?.destroy();
+    }
+    expect(status).toBe(401);
+    expect(await prisma.candidateProfile.count()).toBe(0);
+  });
+
   it("an unauthenticated upload of a valid file → 401 and nothing is stored or sent to the model", async () => {
     const { payload, headers } = multipart("cv.pdf", PDF_MIME, fixture("cv.pdf"));
     const res = await app.inject({ method: "POST", url: "/api/v1/cv", headers, payload });
@@ -377,6 +421,29 @@ describe("GET /cv and retry-profile", () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/cv", headers: { cookie } });
     expect(res.statusCode).toBe(200);
     expect(CvProfileSchema.parse(res.json())).toEqual(PROFILE);
+  });
+
+  it("GET /cv with a stored profile that no longer parses → 200 null, not a 400", async () => {
+    await prisma.candidateProfile.create({
+      data: {
+        fileName: "cv.pdf",
+        mimeType: PDF_MIME,
+        sizeBytes: 10,
+        textContent: "text",
+        profile: { headline: 42, unexpected: true },
+        profileStatus: "ok",
+        model: "m",
+        isActive: true,
+      },
+    });
+    const res = await app.inject({ method: "GET", url: "/api/v1/cv", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toBeNull();
+    // The case is visible in the log, without any of the stored content.
+    const log = logged.join("");
+    expect(log).toContain("stored cv profile does not match the schema");
+    expect(log).not.toContain("unexpected");
+    expect(log).not.toContain("headline");
   });
 
   it("retry-profile with no CV → 404 not_found", async () => {
