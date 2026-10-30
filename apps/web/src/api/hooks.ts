@@ -10,6 +10,7 @@ import {
   MessageDetailSchema,
   NavCountsSchema,
   PageSchema,
+  ReviewItemSchema,
   SearchRunSchema,
   SearchRunsSchema,
   SettingsSchema,
@@ -27,6 +28,8 @@ import {
   type Lead,
   type SearchRun,
   type LeadStatus,
+  type ReviewItem,
+  type ReviewResolve,
   type Settings,
   type Today,
 } from "@offerbound/contracts";
@@ -48,7 +51,9 @@ export const queryKeys = {
   applicationList: (filters: ApplicationFilters) => ["applications", "list", filters] as const,
   applicationLists: ["applications", "list"] as const,
   application: (id: string) => ["applications", "detail", id] as const,
+  /** Every review query: the Open and Resolved lists. */
   reviewItems: ["review-items"] as const,
+  reviewList: (state: ReviewListState) => ["review-items", "list", state] as const,
   /** Every leads query: lists and the counts behind the tabs. */
   leads: ["leads"] as const,
   leadLists: ["leads", "list"] as const,
@@ -681,5 +686,76 @@ export function useMergeApplication(
       callbacks.onSuccess?.(target, variables);
     },
     onError: callbacks.onError,
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Review
+
+export type ReviewListState = "open" | "resolved";
+
+export const REVIEW_PAGE_SIZE = 25;
+
+/** `GET /review-items`: one page at a time; `fetchNextPage` follows the cursor (*Show more*). */
+export function useReviewItems(state: ReviewListState) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.reviewList(state),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({ state, limit: String(REVIEW_PAGE_SIZE) });
+      if (pageParam !== null) params.set("cursor", pageParam);
+      return apiFetch(`/review-items?${params.toString()}`, {
+        schema: PageSchema(ReviewItemSchema),
+        signal,
+      });
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export interface ReviewResolution {
+  item: Pick<ReviewItem, "id" | "kind">;
+  resolve: ReviewResolve;
+}
+
+/**
+ * `POST /review-items/:id/resolve` (AC-5.3): the owner's choice runs through the same code path as
+ * an automatic change, so it can touch applications, interviews, companies and leads. All of them,
+ * Today and the badges are fetched again. A 409 means the item or what it points at changed
+ * elsewhere: the lists are fetched again before `onError` hears of it.
+ */
+export function useResolveReviewItem(
+  callbacks: MutationCallbacks<ReviewItem, ReviewResolution> = {},
+) {
+  const queryClient = useQueryClient();
+  const refreshReview = () => queryClient.invalidateQueries({ queryKey: queryKeys.reviewItems });
+  return useMutation({
+    mutationFn: ({ item, resolve }: ReviewResolution) =>
+      apiFetch(`/review-items/${encodeURIComponent(item.id)}/resolve`, {
+        method: "POST",
+        body: resolve,
+        schema: ReviewItemSchema,
+      }),
+    onSuccess: async (resolved, variables) => {
+      // Tab counts of the Leads page (a merge can suppress leads) follow in the background.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.leadCounts });
+      await Promise.all([
+        refreshReview(),
+        queryClient.invalidateQueries({ queryKey: queryKeys.applications }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.leadLists }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+      ]);
+      callbacks.onSuccess?.(resolved, variables);
+    },
+    onError: async (error, variables) => {
+      if (error instanceof ApiClientError && error.status === 409) {
+        await Promise.all([
+          refreshReview(),
+          queryClient.invalidateQueries({ queryKey: queryKeys.navCounts }),
+        ]);
+      }
+      callbacks.onError?.(error, variables);
+    },
   });
 }
