@@ -17,6 +17,8 @@ import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
+import { runBackup, type BackupDeps } from "../ops/backup.js";
+import { runMaintenance } from "../ops/maintenance.js";
 import { runTimersTick } from "../timers/tick.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
@@ -243,14 +245,25 @@ const emailApply: JobHandler = async (ctx) => {
   await applyEligibleMessages(ctx);
 };
 
+/** `backup.nightly`: a failed dump throws, so pg-boss retries it (twice, §9). */
+export function backupNightlyHandler(deps: BackupDeps = {}): JobHandler {
+  return async (ctx) => {
+    await runBackup(ctx, ctx.clock(), deps);
+  };
+}
+
+/** `maintenance.daily`: expired sessions and previews, old `llm_call` rows. */
+const maintenanceDaily: JobHandler = async (ctx) => {
+  await runMaintenance(ctx, ctx.clock());
+};
+
 /** `timers.tick`, every 15 minutes (§6.7): follow-ups, abandonment and interview completion. */
 const timersTick: JobHandler = async (ctx) => {
   await runTimersTick(ctx);
 };
 
 /**
- * The handlers registered so far, by queue. Later tasks add theirs here (apply, leads,
- * timers, maintenance). A queue without a handler is created but not consumed.
+ * The handlers registered, by queue. A queue without a handler is created but not consumed.
  */
 export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.gmailSync]: gmailSync,
@@ -261,6 +274,8 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
+  [QUEUES.backupNightly]: backupNightlyHandler(),
+  [QUEUES.maintenanceDaily]: maintenanceDaily,
   [QUEUES.timersTick]: timersTick,
 };
 
