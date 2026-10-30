@@ -7,6 +7,7 @@ import {
   makeApplication,
   makeInterview,
   makeLead,
+  makeNavCounts,
   makeSyncStatus,
   makeToday,
 } from "../../test/factories";
@@ -157,7 +158,7 @@ describe("TodayPage", () => {
       "/applications/a1",
     );
     expect(
-      within(followUps).getByText(/After 14 days without a reply, an application is marked/),
+      await within(followUps).findByText(/After 14 days without a reply, an application is marked/),
     ).toBeInTheDocument();
 
     // Review: the first items and a link to the queue.
@@ -337,6 +338,67 @@ describe("TodayPage", () => {
     });
   });
 
+  describe("a lead that changed elsewhere (409 version_conflict)", () => {
+    it("refreshes Today, says so, and the next try carries the fresh version", async () => {
+      let fresh = false;
+      let reject = true;
+      const { api, user } = setup({
+        "GET /api/v1/today": () => makeToday({ topLeads: [makeLead({ version: fresh ? 2 : 1 })] }),
+        "PATCH /api/v1/leads/l1": () => {
+          if (reject) {
+            fresh = true;
+            reject = false;
+            return apiError(409, "version_conflict", "The lead changed.");
+          }
+          return makeLead({ status: "shortlisted", version: 3 });
+        },
+      });
+      await loaded();
+      const todayCalls = () => callsTo(api, "GET", "/api/v1/today").length;
+      const before = todayCalls();
+      await user.click(within(section("Top new leads")).getByRole("button", { name: "Shortlist" }));
+
+      expect(
+        await screen.findByText("Changes were made elsewhere. Today has been refreshed."),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(todayCalls()).toBe(before + 1));
+
+      await user.click(within(section("Top new leads")).getByRole("button", { name: "Shortlist" }));
+      expect(await screen.findByText("Shortlisted Tidewater Labs")).toBeInTheDocument();
+      const patches = callsTo(api, "PATCH", "/api/v1/leads/l1");
+      expect(await Promise.all(patches.map((p) => p.json()))).toEqual([
+        { version: 1, status: "shortlisted" },
+        { version: 2, status: "shortlisted" },
+      ]);
+    });
+
+    it("an Undo that meets a newer version says so and refreshes Today", async () => {
+      let first = true;
+      const { api, user } = setup({
+        "PATCH /api/v1/leads/l1": () => {
+          if (first) {
+            first = false;
+            return makeLead({ status: "dismissed", version: 2 });
+          }
+          return apiError(409, "version_conflict", "The lead changed.");
+        },
+      });
+      await loaded();
+      await user.click(
+        within(section("Top new leads")).getByRole("button", { name: "Dismiss lead" }),
+      );
+      await screen.findByText("Dismissed Tidewater Labs");
+      const before = callsTo(api, "GET", "/api/v1/today").length;
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      expect(
+        await screen.findByText(/Can't undo: changes were made elsewhere\./),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(callsTo(api, "GET", "/api/v1/today").length).toBeGreaterThan(before),
+      );
+    });
+  });
+
   describe("states (DESIGN_SPEC §7)", () => {
     it("each section shows a skeleton while loading", async () => {
       setup({ "GET /api/v1/today": () => new Promise<never>(() => undefined) });
@@ -381,7 +443,7 @@ describe("TodayPage", () => {
         ).toBeInTheDocument(),
       );
       expect(
-        within(section("Follow-ups due")).getByText(
+        await within(section("Follow-ups due")).findByText(
           "No follow-ups due. Applications without a reply for 7 days show up here.",
         ),
       ).toBeInTheDocument();
@@ -391,7 +453,9 @@ describe("TodayPage", () => {
         ),
       ).toBeInTheDocument();
       expect(
-        within(section("Top new leads")).getByText("No new leads. The next search runs at 07:00."),
+        await within(section("Top new leads")).findByText(
+          "No new leads. The next search runs at 07:00.",
+        ),
       ).toBeInTheDocument();
       expect(
         within(section("Next 7 days")).getByText("No interviews in the next 7 days."),
@@ -508,6 +572,79 @@ describe("TodayPage", () => {
       "href",
       "https://schedule.example/pick",
     );
+  });
+
+  it("states the rates as fractions of 1, never guessing a percent", async () => {
+    setup({
+      "GET /api/v1/today": () =>
+        makeToday({
+          pipeline: { ...makeToday().pipeline, responseRate: 1, interviewRate: 0.01 },
+        }),
+    });
+    expect(
+      await screen.findByText(
+        "41 applications. Response rate 100%. Reached screening or later 1%.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("uses the new-leads count from /nav-counts in 'See all N', and a plain label without it", async () => {
+    setup({ "GET /api/v1/nav-counts": () => makeNavCounts({ newLeads: 24 }) });
+    await loaded();
+    expect(
+      await within(section("Top new leads")).findByRole("link", { name: "See all 24" }),
+    ).toHaveAttribute("href", "/leads");
+    expect(screen.queryByText("Best fit first")).not.toBeInTheDocument();
+  });
+
+  it("falls back to 'See all new leads' while the count is unavailable", async () => {
+    setup();
+    await loaded();
+    expect(
+      within(section("Top new leads")).getByRole("link", { name: "See all new leads" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not state owner-set values (7 and 14 days, the search time) when settings fail", async () => {
+    setup({
+      "GET /api/v1/settings": () => apiError(503, "not_ready", "Not ready."),
+      "GET /api/v1/today": () => makeToday({ followUpsDue: [], topLeads: [] }),
+    });
+    await loaded();
+    expect(
+      await within(section("Follow-ups due")).findByText("No follow-ups due."),
+    ).toBeInTheDocument();
+    expect(within(section("Top new leads")).getByText("No new leads.")).toBeInTheDocument();
+    expect(screen.queryByText(/without a reply for/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/07:00/)).not.toBeInTheDocument();
+  });
+
+  it("does not state the timer values with data either while settings fail", async () => {
+    setup({ "GET /api/v1/settings": () => apiError(503, "not_ready", "Not ready.") });
+    await loaded();
+    await within(section("Follow-ups due")).findByText("Northwind Robotics");
+    expect(screen.queryByText(/After 14 days/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No reply from the company for/)).not.toBeInTheDocument();
+  });
+
+  it("section links are 44px tall on a phone and plain on a wide screen", async () => {
+    setup({}, 390);
+    await loaded();
+    expect(screen.getByRole("link", { name: "All interviews" })).toHaveStyle({ minHeight: "44px" });
+    expect(screen.getByRole("link", { name: "Join video call" })).toHaveStyle({
+      minHeight: "44px",
+    });
+    expect(screen.getByRole("link", { name: "Open review queue" })).toHaveStyle({
+      minHeight: "44px",
+    });
+  });
+
+  it("section links keep their own height on a wide screen", async () => {
+    setup();
+    await loaded();
+    expect(screen.getByRole("link", { name: "All interviews" })).not.toHaveStyle({
+      minHeight: "44px",
+    });
   });
 
   describe("the pipeline marker (DESIGN_SPEC §8)", () => {

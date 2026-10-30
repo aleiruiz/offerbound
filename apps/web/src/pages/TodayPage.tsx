@@ -14,12 +14,15 @@ import type {
   Settings,
   Today,
 } from "@offerbound/contracts";
+import { useTheme } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { useMemo, type ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { ApiClientError } from "../api/client";
 import {
   useLogDailyActivity,
   useMarkFollowedUp,
+  useNavCounts,
   useRunSearch,
   useSetLeadStatus,
   useSettings,
@@ -47,6 +50,12 @@ import { isHttpUrl } from "../lib/url";
  */
 
 const SEARCH_RUNNING = "A search is already running";
+/** TECHNICAL_SPEC §11: a 409 version_conflict says the record changed elsewhere. */
+const CHANGED_ELSEWHERE = "Changes were made elsewhere. Today has been refreshed.";
+
+function isVersionConflict(error: unknown): boolean {
+  return error instanceof ApiClientError && error.code === "version_conflict";
+}
 
 // ---------------------------------------------------------------------------------------------
 // Section frame, skeletons and the three states
@@ -232,14 +241,28 @@ function EmptyLine({ children }: { children: ReactNode }) {
   );
 }
 
-const sectionLink = { fontSize: 14, fontWeight: 600, textDecoration: "none" } as const;
+/**
+ * Text links under 600px are at least 44px tall (DESIGN_SPEC §9.4); the theme only handles
+ * buttons. `extra` adds to the link's own style.
+ */
+function useLinkSx(extra: Record<string, unknown> = {}) {
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
+  return {
+    fontSize: 14,
+    fontWeight: 600,
+    textDecoration: "none",
+    ...(phone ? { display: "inline-flex", alignItems: "center", minHeight: 44 } : {}),
+    ...extra,
+  };
+}
 
 // ---------------------------------------------------------------------------------------------
 // Pipeline
 
+/** A rate is a fraction from 0 to 1 (answered ÷ applications); anything else is clamped. */
 function percent(rate: number): string {
-  const value = rate <= 1 ? rate * 100 : rate;
-  return `${Math.round(Math.min(100, Math.max(0, value)))}%`;
+  return `${Math.round(Math.min(1, Math.max(0, rate)) * 100)}%`;
 }
 
 function PipelineBody({ today }: { today: Today }) {
@@ -276,6 +299,7 @@ function PipelineBody({ today }: { today: Today }) {
 
 function TargetsBody({ today }: { today: Today }) {
   const log = useLogDailyActivity();
+  const linkSx = useLinkSx();
   const snackbar = useUndoSnackbar();
   const { counts, targets } = today;
 
@@ -298,7 +322,7 @@ function TargetsBody({ today }: { today: Today }) {
           max={targets.applications.max}
           caption={
             counts.applications >= targets.applications.min ? undefined : (
-              <Link component={RouterLink} to="/leads?tab=shortlisted" sx={sectionLink}>
+              <Link component={RouterLink} to="/leads?tab=shortlisted" sx={linkSx}>
                 Pick from shortlisted
               </Link>
             )
@@ -376,7 +400,8 @@ function FollowUps({
   today: Today;
   timezone: string;
   now: Date;
-  followUpDays: number;
+  /** Undefined until settings have loaded: the sentence then leaves the number out. */
+  followUpDays: number | undefined;
 }) {
   const mark = useMarkFollowedUp();
   const snackbar = useUndoSnackbar();
@@ -385,7 +410,9 @@ function FollowUps({
   if (apps.length === 0) {
     return (
       <EmptyLine>
-        {`No follow-ups due. Applications without a reply for ${followUpDays} days show up here.`}
+        {followUpDays === undefined
+          ? "No follow-ups due."
+          : `No follow-ups due. Applications without a reply for ${followUpDays} days show up here.`}
       </EmptyLine>
     );
   }
@@ -486,9 +513,11 @@ function TopLeads({
     const search = settings?.search;
     return (
       <EmptyLine>
-        {search && !search.enabled
-          ? "No new leads. The daily search is off; use Run search now to look for leads."
-          : `No new leads. The next search runs at ${search?.runTime ?? "07:00"}.`}
+        {!search
+          ? "No new leads."
+          : !search.enabled
+            ? "No new leads. The daily search is off; use Run search now to look for leads."
+            : `No new leads. The next search runs at ${search.runTime}.`}
       </EmptyLine>
     );
   }
@@ -504,9 +533,11 @@ function TopLeads({
               await setStatus.mutateAsync({ lead: updated, status: "new" });
             },
           ),
-        onError: () =>
+        onError: (error) =>
           snackbar.show(
-            `Couldn't ${status === "shortlisted" ? "shortlist" : "dismiss"} ${lead.company.name}. Try again.`,
+            isVersionConflict(error)
+              ? CHANGED_ELSEWHERE
+              : `Couldn't ${status === "shortlisted" ? "shortlist" : "dismiss"} ${lead.company.name}. Try again.`,
           ),
       },
     );
@@ -540,12 +571,7 @@ function AgendaItem({
   const { application } = interview;
   const toSchedule = interview.startsAt === null;
   const caption = `${application.company.name}, ${application.title}`;
-  const link = {
-    fontSize: 14,
-    fontWeight: 600,
-    textDecoration: "none",
-    alignSelf: "flex-start",
-  } as const;
+  const link = useLinkSx({ alignSelf: "flex-start" });
 
   return (
     <Box
@@ -594,6 +620,7 @@ function AgendaItem({
         variant="caption"
         color="text.secondary"
         underline="hover"
+        sx={useLinkSx({ fontSize: 13, fontWeight: 400, textDecoration: undefined })}
       >
         {caption}
       </Link>
@@ -648,8 +675,11 @@ export function TodayPage() {
   // One "now" per answer, so relative sentences ("no reply for 9 days") stay still between polls.
   const now = useMemo(() => new Date(), [today.dataUpdatedAt]);
 
-  const followUpDays = settings.data?.timers.followUpDays ?? 7;
-  const abandonDays = settings.data?.timers.abandonDays ?? 14;
+  // Owner-set values: not stated until settings have loaded.
+  const followUpDays = settings.data?.timers.followUpDays;
+  const abandonDays = settings.data?.timers.abandonDays;
+  const newLeads = useNavCounts().data?.newLeads;
+  const linkSx = useLinkSx();
   const firstSync = sync.data;
 
   const startSearch = () =>
@@ -738,9 +768,13 @@ export function TodayPage() {
           <Section
             title="Follow-ups due"
             count={today.data?.followUpsDue.length}
-            note={`No reply from the company for ${followUpDays} days or more`}
+            note={
+              followUpDays === undefined
+                ? undefined
+                : `No reply from the company for ${followUpDays} days or more`
+            }
             noteAfter={
-              today.data && today.data.followUpsDue.length > 0
+              today.data && today.data.followUpsDue.length > 0 && abandonDays !== undefined
                 ? `After ${abandonDays} days without a reply, an application is marked Abandoned. A reply reopens it.`
                 : undefined
             }
@@ -760,7 +794,7 @@ export function TodayPage() {
             title="Needs your review"
             count={today.data?.review.open}
             action={
-              <Link component={RouterLink} to="/review" sx={sectionLink}>
+              <Link component={RouterLink} to="/review" sx={linkSx}>
                 Open review queue
               </Link>
             }
@@ -776,10 +810,9 @@ export function TodayPage() {
 
           <Section
             title="Top new leads"
-            note="Best fit first"
             action={
-              <Link component={RouterLink} to="/leads" sx={sectionLink}>
-                See all new leads
+              <Link component={RouterLink} to="/leads" sx={linkSx}>
+                {newLeads === undefined ? "See all new leads" : `See all ${newLeads}`}
               </Link>
             }
           >
@@ -799,7 +832,7 @@ export function TodayPage() {
           <Section
             title="Next 7 days"
             action={
-              <Link component={RouterLink} to="/interviews" sx={sectionLink}>
+              <Link component={RouterLink} to="/interviews" sx={linkSx}>
                 All interviews
               </Link>
             }

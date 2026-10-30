@@ -229,6 +229,23 @@ describe("OnboardingPage", () => {
       expect(screen.queryByText(PROFILE.headline)).not.toBeInTheDocument();
     });
 
+    it("keeps the 'profile isn't ready' warning when a later upload is rejected or fails", async () => {
+      let answer: MockHandler = () => jsonResponse({ profileStatus: "failed", profile: null }, 202);
+      const { user } = setup({ "POST /api/v1/cv": (req) => answer(req) });
+      await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
+      expect(await screen.findByText(/its profile isn't ready/)).toBeInTheDocument();
+
+      // Turned away by the page, then failed by the server: the CV on file still has no profile.
+      await user.upload(screen.getByLabelText("Replace CV"), file("notes.txt", "text/plain"));
+      expect(await screen.findByText(/Offerbound reads PDF and DOCX files/)).toBeInTheDocument();
+      expect(screen.getByText(/its profile isn't ready/)).toBeInTheDocument();
+
+      answer = () => apiError(422, "cv_no_text", "No text was found in this file.");
+      await user.upload(screen.getByLabelText("Replace CV"), file("scan.pdf", "application/pdf"));
+      expect(await screen.findByText(/We couldn't read text from that file/)).toBeInTheDocument();
+      expect(screen.getByText(/its profile isn't ready/)).toBeInTheDocument();
+    });
+
     it("keeps going when the CV is saved but its profile failed", async () => {
       const { user } = setup({
         "POST /api/v1/cv": () => jsonResponse({ profileStatus: "failed", profile: null }, 202),

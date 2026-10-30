@@ -36,6 +36,7 @@ export function useUndoSnackbar(): {
   return handle;
 }
 
+const CHANGED_ELSEWHERE = "Can't undo: changes were made elsewhere. Reload to see the latest.";
 const CANNOT_UNDO = "Can't undo: this application changed after the update. Edit it directly.";
 
 async function runUndo(onUndo: () => Promise<void>): Promise<void> {
@@ -46,6 +47,8 @@ async function runUndo(onUndo: () => Promise<void>): Promise<void> {
   } catch (error) {
     if (error instanceof ApiClientError && error.code === "changed_since") {
       show(CANNOT_UNDO, undefined, "alert");
+    } else if (error instanceof ApiClientError && error.code === "version_conflict") {
+      show(CHANGED_ELSEWHERE, undefined, "alert");
     } else {
       show("Couldn't undo this change.", onUndo, "alert");
     }

@@ -22,7 +22,7 @@ import {
 } from "@offerbound/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DEFAULT_TIMEZONE } from "../lib/format";
-import { apiFetch, apiFetchWithStatus } from "./client";
+import { ApiClientError, apiFetch, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
@@ -278,5 +278,10 @@ export function useSetLeadStatus() {
         schema: LeadSchema,
       }),
     onSuccess: () => refresh(),
+    // 409 version_conflict: the lead changed elsewhere (a re-rank, say). Fetch the fresh record, so
+    // the next try carries its version instead of the stale one.
+    onError: async (error) => {
+      if (error instanceof ApiClientError && error.code === "version_conflict") await refresh();
+    },
   });
 }

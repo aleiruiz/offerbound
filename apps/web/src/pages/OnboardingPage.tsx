@@ -313,7 +313,6 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
   const [profileFailed, setProfileFailed] = useState(false);
 
   const choose = (file: File) => {
-    setProfileFailed(false);
     const reason = !hasAllowedType(file, CV_ACCEPT)
       ? "unsupported_file"
       : file.size > CV_MAX_BYTES
