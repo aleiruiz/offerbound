@@ -307,6 +307,14 @@ export const ApplicationPatchSchema = z.object({
 });
 export type ApplicationPatch = z.infer<typeof ApplicationPatchSchema>;
 
+/** `POST /applications/:id/merge`: fold this application into another (AC-6.5). */
+export const ApplicationMergeSchema = z.object({ intoId: requiredText });
+export type ApplicationMerge = z.infer<typeof ApplicationMergeSchema>;
+
+/** `POST /events/:id/undo` answers 200 with `{ undone: true }` (TECHNICAL_SPEC §10.1). */
+export const UndoResultSchema = z.object({ undone: z.literal(true) });
+export type UndoResult = z.infer<typeof UndoResultSchema>;
+
 export const InterviewCreateSchema = z.object({
   kind: InterviewKindSchema,
   status: InterviewStatusSchema,

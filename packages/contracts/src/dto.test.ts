@@ -3,6 +3,7 @@ import {
   ApiErrorBodySchema,
   ApiErrorCodeSchema,
   ApplicationCreateSchema,
+  ApplicationMergeSchema,
   ApplicationPatchSchema,
   CvProfileSchema,
   CvUploadFailedSchema,
@@ -16,6 +17,7 @@ import {
   SheetCommitBodySchema,
   TodaySchema,
   TimelineEventSchema,
+  UndoResultSchema,
   type EmailFixture,
 } from "./index.js";
 import { z } from "zod";
@@ -255,5 +257,15 @@ describe("onboarding request and response shapes", () => {
     expect(CvUploadFailedSchema.safeParse({ profileStatus: "failed", profile }).success).toBe(
       false,
     );
+  });
+});
+
+describe("application merge and undo", () => {
+  it("POST /applications/:id/merge takes { intoId }; POST /events/:id/undo answers { undone: true }", () => {
+    expect(ApplicationMergeSchema.parse({ intoId: "a2" })).toEqual({ intoId: "a2" });
+    expect(ApplicationMergeSchema.safeParse({}).success).toBe(false);
+    expect(ApplicationMergeSchema.safeParse({ intoId: "" }).success).toBe(false);
+    expect(UndoResultSchema.parse({ undone: true })).toEqual({ undone: true });
+    expect(UndoResultSchema.safeParse({ undone: false }).success).toBe(false);
   });
 });
