@@ -280,9 +280,12 @@ const QUEUES = { gmailSync: "gmail.sync", gmailBackfill: "gmail.backfill", email
   backupNightly: "backup.nightly", demoReset: "demo.reset", maintenanceDaily: "maintenance.daily" } as const;
 type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 interface JobQueue {
-  send(name: QueueName, data?: Record<string, unknown>, opts?: { singletonKey?: string }): Promise<void>;
-  schedule(name: QueueName, cron: string, opts: { tz: string }): Promise<void>;
+  send(name: QueueName, data?: Record<string, unknown>,
+       opts?: { singletonKey?: string; startAfterSeconds?: number }): Promise<void>;  // startAfterSeconds: do not start before then (retries that honour Retry-After)
+  schedule(name: QueueName, cron: string, opts: { tz: string }): Promise<void>;       // registers or replaces the recurring job
   unschedule(name: QueueName): Promise<void>;
+  hasDelayed(name: QueueName): Promise<boolean>;  // a queued job of this queue waits for a future start time; cron ticks check it so they do not run ahead of a requested wait
+  isReady(): boolean;                              // the queue has started and accepts jobs (/ready)
 }
 // apps/api/src/db/lock.ts (T4.8)
 function withIntakeLock<T>(prisma: PrismaClient, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T>;
