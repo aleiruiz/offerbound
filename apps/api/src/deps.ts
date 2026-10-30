@@ -17,10 +17,7 @@ import { OpenAiProvider } from "./llm/openai-provider.js";
 import type { LlmProvider } from "./llm/provider.js";
 import type { WarnLogger } from "./llm/record.js";
 
-/**
- * Everything the app needs from outside. Later tasks add fields (llm, fetchLink); tests replace
- * any of them with fakes.
- */
+/** Everything the app needs from outside. Tests replace any of it with fakes. */
 export type AppDeps = {
   env: Env;
   prisma: PrismaClient;
