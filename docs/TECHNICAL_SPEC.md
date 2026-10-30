@@ -133,7 +133,7 @@ The `api` image includes `postgresql17-client` for `pg_dump` (used by `worker`).
 
 ### 3.4 Environment variables
 
-Runtime-only unless marked *build*. ✗ = must be absent (demo refuses to start if present — AC-16.1).
+Runtime-only unless marked *build*. ✗ = must be absent (demo refuses to start if present — AC-16.1). In demo an empty value of a forbidden variable counts as absent, so the demo deploys from the same compose file.
 
 | Variable | Private | Demo | Default / example | Purpose |
 |---|---|---|---|---|

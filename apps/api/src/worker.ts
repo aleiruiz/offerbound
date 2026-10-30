@@ -3,6 +3,7 @@ import pino from "pino";
 import { LOG_REDACT_PATHS } from "./app.js";
 import { EnvError, loadEnv } from "./config/env.js";
 import { createDeps, type WorkerCtx } from "./deps.js";
+import { resetDemo } from "./demo/reset.js";
 import { resumeGmailJobs } from "./gmail/control.js";
 import { createBoss, registerSchedules } from "./jobs/boss.js";
 import { HANDLERS, registerHandlers } from "./jobs/handlers.js";
@@ -29,6 +30,9 @@ export async function startWorker(base: WorkerCtx): Promise<{ stop: () => Promis
   const boss = queue.boss;
   const ctx: WorkerCtx = { ...base, queue };
   await queue.start();
+  // The demo starts from its seed (§12); the hourly `demo.reset` keeps it there. Before the
+  // handlers start and the schedules read the settings, which the reset writes.
+  if (ctx.env.mode === "demo") await resetDemo(ctx, ctx.clock());
   await registerHandlers(boss, ctx);
   // A schedule for a queue nobody consumes would only pile up jobs; later tasks add handlers.
   await registerSchedules(

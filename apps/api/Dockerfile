@@ -31,6 +31,9 @@ COPY prisma prisma
 COPY packages/contracts packages/contracts
 COPY packages/domain packages/domain
 COPY apps/api apps/api
+# The demo reads fixtures/ at run time (emails, lead batches, the seed); the code finds the repository
+# root by walking up to pnpm-workspace.yaml, which was copied above.
+COPY fixtures fixtures
 
 # Generates the client for the native and linux-musl-openssl-3.0.x targets (prisma/schema.prisma).
 RUN pnpm db:generate \

@@ -200,11 +200,12 @@ describe("GET and PUT /settings", () => {
     ]);
   });
 
-  it("in demo mode a changed schedule is not registered", async () => {
+  it("in demo mode the settings are read-only: PUT answers 403 demo_read_only and registers nothing", async () => {
     const demoEnv = buildTestDeps().env;
     const { call, queue } = await appWith({ env: { ...demoEnv, mode: "demo" } });
     const res = await call("PUT", "/settings", withPatch({ search: { enabled: true } }));
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(403);
+    expect(res.json<ApiErrorBody>().error.code).toBe("demo_read_only");
     expect(queue.schedules).toEqual([]);
     expect(queue.unscheduled).toEqual([]);
   });

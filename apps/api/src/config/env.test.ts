@@ -71,6 +71,21 @@ describe("loadEnv", () => {
     expect(failure({ APP_MODE: "staging" }).missing).toContain("APP_MODE");
   });
 
+  // compose.prod.yaml passes these as `${VAR:-}` so one file serves both modes; the private
+  // instance must still fail fast, at app start.
+  it.each([
+    "OWNER_EMAIL",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "TOKEN_ENCRYPTION_KEY",
+    "OPENAI_API_KEY",
+    "AI_PRICING",
+    "AI_WEB_SEARCH_COST_PER_CALL_MICROS",
+  ])("private mode refuses to boot when %s is missing or empty", (name) => {
+    expect(failure(privateEnv({ [name]: undefined })).missing).toEqual([name]);
+    expect(failure(privateEnv({ [name]: "" })).missing).toEqual([name]);
+  });
+
   it("treats empty strings as unset", () => {
     expect(failure(privateEnv({ OWNER_EMAIL: "" })).missing).toEqual(["OWNER_EMAIL"]);
   });
@@ -128,6 +143,44 @@ describe("loadEnv", () => {
       }),
     );
     expect(error.forbidden).toHaveLength(7);
+  });
+
+  it("demo mode boots with forbidden variables set to empty strings (compose passes blanks)", () => {
+    const env = loadEnv(
+      demoEnv({
+        OPENAI_API_KEY: "",
+        OWNER_EMAIL: "  ",
+        GOOGLE_CLIENT_ID: "",
+        OPENAI_MODEL_RANK: "",
+        AI_PRICING: "",
+        GMAIL_BACKFILL_SINCE: "",
+      }),
+    );
+    expect(env.mode).toBe("demo");
+    expect(env.openai).toBeNull();
+    expect(env.ownerEmail).toBeNull();
+  });
+
+  it("demo mode refuses the same variables once they hold a value (AC-16.1)", () => {
+    const error = failure(
+      demoEnv({
+        OPENAI_API_KEY: "x",
+        OWNER_EMAIL: "o@example.com",
+        GOOGLE_CLIENT_ID: "y",
+        OPENAI_MODEL_RANK: "m",
+      }),
+    );
+    expect(error.forbidden.sort()).toEqual(
+      ["GOOGLE_CLIENT_ID", "OPENAI_API_KEY", "OPENAI_MODEL_RANK", "OWNER_EMAIL"].sort(),
+    );
+  });
+
+  it("demo mode refuses any GOOGLE_ variable, not only the client id and secret", () => {
+    expect(failure(demoEnv({ GOOGLE_PROJECT: "x" })).forbidden).toEqual(["GOOGLE_PROJECT"]);
+  });
+
+  it("a variable that is not set at all is not forbidden", () => {
+    expect(loadEnv(demoEnv({ OPENAI_API_KEY: undefined })).mode).toBe("demo");
   });
 
   it("loads demo mode without any secrets", () => {
