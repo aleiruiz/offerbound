@@ -233,7 +233,7 @@ Each acceptance criterion is written to be automated. "Owner" means the authenti
 - **AC-14.2** Mapping: *To research* → New lead; *Cancelled* → Dismissed lead (reason *Not pursued — imported*); *Applied* → application Applied; *Interview* → application Interviewing; *Rejected* → application Rejected. Unknown statuses are reported as errors and skipped.
 - **AC-14.3** Columns map to: Company, Role, Country, City / modality → location, Date applied (YYYY-MM-DD, owner time zone), Salary → compensation text, Sponsorship / relocation → sponsorship text, Job link, Notes. Notes are kept as notes and not parsed.
 - **AC-14.4** A preview shows counts per target, rows with errors, and duplicates inside the file; nothing is written until *Import*.
-- **AC-14.5** Importing the same file twice is refused; rows matching existing records by canonical link, or same company and a similar role (word overlap ≥ 0.6, as email matching), are skipped and counted.
+- **AC-14.5** Importing the same file again is allowed; rows matching existing records by canonical link, or same company and a similar role (word overlap ≥ 0.6, as email matching), are skipped and counted.
 - **AC-14.6** Imported New leads go through the link check and ranking; imported Dismissed leads and applications do not. Imported records are **not** subject to the company-already-seen or one-per-company rules (they are the history).
 
 ### F15 — Settings

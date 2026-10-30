@@ -378,31 +378,74 @@ describe("POST /import/sheet/commit", () => {
     expect(await prisma.application.count()).toBe(3);
   });
 
-  it("the same file twice → 409 duplicate_import", async () => {
-    const body = await preview(fixture("sample.csv"));
-    await commitOk(body.previewId);
+  it("the same file again: the preview counts every row as existing and the commit adds nothing", async () => {
+    await commitOk((await preview(fixture("sample.csv"))).previewId);
+    const before = await recordCounts();
 
-    const second = await upload(fixture("sample.csv"));
-    expect(second.statusCode).toBe(409);
-    expect(errorCode(second)).toBe("duplicate_import");
+    const again = await preview(fixture("sample.csv"));
+    expect(again.existingMatches).toBe(5);
+    expect(again.mappings).toEqual([]);
+
+    const summary = await commitOk(again.previewId);
+    expect(summary).toMatchObject({
+      applicationsCreated: 0,
+      leadsCreated: 0,
+      leadsDismissed: 0,
+      skippedExisting: 5,
+    });
+    expect(await prisma.application.count()).toBe(3);
+    expect(await prisma.lead.count()).toBe(2);
+    // The new batch is recorded, but only the first one from this file keeps its hash.
+    expect(await recordCounts()).toEqual({ ...before, batches: before.batches + 1 });
+    const hashed = await prisma.intakeBatch.findMany({ where: { fileHash: { not: null } } });
+    expect(hashed).toHaveLength(1);
   });
 
-  it("two previews of one file: the second commit → 409 duplicate_import and writes nothing more", async () => {
+  it("two previews of one file: both commit, the second adds nothing and does not hit the file_hash unique index", async () => {
     const first = await preview(fixture("sample.csv"));
     const second = await preview(fixture("sample.csv"));
     await commitOk(first.previewId);
     const before = await recordCounts();
 
-    const res = await commit(second.previewId);
-    expect(res.statusCode).toBe(409);
-    expect(errorCode(res)).toBe("duplicate_import");
-    expect(await recordCounts()).toEqual(before);
+    const summary = await commitOk(second.previewId);
+    expect(summary.applicationsCreated).toBe(0);
+    expect(summary.leadsCreated).toBe(0);
+    expect(summary.skippedExisting).toBe(5);
+    expect(await recordCounts()).toEqual({ ...before, batches: before.batches + 1 });
   });
 
-  it("a sheet of applications only still records the file, so it can't be imported twice", async () => {
+  it("a sheet of applications only still records the file hash on its first import", async () => {
     const file = csv(["Fir Logistics Example,SRE,Mexico,Remote,2026-09-01,Applied,,,,"]);
     await commitOk((await preview(file)).previewId);
-    expect((await upload(file)).statusCode).toBe(409);
+    const batch = await prisma.intakeBatch.findFirstOrThrow();
+    expect(batch.fileHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("the same file with one new row added imports only that row", async () => {
+    const rows = [
+      "Fir Logistics Example,SRE,Mexico,Remote,2026-09-01,Applied,,,,",
+      "Gum Media Example,Data Scientist,Mexico,Remote,,To research,,,https://jobs.ashbyhq.com/gummedia/1111,",
+    ];
+    await commitOk((await preview(csv(rows))).previewId);
+
+    const edited = await preview(
+      csv([...rows, "Ivy Retail Example,Product Designer,Mexico,Remote,2026-09-10,Applied,,,,"]),
+    );
+    expect(edited.existingMatches).toBe(2);
+    expect(edited.mappings).toEqual([
+      { sheetStatus: "applied", target: "application_applied", rows: 1 },
+    ]);
+    const summary = await commitOk(edited.previewId);
+    expect(summary).toMatchObject({
+      applicationsCreated: 1,
+      leadsCreated: 0,
+      skippedExisting: 2,
+    });
+    expect(await prisma.application.count()).toBe(2);
+    expect(await prisma.lead.count()).toBe(1);
+    expect(
+      await prisma.application.findFirst({ where: { title: "Product Designer" } }),
+    ).not.toBeNull();
   });
 
   it("rows matching existing records by job key or company + role are skipped and counted", async () => {

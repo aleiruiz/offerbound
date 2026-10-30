@@ -383,17 +383,11 @@ const payloadSchema = z.object({
   errors: z.array(z.object({ line: z.number().int(), message: z.string() })),
 });
 
-async function assertNotImported(db: Db, fileHash: string): Promise<void> {
-  const batch = await db.intakeBatch.findFirst({ where: { fileHash }, select: { id: true } });
-  if (batch !== null) {
-    throw new ApiError(409, "duplicate_import", "This file was already imported.");
-  }
-}
-
 /**
  * Says what importing `rows` would do, and keeps the rows for an hour so `commitSheet` can write
  * them (AC-14.4). Writes only the preview row: no application, lead or company. A file that was
- * imported before is refused (AC-14.5).
+ * imported before is previewed like any other: its rows that exist already are counted as such
+ * (AC-14.5).
  */
 export async function previewSheet(
   db: PrismaClient,
@@ -402,7 +396,6 @@ export async function previewSheet(
   fileHash: string,
   now: Date,
 ): Promise<SheetPreview> {
-  await assertNotImported(db, fileHash);
   const { importable, duplicatesInFile, existing } = await classifyRows(db, rows);
 
   const counts = new Map<SheetStatus, number>();
@@ -499,7 +492,6 @@ export async function commitSheet(ctx: WorkerCtx, previewId: string): Promise<Im
     }
     const payload = payloadSchema.safeParse(preview.payload);
     if (!payload.success) throw notFound();
-    if (preview.fileHash !== null) await assertNotImported(tx, preview.fileHash);
 
     const { importable, duplicatesInFile, existing } = await classifyRows(tx, payload.data.rows);
     const settings = await getSettings(tx);
@@ -583,10 +575,21 @@ export async function commitSheet(ctx: WorkerCtx, previewId: string): Promise<Im
     const incoming = importable
       .filter((row) => row.status === "to_research" || row.status === "cancelled")
       .map((row, order) => incomingLead(row, order));
+    // `intake_batch.file_hash` is unique, so only the first batch from a file records it; a file
+    // imported again leaves it null. The check cannot race: this runs under `withIntakeLock`.
+    const hashTaken =
+      preview.fileHash !== null &&
+      (await tx.intakeBatch.findFirst({
+        where: { fileHash: preview.fileHash },
+        select: { id: true },
+      })) !== null;
     // Always run: the batch is what remembers the file hash, even for a sheet of applications only.
     const result = await ingestLeads(
       tx,
-      { kind: BATCH_KIND, ...(preview.fileHash === null ? {} : { fileHash: preview.fileHash }) },
+      {
+        kind: BATCH_KIND,
+        ...(preview.fileHash === null || hashTaken ? {} : { fileHash: preview.fileHash }),
+      },
       incoming,
       { settings, now },
     );
