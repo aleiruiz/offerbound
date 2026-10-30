@@ -129,6 +129,9 @@ importers:
 
   packages/domain:
     dependencies:
+      '@offerbound/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       luxon:
         specifier: ^3.7.2
         version: 3.7.2

@@ -22,6 +22,7 @@
     "test:unit": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@offerbound/contracts": "workspace:*",
     "luxon": "^3.7.2",
     "tldts": "^7.4.19"
   },
