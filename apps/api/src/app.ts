@@ -20,6 +20,7 @@ import { registerMeRoutes } from "./routes/me.js";
 import { registerNavCountsRoutes } from "./routes/nav-counts.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { registerTodayRoutes } from "./routes/today.js";
+import { registerSearchRoutes } from "./routes/search.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -107,6 +108,7 @@ export async function buildApp(
         registerTodayRoutes(guarded, deps);
         registerDailyActivityRoutes(guarded, deps);
         registerNavCountsRoutes(guarded, deps);
+        registerSearchRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
