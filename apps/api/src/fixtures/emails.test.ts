@@ -352,4 +352,10 @@ describe("loadEmailFixtures", () => {
     writeFileSync(join(dir, "broken.json"), JSON.stringify({ id: "broken" }));
     expect(() => loadEmailFixtures(dir)).toThrow(/broken\.json/);
   });
+
+  it("names the file that holds malformed JSON", () => {
+    const dir = makeDir();
+    writeFileSync(join(dir, "garbled.json"), "{ not json");
+    expect(() => loadEmailFixtures(dir)).toThrow(/garbled\.json.*not valid JSON/);
+  });
 });

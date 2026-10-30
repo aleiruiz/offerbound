@@ -67,7 +67,13 @@ export function loadEmailFixtures(dir = "fixtures/emails"): EmailFixture[] {
     .sort();
 
   const fixtures = files.map((name): EmailFixture => {
-    const raw: unknown = JSON.parse(readFileSync(join(absolute, name), "utf8"));
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(join(absolute, name), "utf8"));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Invalid email fixture ${name}: not valid JSON (${reason})`);
+    }
     const parsed = EmailFixtureSchema.safeParse(raw);
     if (!parsed.success) {
       throw new Error(`Invalid email fixture ${name}: ${parsed.error.message}`);

@@ -44,7 +44,7 @@
         "kind": "technical",
         "startsAt": "2026-10-14T14:00:00-05:00",
         "endsAt": null,
-        "timezone": "America/New_York",
+        "timezone": "EST",
         "meetingUrl": "https://meet.copperline-software.example/tech-0914",
         "schedulingUrl": null,
         "location": null,
