@@ -13,7 +13,7 @@ import { FakeLlmProvider } from "../llm/fake-provider.js";
 import { LlmError } from "../llm/provider.js";
 import { MAX_EXTRACT_RESENDS, resendPendingExtractions } from "../pipeline/triage.js";
 import { HANDLERS, type JobInfo } from "./handlers.js";
-import { QUEUE_CONFIG, QUEUES } from "./queues.js";
+import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
 
 const prisma = testPrisma();
 
@@ -361,6 +361,177 @@ describe("email.triage handler", () => {
     await triage(ctx, job());
     expect(ctx.queue.unscheduled).toEqual(["gmail.sync"]);
     expect((await connectionRow()).status).toBe("missing_scope");
+  });
+});
+
+describe("email.triage handler: a backfill with outgoing mail waiting on older messages", () => {
+  const handler = (name: QueueName) => {
+    const found = HANDLERS[name];
+    if (!found) throw new Error(`no ${name} handler`);
+    return found;
+  };
+  const triage = handler(QUEUES.emailTriage);
+  const extract = handler(QUEUES.emailExtract);
+  const apply = handler(QUEUES.emailApply);
+
+  const day = (i: number) => new Date(Date.UTC(2026, 9, 1, 0, i)).toISOString();
+
+  /**
+   * 100 messages, one per minute: every 10th is outgoing mail to someone unknown (rule R3 makes it
+   * wait for the older messages), every 7th a job-related ATS message, the rest spam. Counts the
+   * Gmail metadata reads per message.
+   */
+  function mailbox() {
+    const fixtures = Array.from({ length: 100 }, (_, i) => {
+      const id = `m${String(i).padStart(3, "0")}`;
+      if (i % 10 === 0) {
+        return emailFixture(id, day(i), {
+          labels: ["SENT"],
+          headers: {
+            from: "Owner <owner@example.com>",
+            to: ["Someone <someone@unknown.example>"],
+            subject: `Subject ${id}`,
+            date: "Thu, 01 Oct 2026 00:00:00 +0000",
+          },
+        });
+      }
+      if (i % 7 === 0) {
+        return emailFixture(id, day(i), {
+          headers: {
+            from: "Jobs <no-reply@greenhouse-mail.io>",
+            to: ["owner@example.com"],
+            subject: `Subject ${id}`,
+            date: "Thu, 01 Oct 2026 00:00:00 +0000",
+          },
+        });
+      }
+      return emailFixture(id, day(i), { labels: ["SPAM"] });
+    });
+    const real = new FakeGmailClient(fixtures);
+    const metadataReads = new Map<string, number>();
+    const client: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        metadataReads.set(id, (metadataReads.get(id) ?? 0) + 1);
+        return real.getMetadata(id);
+      },
+    };
+    return { fixtures, client, metadataReads };
+  }
+
+  /** The workers that run beside the triage job: extraction of what triage sent, then apply. */
+  async function runWorkers(ctx: ReturnType<typeof testWorkerCtx>): Promise<void> {
+    for (const { id } of await prisma.gmailMessage.findMany({
+      where: { state: "job_related" },
+      select: { id: true },
+    })) {
+      await extract(ctx, job({ data: { messageId: id } }));
+    }
+    await apply(ctx, job());
+  }
+
+  it("finishes within a bounded number of chained runs, with no wait for the next sweep", async () => {
+    const { fixtures, client, metadataReads } = mailbox();
+    await prisma.gmailMessage.createMany({
+      data: fixtures.map((f) => ({
+        id: f.id,
+        threadId: f.threadId,
+        internalDate: new Date(0),
+        direction: "inbound" as const,
+        labelIds: [],
+      })),
+    });
+    const ctx = testWorkerCtx({
+      gmail: fakeGmailFactory(client),
+      llm: FakeLlmProvider.fromFixtures({ emails: fixtures, leadBatches: [] }),
+    });
+
+    // One cron tick; every later run is one the handler asked for itself.
+    let runs = 0;
+    let requested = 0;
+    do {
+      requested = ctx.queue.sent.filter((s) => s.name === QUEUES.emailTriage).length;
+      await triage(ctx, job());
+      runs += 1;
+      await runWorkers(ctx);
+    } while (
+      ctx.queue.sent.filter((s) => s.name === QUEUES.emailTriage).length > requested &&
+      runs < 60
+    );
+
+    const states = await prisma.gmailMessage.groupBy({ by: ["state"], _count: { _all: true } });
+    expect(states.map((g) => g.state).sort()).toEqual(["skipped", "triaged_out"].sort());
+    expect(states.reduce((n, g) => n + g._count._all, 0)).toBe(100);
+    // 4 batches to read 100 messages, one run per waiting message, and a short tail.
+    expect(runs).toBeLessThanOrEqual(4 + 10 + 3);
+    // A waiting message is read once when first seen and once more when it can be decided.
+    for (const f of fixtures.filter((x) => x.labels.includes("SENT"))) {
+      expect(metadataReads.get(f.id), f.id).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("does not run again when the only rows left are blocked waiting rows", async () => {
+    // One outgoing message, waiting on an older job-related message that has not been extracted.
+    const older = emailFixture("a-older", day(0), {
+      headers: {
+        from: "Jobs <no-reply@greenhouse-mail.io>",
+        to: ["owner@example.com"],
+        subject: "Older",
+        date: "Thu, 01 Oct 2026 00:00:00 +0000",
+      },
+    });
+    const out = emailFixture("b-out", day(5), {
+      labels: ["SENT"],
+      headers: {
+        from: "Owner <owner@example.com>",
+        to: ["Someone <someone@unknown.example>"],
+        subject: "Out",
+        date: "Thu, 01 Oct 2026 00:05:00 +0000",
+      },
+    });
+    await prisma.gmailMessage.createMany({
+      data: [older, out].map((f) => ({
+        id: f.id,
+        threadId: f.threadId,
+        internalDate: new Date(0),
+        direction: "inbound" as const,
+        labelIds: [],
+      })),
+    });
+    const real = new FakeGmailClient([older, out]);
+    let reads = 0;
+    const client: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        reads += 1;
+        return real.getMetadata(id);
+      },
+    };
+    const ctx = testWorkerCtx({
+      gmail: fakeGmailFactory(client),
+      llm: FakeLlmProvider.fromFixtures({ emails: [older, out], leadBatches: [] }),
+    });
+
+    await triage(ctx, job());
+    expect(reads).toBe(2);
+    // Both were read, so the run is asked for again (the waiting message may be decidable next).
+    expect(ctx.queue.sentNames.filter((n) => n === "email.triage")).toHaveLength(1);
+
+    // The older message is still job_related: the next run reads nothing, decides nothing and
+    // does not ask for another.
+    const before = ctx.queue.sent.length;
+    await triage(ctx, job());
+    expect(reads).toBe(2);
+    expect(ctx.queue.sent.slice(before).filter((s) => s.name === QUEUES.emailTriage)).toEqual([]);
+    expect((await prisma.gmailMessage.findUniqueOrThrow({ where: { id: "b-out" } })).state).toBe(
+      "discovered",
+    );
   });
 });
 

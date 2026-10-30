@@ -226,11 +226,7 @@ const SETTLED_STATES = ["skipped", "triaged_out", "applied", "needs_review", "fa
  * epoch: every older message stays below it and can still be applied, which is what ends the wait.
  * A deferral is not a failed attempt and does not touch `attempts`, and it never reaches the model.
  */
-async function olderMessagesUnsettled(
-  tx: Prisma.TransactionClient,
-  id: string,
-  date: Date,
-): Promise<boolean> {
+async function olderMessagesUnsettled(tx: Db, id: string, date: Date): Promise<boolean> {
   const count = await tx.gmailMessage.count({
     where: {
       id: { not: id },
@@ -248,13 +244,13 @@ async function olderMessagesUnsettled(
 
 /**
  * Writes the deferrable messages, oldest first so each sees the decisions made before it. Returns
- * how many left `discovered` and which are still deferred.
+ * how many left `discovered`.
  */
 async function decideDeferred(
   tx: Prisma.TransactionClient,
   deferrable: Deferrable[],
   now: Date,
-): Promise<{ left: number; deferred: number }> {
+): Promise<number> {
   const ordered = [...deferrable].sort(
     (a, b) =>
       a.meta.internalDate.getTime() - b.meta.internalDate.getTime() ||
@@ -268,12 +264,8 @@ async function decideDeferred(
     });
   }
   let left = 0;
-  let deferred = 0;
   for (const { row, meta } of ordered) {
-    if (await olderMessagesUnsettled(tx, row.id, meta.internalDate)) {
-      deferred += 1;
-      continue;
-    }
+    if (await olderMessagesUnsettled(tx, row.id, meta.internalDate)) continue;
     const written = await writeDecided(
       tx,
       {
@@ -290,7 +282,7 @@ async function decideDeferred(
     );
     if (written) left += 1;
   }
-  return { left, deferred };
+  return left;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -318,12 +310,29 @@ function isFatalLlmError(error: unknown): boolean {
 }
 
 /**
+ * What a triage batch did, for the job handler to decide whether to run another at once:
+ * - `processed`: messages that left `discovered`.
+ * - `read`: messages read from Gmail for the first time.
+ * - `released`: waiting outgoing messages (see {@link olderMessagesUnsettled}) decided.
+ * - `unread`: messages still on the placeholder date, not read yet.
+ * - `waiting`: messages read but kept `discovered` until older messages settle.
+ */
+export type TriageBatchResult = {
+  processed: number;
+  read: number;
+  released: number;
+  unread: number;
+  waiting: number;
+};
+
+/**
  * Triages up to {@link TRIAGE_BATCH_SIZE} `discovered` messages, oldest first, and sends
- * `email.extract` (key = message id) for each that is job-related. Returns how many messages left
- * `discovered`.
+ * `email.extract` (key = message id) for each that is job-related.
  *
  * Outgoing mail that rule R3 would drop may be left `discovered` for now (see
- * {@link olderMessagesUnsettled}); it is not counted as processed, and the next sweep decides it.
+ * {@link olderMessagesUnsettled}); it is not counted as processed. Such a message is not read from
+ * Gmail again while an older message is still unsettled; the batch then holds only the rows that
+ * can be decided. Once nothing older is unsettled the next batch decides it.
  *
  * Failures:
  * - The LLM fails, or leaves a message out of its answer: each undecided message gets one failed
@@ -335,17 +344,30 @@ function isFatalLlmError(error: unknown): boolean {
  *   happens: the messages fetched so far are still decided and written, no attempt is counted,
  *   and the error is rethrown for the job handler (`Retry-After`, backoff, unscheduling).
  */
-export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: number }> {
+export async function runTriageBatch(ctx: WorkerCtx): Promise<TriageBatchResult> {
   const { prisma, env, queue } = ctx;
 
-  const rows: Row[] = await prisma.gmailMessage.findMany({
+  const candidates = await prisma.gmailMessage.findMany({
     where: { state: "discovered" },
-    // Placeholder rows share the epoch date, so discovery order breaks the tie.
+    // Placeholder rows share the epoch date, so discovery order breaks the tie. They sort before
+    // every row that has been read, so rows waiting on an older message never take their place.
     orderBy: [{ internalDate: "asc" }, { discoveredAt: "asc" }, { id: "asc" }],
     take: TRIAGE_BATCH_SIZE,
-    select: { id: true },
+    select: { id: true, internalDate: true },
   });
-  if (rows.length === 0) return { processed: 0 };
+  // A row that was read before (it has a real date) is waiting on an older message. It is read
+  // again only once nothing older is unsettled, so a long wait costs no Gmail calls.
+  const rows: Row[] = [];
+  const unread = new Set<string>();
+  for (const { id, internalDate } of candidates) {
+    if (internalDate.getTime() === UNKNOWN_DATE.getTime()) {
+      unread.add(id);
+      rows.push({ id });
+    } else if (!(await olderMessagesUnsettled(prisma, id, internalDate))) {
+      rows.push({ id });
+    }
+  }
+  if (rows.length === 0) return { processed: 0, read: 0, released: 0, unread: 0, waiting: 0 };
 
   const client = await ctx.gmail();
   const outcomes: Outcome[] = [];
@@ -450,6 +472,7 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
   const now = ctx.clock();
   const extract: string[] = [];
   let processed = 0;
+  let released = 0;
   await withIntakeLock(prisma, async (tx) => {
     for (const outcome of outcomes) {
       let left: boolean;
@@ -464,7 +487,8 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
       if (left) processed += 1;
     }
     // Written last, oldest first: they look at what the rest of the batch has just settled.
-    processed += (await decideDeferred(tx, deferrable, now)).left;
+    released = await decideDeferred(tx, deferrable, now);
+    processed += released;
   });
 
   // After the commit. A send lost here is repeated by `resendPendingExtractions` on the next
@@ -479,7 +503,17 @@ export async function runTriageBatch(ctx: WorkerCtx): Promise<{ processed: numbe
   }
   if (sendError) throw sendError.error;
   if (abort) throw abort.error;
-  return { processed };
+
+  // Rows read for the first time this batch (a row read again after waiting is not progress of
+  // that kind), and what is left for a next batch to do.
+  const read = fetched.filter(({ row }) => unread.has(row.id)).length;
+  const [stillUnread, waiting] = await Promise.all([
+    prisma.gmailMessage.count({ where: { state: "discovered", internalDate: UNKNOWN_DATE } }),
+    prisma.gmailMessage.count({
+      where: { state: "discovered", internalDate: { not: UNKNOWN_DATE } },
+    }),
+  ]);
+  return { processed, read, released, unread: stillUnread, waiting };
 }
 
 /**
