@@ -45,6 +45,7 @@ import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { DemoLock, useIsDemo } from "../lib/demo";
 import { formatShortDate, formatTime, localDayKey } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
+import { isFoundSince, useLeadsSince } from "../lib/last-visit";
 import { useListKeyboard } from "../lib/shortcuts";
 import { isHttpUrl } from "../lib/url";
 
@@ -198,6 +199,8 @@ interface ListProps {
   timezone: string;
   now: Date;
   trackLabels: Record<string, string>;
+  /** Leads found after this time are marked new; null marks none. */
+  since: number | null;
   onShortlist: (lead: Lead) => void;
   onDismiss: (lead: Lead) => void;
   onMarkApplied: (lead: Lead) => void;
@@ -211,6 +214,7 @@ function LeadList({
   timezone,
   now,
   trackLabels,
+  since,
   onShortlist,
   onDismiss,
   onMarkApplied,
@@ -250,6 +254,7 @@ function LeadList({
             timezone={timezone}
             now={now}
             trackLabels={trackLabels}
+            isNew={isFoundSince(lead.foundAt, since)}
             focused={i === focusedIndex}
             rowProps={getRowProps(i)}
             onShortlist={onShortlist}
@@ -277,6 +282,8 @@ export function LeadsPage() {
   const snackbar = useUndoSnackbar();
   const demo = useIsDemo();
   const refreshLeads = useRefreshLeads();
+  // Fixed for the whole visit. The visit is stored for the next one once the list has loaded.
+  const since = useLeadsSince({ markSeen: query.isSuccess });
 
   const tracks = useMemo(
     () =>
@@ -422,6 +429,7 @@ export function LeadsPage() {
   const leads = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
   // One "now" per answer, so "at 07:04" versus "on Oct 27" stays still while the owner reads.
   const now = useMemo(() => new Date(), [query.dataUpdatedAt, runs.dataUpdatedAt]);
+  const newCount = leads.filter((lead) => isFoundSince(lead.foundAt, since)).length;
   const tabLabel = TABS.find((t) => t.key === filters.status)?.label ?? "New";
   const searchEnabled = settings.data?.search.enabled;
   const runTime = settings.data?.search.runTime;
@@ -486,6 +494,11 @@ export function LeadsPage() {
             Leads
           </Typography>
           <SearchCaption runs={runs.data} timezone={timezone} now={now} />
+          {newCount > 0 ? (
+            <Typography variant="caption" color="text.secondary" component="p">
+              {`${newCount} new in this list since your last visit`}
+            </Typography>
+          ) : null}
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
           {demo ? (
@@ -637,6 +650,7 @@ export function LeadsPage() {
               timezone={timezone}
               now={now}
               trackLabels={trackLabels}
+              since={since}
               onShortlist={onShortlist}
               onDismiss={onDismiss}
               onMarkApplied={onMarkApplied}
