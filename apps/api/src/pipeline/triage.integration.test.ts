@@ -138,7 +138,7 @@ describe("runTriageBatch: rules (stage 1a)", () => {
       mail("spam", { labels: ["SPAM"] }),
       mail("promo", { labels: ["INBOX", "CATEGORY_PROMOTIONS"] }),
     ]);
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 4 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 4 });
     expect(llm.calls).toEqual([]);
     expect((await row("ats")).state).toBe("job_related");
     expect((await row("ats")).triageRule).toBe("R4");
@@ -403,6 +403,290 @@ describe("runTriageBatch: what is stored", () => {
   });
 });
 
+describe("runTriageBatch: R3 deferral for outgoing mail", () => {
+  const outgoing = (id: string, date: string, to = "Maya <maya@quarry.example>") =>
+    mail(id, { labels: ["SENT"], from: "Owner <owner@example.com>", to: [to], date });
+  const confirmation = (id: string, date: string) =>
+    mail(id, { from: "Quarry AI <no-reply@ashbyhq.com>", date });
+
+  it("waits while an older message has not settled, never reaches the LLM, and is decided later", async () => {
+    const { ctx, llm } = await setup([
+      confirmation("confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("out", "2026-10-06T10:00:00.000Z"),
+    ]);
+
+    // The confirmation is job-related (R4) but not applied; the follow-up is not known yet.
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1 });
+    expect(llm.calls).toEqual([]);
+    // Still discovered, but with its real date, so it no longer holds the apply watermark at the
+    // epoch: the older message can be applied. No attempt is counted, no content is stored.
+    const waiting = await row("out");
+    expect(waiting).toMatchObject({
+      state: "discovered",
+      attempts: 0,
+      lastError: null,
+      direction: "outbound",
+      internalDate: new Date("2026-10-06T10:00:00.000Z"),
+    });
+    expect(contentOf(waiting)).toEqual(NO_CONTENT);
+
+    // The older message is applied and the company's domain is learned.
+    await prisma.company.create({
+      data: {
+        name: "Quarry AI",
+        normalizedName: "quarry ai",
+        domains: ["quarry.example"],
+        createdSource: "gmail",
+      },
+    });
+    await prisma.gmailMessage.update({ where: { id: "confirm" }, data: { state: "applied" } });
+
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1 });
+    expect(llm.calls).toEqual([]);
+    expect(await row("out")).toMatchObject({
+      state: "job_related",
+      triageRule: "R3",
+      triageMethod: "rule",
+      attempts: 0,
+    });
+  });
+
+  it("is triaged out, with no content, once every older message has settled", async () => {
+    const { ctx, llm } = await setup([
+      mail("old", { labels: ["SPAM"], date: "2026-10-05T10:00:00.000Z" }),
+      outgoing("out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 2 });
+    expect(llm.calls).toEqual([]);
+    const stored = await row("out");
+    expect(stored).toMatchObject({ state: "triaged_out", triageRule: "R3", direction: "outbound" });
+    expect(contentOf(stored)).toEqual(NO_CONTENT);
+  });
+
+  it("does not wait for a message that waits for the owner", async () => {
+    const { ctx } = await setup([
+      confirmation("review", "2026-10-05T10:00:00.000Z"),
+      outgoing("out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    await runTriageBatch(ctx);
+    // "review" is only job_related (unsettled), so the follow-up waits. Once that message waits for
+    // the owner (needs_review), the pipeline cannot hurry it, so the follow-up is decided.
+    expect((await row("out")).state).toBe("discovered");
+    await prisma.gmailMessage.update({ where: { id: "review" }, data: { state: "needs_review" } });
+    await runTriageBatch(ctx);
+    expect((await row("out")).state).toBe("triaged_out");
+  });
+
+  it("waits while a message has not been read from Gmail yet", async () => {
+    // 26 messages: the batch of 25 is the first 25 by discovery order; the 26th keeps its
+    // placeholder date and could be older than the follow-up.
+    const spam = Array.from({ length: 25 }, (_, i) =>
+      mail(`s${String(i).padStart(2, "0")}`, { labels: ["SPAM"] }),
+    );
+    const fixtures = [
+      outgoing("a-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+      ...spam.slice(0, 24),
+      mail("z-last", { labels: ["SPAM"], date: "2026-10-01T10:00:00.000Z" }),
+    ];
+    const reads = new Map<string, number>();
+    const real = new FakeGmailClient(fixtures);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        reads.set(id, (reads.get(id) ?? 0) + 1);
+        return real.getMetadata(id);
+      },
+    };
+    const { ctx, llm } = await setup(fixtures, gmail);
+    expect(await runTriageBatch(ctx)).toMatchObject({
+      processed: 24,
+      read: 25,
+      unread: 1,
+      waiting: 1,
+    });
+    expect((await row("a-out")).state).toBe("discovered");
+    expect(llm.calls).toEqual([]);
+
+    // The 26th message is read; the waiting one is not read again while that message is unread.
+    expect(await runTriageBatch(ctx)).toMatchObject({
+      processed: 1,
+      read: 1,
+      unread: 0,
+      waiting: 1,
+    });
+    expect(reads.get("a-out")).toBe(1);
+    expect((await row("a-out")).state).toBe("discovered");
+
+    // Nothing older is unsettled now: it is read once more and decided.
+    expect(await runTriageBatch(ctx)).toMatchObject({
+      processed: 1,
+      read: 0,
+      released: 1,
+      waiting: 0,
+    });
+    expect(reads.get("a-out")).toBe(2);
+    expect(await row("a-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("releases a run of consecutive waiting messages together, each read twice", async () => {
+    const reads = new Map<string, number>();
+    const fixtures = [
+      confirmation("a-confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("b-out1", "2026-10-06T10:00:00.000Z"),
+      outgoing("b-out2", "2026-10-07T10:00:00.000Z"),
+      outgoing("b-out3", "2026-10-08T10:00:00.000Z"),
+    ];
+    const real = new FakeGmailClient(fixtures);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        reads.set(id, (reads.get(id) ?? 0) + 1);
+        return real.getMetadata(id);
+      },
+    };
+    const { ctx } = await setup(fixtures, gmail);
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1, read: 4, waiting: 3 });
+
+    // The older message is applied: all three waiting ones go in one batch, oldest first.
+    await prisma.gmailMessage.update({ where: { id: "a-confirm" }, data: { state: "applied" } });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 3, released: 3, waiting: 0 });
+    for (const id of ["b-out1", "b-out2", "b-out3"]) {
+      expect(await row(id), id).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+      expect(reads.get(id), id).toBe(2);
+    }
+  });
+
+  it("releases a waiting run only up to a message that is still unsettled", async () => {
+    const { ctx } = await setup([
+      confirmation("a-confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("b-out1", "2026-10-06T10:00:00.000Z"),
+      confirmation("c-middle", "2026-10-07T10:00:00.000Z"),
+      outgoing("d-out2", "2026-10-08T10:00:00.000Z"),
+    ]);
+    await runTriageBatch(ctx);
+    await prisma.gmailMessage.update({ where: { id: "a-confirm" }, data: { state: "applied" } });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1, released: 1, waiting: 1 });
+    expect((await row("b-out1")).state).toBe("triaged_out");
+    // c-middle is job_related and not applied, so the later one keeps waiting.
+    expect((await row("d-out2")).state).toBe("discovered");
+  });
+
+  it("does not count a message whose model call failed as read", async () => {
+    const { ctx, llm } = await setup([
+      mail("a-skip", { labels: ["SPAM"] }),
+      mail("b-one"),
+      mail("c-two"),
+    ]);
+    llm.triage = () => Promise.reject(new LlmError("upstream", "down", { retryable: true }));
+    expect(await runTriageBatch(ctx)).toMatchObject({
+      processed: 1,
+      // Only the skipped message left the placeholder date; the two failed ones did not.
+      read: 1,
+      modelFailed: 2,
+      unread: 2,
+    });
+    expect(await row("b-one")).toMatchObject({ state: "discovered", attempts: 1 });
+  });
+
+  it("does not read a waiting message again while an older one is unsettled, and reports nothing to do", async () => {
+    const reads = new Map<string, number>();
+    const fixtures = [
+      confirmation("a-confirm", "2026-10-05T10:00:00.000Z"),
+      outgoing("b-out", "2026-10-06T10:00:00.000Z"),
+    ];
+    const real = new FakeGmailClient(fixtures);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) => {
+        reads.set(id, (reads.get(id) ?? 0) + 1);
+        return real.getMetadata(id);
+      },
+    };
+    const { ctx } = await setup(fixtures, gmail);
+    await runTriageBatch(ctx);
+    for (let i = 0; i < 3; i += 1) {
+      expect(await runTriageBatch(ctx)).toEqual({
+        processed: 0,
+        read: 0,
+        released: 0,
+        modelFailed: 0,
+        unread: 0,
+        waiting: 0,
+      });
+    }
+    expect(reads.get("b-out")).toBe(1);
+  });
+
+  it("does not wait for a message Gmail no longer has (skipped, still on the placeholder date)", async () => {
+    const ghost = mail("a-ghost", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const { ctx } = await setup([ghost, out], new FakeGmailClient([out]));
+    await runTriageBatch(ctx);
+    expect(await row("a-ghost")).toMatchObject({
+      state: "skipped",
+      internalDate: new Date(0),
+    });
+    expect(await row("b-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("does not wait for a message that failed with unknown metadata (failed, placeholder date)", async () => {
+    const bad = mail("a-bad", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const real = new FakeGmailClient([bad, out]);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) =>
+        id === "a-bad" ? Promise.reject(new GmailRequestError(400)) : real.getMetadata(id),
+    };
+    const { ctx } = await setup([bad, out], gmail);
+    // Its fifth failed attempt: the message is failed for good, and never read.
+    await prisma.gmailMessage.update({ where: { id: "a-bad" }, data: { attempts: 4 } });
+    await runTriageBatch(ctx);
+    expect(await row("a-bad")).toMatchObject({ state: "failed", internalDate: new Date(0) });
+    expect(await row("b-out")).toMatchObject({ state: "triaged_out", triageRule: "R3" });
+  });
+
+  it("still waits for a message that failed an attempt but may yet be read", async () => {
+    const bad = mail("a-bad", { date: "2026-10-05T10:00:00.000Z" });
+    const out = outgoing("b-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>");
+    const real = new FakeGmailClient([bad, out]);
+    const gmail: GmailClient = {
+      getProfile: () => real.getProfile(),
+      listMessages: (q, t) => real.listMessages(q, t),
+      listHistory: (s, t) => real.listHistory(s, t),
+      getFull: (id) => real.getFull(id),
+      getMetadata: (id) =>
+        id === "a-bad" ? Promise.reject(new GmailRequestError(400)) : real.getMetadata(id),
+    };
+    const { ctx } = await setup([bad, out], gmail);
+    await runTriageBatch(ctx);
+    expect((await row("a-bad")).state).toBe("discovered");
+    expect((await row("b-out")).state).toBe("discovered");
+  });
+
+  it("decides several waiting messages oldest first in one pass", async () => {
+    const { ctx } = await setup([
+      outgoing("b-out", "2026-10-07T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+      outgoing("a-out", "2026-10-06T10:00:00.000Z", "Stranger <someone@unknown.example>"),
+    ]);
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 2 });
+    expect((await row("a-out")).state).toBe("triaged_out");
+    expect((await row("b-out")).state).toBe("triaged_out");
+  });
+});
+
 describe("runTriageBatch: batches and failures", () => {
   it("takes up to 25 discovered messages, oldest first, and leaves the rest", async () => {
     const fixtures = Array.from({ length: 30 }, (_, i) =>
@@ -420,15 +704,15 @@ describe("runTriageBatch: batches and failures", () => {
       llm: FakeLlmProvider.fromFixtures({ emails: fixtures, leadBatches: [] }),
     });
 
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 25 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 25 });
     const left = await prisma.gmailMessage.findMany({
       where: { state: "discovered" },
       orderBy: { id: "asc" },
     });
     // The five discovered last (m00..m04) are the ones left.
     expect(left.map((m) => m.id)).toEqual(["m00", "m01", "m02", "m03", "m04"]);
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 5 });
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 0 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 5 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 0 });
   });
 
   it("an LLM failure leaves the batch discovered with attempts + 1; the fifth failure marks failed and opens extraction_failed", async () => {
@@ -440,7 +724,7 @@ describe("runTriageBatch: batches and failures", () => {
     llm.failNext("triage", new LlmError("upstream", "boom", { retryable: true }));
 
     // The message a rule decides is not held back by the LLM failure.
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 1 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1 });
     expect((await row("ruled")).state).toBe("job_related");
     expect(await row("undecided")).toMatchObject({
       state: "discovered",
@@ -480,7 +764,7 @@ describe("runTriageBatch: batches and failures", () => {
     ];
     const { ctx, llm } = await setup(fixtures);
     llm.failNext("triage", new LlmError("bad_request", "rejected (400)", { retryable: false }));
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 2 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 2 });
     expect(await row("bad")).toMatchObject({
       state: "failed",
       attempts: 1,
@@ -555,14 +839,14 @@ describe("runTriageBatch: batches and failures", () => {
     llm.failNext("triage", new LlmError("rate_limited", "slow down", { retryable: true }));
     await runTriageBatch(ctx);
     expect((await row("a")).attempts).toBe(1);
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 1 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 1 });
     expect((await row("a")).state).toBe("job_related");
   });
 
   it("a message Gmail no longer has is skipped for good, with no content", async () => {
     const present = mail("here", { from: "Hiring <no-reply@greenhouse-mail.io>" });
     const { ctx } = await setup([present, mail("gone")], new FakeGmailClient([present]));
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 2 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 2 });
     expect(await row("gone")).toMatchObject({
       state: "skipped",
       triageRule: null,
@@ -571,7 +855,7 @@ describe("runTriageBatch: batches and failures", () => {
     });
     expect(contentOf(await row("gone"))).toEqual(NO_CONTENT);
     expect((await row("here")).state).toBe("job_related");
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 0 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 0 });
   });
 
   it("a message Gmail refuses counts an attempt; the fifth marks it failed", async () => {
@@ -646,7 +930,7 @@ describe("runTriageBatch: batches and failures", () => {
         return Promise.reject(new Error("must not be called"));
       },
     });
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 0 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 0 });
     expect(fetches).toBe(0);
   });
 
@@ -670,7 +954,7 @@ describe("runTriageBatch: batches and failures", () => {
       gmail: fakeGmailFactory(gmail),
       llm: FakeLlmProvider.fromFixtures({ emails: fixtures, leadBatches: [] }),
     });
-    expect(await runTriageBatch(ctx)).toEqual({ processed: 0 });
+    expect(await runTriageBatch(ctx)).toMatchObject({ processed: 0 });
     expect((await row("a")).state).toBe("failed");
   });
 });

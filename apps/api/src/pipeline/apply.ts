@@ -182,7 +182,7 @@ async function recordFailure(
 /**
  * Sends `leads.check` for the leads an applied message stored, after its transaction committed. A
  * failed send is logged by error name and does not undo the message: the leads wait in `checking`
- * for the lead jobs' own recovery.
+ * until T7.5's `sendPendingChecks` sweep sends their checks again.
  */
 export async function sendLeadChecks(ctx: WorkerCtx, batches: LeadChecks[]): Promise<void> {
   for (const batch of batches) {

@@ -26,7 +26,7 @@ type Ref = { id: string; threadId: string };
  * Until then its date is the epoch, which keeps it ahead of every real date: the apply watermark
  * (the oldest message still `discovered`, §5.6) and the timers gate (§6.7) wait for it.
  */
-const UNKNOWN_DATE = new Date(0);
+export const UNKNOWN_DATE = new Date(0);
 const DAY_MS = 86_400_000;
 const QUERY_SUFFIX = "-in:spam -in:trash -in:drafts";
 

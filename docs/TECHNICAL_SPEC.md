@@ -241,7 +241,7 @@ Input: labels, direction, thread id, headers `From`, `To`, `Cc`, `Subject`, `Dat
 |---|---|---|
 | R1 | Label `DRAFT`, `SPAM`, `TRASH` or `CHAT`; or `internal_date` before backfill start | `skipped` |
 | R2 | Thread id is linked to an application or lead | job-related |
-| R3 | Outgoing (`SENT` label): any recipient is a known contact or at a known company domain → job-related (`direction=outbound`); otherwise → `triaged_out` **(never sent to the LLM)** | as stated |
+| R3 | Outgoing (`SENT` label): any recipient is a known contact or at a known company domain → job-related (`direction=outbound`); otherwise, once every older message has settled → `triaged_out` **(never sent to the LLM)**. Until then it stays `discovered` and is decided again with each batch (R3 deferral, DECISIONS I-7) | as stated |
 | R4 | Sender domain is an ATS domain (list below) | job-related |
 | R5 | Sender is a job-alert sender (list below) | job-related, hint `job_alert` |
 | R6 | Sender email is a known contact, or sender's registrable domain is a known company domain | job-related |
