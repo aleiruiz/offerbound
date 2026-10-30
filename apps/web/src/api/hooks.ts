@@ -48,6 +48,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
+import { z } from "zod";
 import { DEFAULT_TIMEZONE } from "../lib/format";
 import { ApiClientError, apiFetch, apiFetchWithStatus } from "./client";
 
@@ -163,6 +164,31 @@ export function useAiUsage() {
   return useQuery<AiUsage>({
     queryKey: queryKeys.aiUsage,
     queryFn: ({ signal }) => apiFetch("/ai-usage", { schema: AiUsageSchema, signal }),
+  });
+}
+
+/**
+ * What `POST /data/purge-email-content` answers. The contracts package has no schema for this
+ * route, so the response is described here, next to the hook that reads it.
+ */
+export const PurgeEmailContentSchema = z.object({ messagesPurged: z.number().int().nonnegative() });
+export type PurgeEmailContent = z.infer<typeof PurgeEmailContentSchema>;
+
+/**
+ * `POST /data/purge-email-content`: clear the stored text of every email (AC-15.2). Records and
+ * timelines stay. The caller sends the typed `DELETE`; the server checks it again.
+ */
+export function usePurgeEmailContent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch("/data/purge-email-content", {
+        method: "POST",
+        body: { confirm: "DELETE" },
+        schema: PurgeEmailContentSchema,
+      }),
+    // Any email already on screen would still show its old text.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["message"] }),
   });
 }
 

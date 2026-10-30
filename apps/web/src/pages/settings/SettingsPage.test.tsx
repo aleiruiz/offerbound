@@ -60,6 +60,7 @@ const SECTIONS: [string, string, string][] = [
   ["Automation", "automation", "Automation"],
   ["Import", "import", "Import"],
   ["AI usage", "ai-usage", "AI usage"],
+  ["Data", "data", "Data"],
 ];
 
 describe("SettingsPage", () => {
