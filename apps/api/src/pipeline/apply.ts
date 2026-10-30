@@ -1,13 +1,12 @@
 import type { Prisma } from "@prisma/client";
-import { ExtractionSchema, IcsEventSchema, type Extraction } from "@offerbound/contracts";
-import { planChanges, type ChangePlan, type PlanMessage } from "@offerbound/domain";
-import { z } from "zod";
+import { planChanges, type ChangePlan } from "@offerbound/domain";
 import { withIntakeLock } from "../db/lock.js";
 import type { WorkerCtx } from "../deps.js";
 import { enqueueLeadChecks } from "../leads/intake.js";
 import { createReviewItem } from "../review/create.js";
 import { getSettings } from "../settings/service.js";
 import { executePlan, VersionConflictError, type LeadChecks } from "./execute-plan.js";
+import { openNoticeItems, parseStoredExtraction, toPlanMessage } from "./plan-message.js";
 import { loadPlanSnapshot } from "./snapshot.js";
 import { NO_CONTENT } from "./triage.js";
 
@@ -63,14 +62,6 @@ type Step =
       leadChecks: LeadChecks[];
     };
 
-const IcsEventsSchema = z.array(IcsEventSchema);
-
-function describeNotice(names: string[]): string {
-  return names.length === 0
-    ? "A company with a similar name already exists"
-    : `Might be the same company as ${names.join(", ")}`;
-}
-
 /** Applies the next eligible message inside the lock. `current` is set once a message is chosen. */
 async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null }): Promise<Step> {
   const pending = await tx.gmailMessage.aggregate({
@@ -88,18 +79,9 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
   if (message === null) return { kind: "none" };
   current.id = message.id;
 
-  const parsed = ExtractionSchema.safeParse(message.extraction);
-  if (!parsed.success) throw new ApplyFailure("stored_extraction_invalid");
-  const extraction: Extraction = parsed.data;
-  const ics = IcsEventsSchema.safeParse(message.icsEvents ?? []);
-  const planMessage: PlanMessage = {
-    id: message.id,
-    threadId: message.threadId,
-    internalDate: message.internalDate,
-    direction: message.direction,
-    fromEmail: message.fromEmail,
-    icsEvents: ics.success ? ics.data : [],
-  };
+  const extraction = parseStoredExtraction(message);
+  if (extraction === null) throw new ApplyFailure("stored_extraction_invalid");
+  const planMessage = toPlanMessage(message);
 
   const settings = await getSettings(tx);
   const { automation } = settings;
@@ -140,18 +122,7 @@ async function applyNext(tx: Tx, ctx: WorkerCtx, current: { id: string | null })
     actor: "system",
     settings,
   });
-  for (const notice of plan.notices) {
-    const companyId = "id" in notice.company ? notice.company.id : refs[notice.company.ref];
-    await createReviewItem(tx, {
-      kind: notice.kind,
-      messageId: message.id,
-      ...(companyId === undefined ? {} : { companyId }),
-      confidence: null,
-      plan: null,
-      candidates: notice.candidates,
-      reasons: [describeNotice(notice.candidates.map((c) => c.label))],
-    });
-  }
+  await openNoticeItems(tx, message.id, plan, refs);
   await move({ state: "applied" });
   return { kind: "done", messageId: message.id, state: "applied", leadChecks };
 }
@@ -213,7 +184,7 @@ async function recordFailure(
  * failed send is logged by error name and does not undo the message: the leads wait in `checking`
  * until T7.5's `sendPendingChecks` sweep sends their checks again.
  */
-async function sendLeadChecks(ctx: WorkerCtx, batches: LeadChecks[]): Promise<void> {
+export async function sendLeadChecks(ctx: WorkerCtx, batches: LeadChecks[]): Promise<void> {
   for (const batch of batches) {
     try {
       await enqueueLeadChecks(ctx.queue, batch);

@@ -34,6 +34,22 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # The runner ships pg_dump 16, which refuses to dump the postgres:17 service. The ops
+      # integration test runs the real pg_dump and pg_restore, so install the 17 client from PGDG.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Check the PostgreSQL client is version 17
+        run: |
+          pg_dump --version
+          pg_dump --version | grep -q "(PostgreSQL) 17\."
+          pg_restore --version | grep -q "(PostgreSQL) 17\."
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm format:check
