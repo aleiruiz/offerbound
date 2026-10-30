@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { apiError, mockApi } from "../../test/mock-api";
-import { ApiClientError, apiFetch, setUnauthorizedHandler } from "./client";
+import { ApiClientError, apiFetch, apiFetchText, setUnauthorizedHandler } from "./client";
 
 afterEach(() => setUnauthorizedHandler(null));
 
@@ -118,5 +118,24 @@ describe("apiFetch", () => {
   it("returns undefined for 204", async () => {
     mockApi({ "POST /api/v1/auth/logout": () => undefined });
     await expect(apiFetch("/auth/logout", { method: "POST" })).resolves.toBeUndefined();
+  });
+});
+
+describe("apiFetchText", () => {
+  it("asks for text/plain and returns the body as a string", async () => {
+    const api = mockApi({
+      "GET /api/v1/list": () =>
+        new Response("Acme\n  Acme Corp\n", { headers: { "Content-Type": "text/plain" } }),
+    });
+    expect(await apiFetchText("/list")).toBe("Acme\n  Acme Corp\n");
+    expect(api.calls[0]?.headers.get("Accept")).toBe("text/plain");
+  });
+
+  it("throws the API's error", async () => {
+    mockApi({ "GET /api/v1/list": () => apiError(500, "internal_error", "Boom.") });
+    await expect(apiFetchText("/list")).rejects.toMatchObject({
+      status: 500,
+      code: "internal_error",
+    });
   });
 });

@@ -485,7 +485,12 @@ export function LeadsPage() {
           </Typography>
           <SearchCaption runs={runs.data} timezone={timezone} now={now} />
         </Box>
-        {runSearchButton}
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
+          <Button variant="outlined" component={RouterLink} to="/leads/import">
+            Import a report
+          </Button>
+          {runSearchButton}
+        </Box>
       </Box>
 
       {running ? <SearchProgress run={running} /> : null}

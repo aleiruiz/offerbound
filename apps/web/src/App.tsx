@@ -5,6 +5,7 @@ import { ApplicationDetailPage } from "./pages/ApplicationDetailPage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
+import { ImportReportPage } from "./pages/ImportReportPage";
 import { LeadsPage } from "./pages/LeadsPage";
 import { InterviewsPage } from "./pages/InterviewsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -33,6 +34,7 @@ export function App() {
           <Route path="/applications" element={<ApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/leads/import" element={<ImportReportPage />} />
           <Route path="/interviews" element={<InterviewsPage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/settings" element={<Navigate to="/settings/gmail" replace />} />

@@ -981,4 +981,12 @@ describe("LeadsPage", () => {
     expect(await screen.findByText("Tidewater Labs")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^New/ })).toHaveAttribute("aria-selected", "true");
   });
+
+  it("links to the report importer", async () => {
+    setup();
+    expect(await screen.findByRole("link", { name: "Import a report" })).toHaveAttribute(
+      "href",
+      "/leads/import",
+    );
+  });
 });

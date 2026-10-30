@@ -13,6 +13,8 @@ import {
   MessageDetailSchema,
   NavCountsSchema,
   PageSchema,
+  ReportCommitResultSchema,
+  ReportPreviewSchema,
   ReviewItemSchema,
   SearchRunSchema,
   SearchRunsSchema,
@@ -50,7 +52,7 @@ import {
 } from "@tanstack/react-query";
 import { z } from "zod";
 import { DEFAULT_TIMEZONE } from "../lib/format";
-import { ApiClientError, apiFetch, apiFetchWithStatus } from "./client";
+import { ApiClientError, apiFetch, apiFetchText, apiFetchWithStatus } from "./client";
 
 export const queryKeys = {
   me: ["me"] as const,
@@ -525,6 +527,37 @@ export function useReconsiderLead(callbacks: MutationCallbacks<Lead, Lead> = {})
       callbacks.onError?.(error, lead);
     },
   });
+}
+
+/** `POST /leads/import/preview`: read a pasted report and say what each row would do. Writes nothing. */
+export function usePreviewReport() {
+  return useMutation({
+    mutationFn: (text: string) =>
+      apiFetch("/leads/import/preview", {
+        method: "POST",
+        body: { text },
+        schema: ReportPreviewSchema,
+      }),
+  });
+}
+
+/** `POST /leads/import/commit` (202): create the rows still checked, then refresh the lead lists. */
+export function useCommitReport() {
+  const refresh = useRefreshLeads();
+  return useMutation({
+    mutationFn: (body: { previewId: string; keepRowIds: string[] }) =>
+      apiFetch("/leads/import/commit", {
+        method: "POST",
+        body,
+        schema: ReportCommitResultSchema,
+      }),
+    onSuccess: () => refresh(),
+  });
+}
+
+/** `GET /companies/exclusion-list`: every company name and alias already seen, as plain text. */
+export function useFetchSeenCompanies() {
+  return useMutation({ mutationFn: () => apiFetchText("/companies/exclusion-list") });
 }
 
 /** How the lists are ordered: track priority then fit (AC-12.4, the default), or newest first. */

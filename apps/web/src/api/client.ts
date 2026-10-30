@@ -69,13 +69,10 @@ export async function apiFetch<T = unknown>(path: string, init: ApiFetchInit<T> 
   return (await apiFetchWithStatus(path, init)).data;
 }
 
-/** Like `apiFetch`, but also says which 2xx status answered (for routes whose body depends on it). */
-export async function apiFetchWithStatus<T = unknown>(
-  path: string,
-  init: ApiFetchInit<T> = {},
-): Promise<ApiResponse<T>> {
+/** Sends the request and throws an `ApiClientError` for any non-2xx answer. */
+async function send(path: string, init: ApiFetchInit<unknown>, accept: string): Promise<Response> {
   const method = (init.method ?? "GET").toUpperCase();
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = { Accept: accept };
   if (method !== "GET") headers["X-Offerbound-Request"] = "1";
   let body: string | FormData | undefined;
   if (init.formData !== undefined) {
@@ -113,7 +110,24 @@ export async function apiFetchWithStatus<T = unknown>(
     if (res.status === 401) (unauthorizedHandler ?? redirectToLogin)();
     throw error;
   }
+  return res;
+}
 
+/** For routes that answer `text/plain` (the companies-seen list): the body as a string. */
+export async function apiFetchText(
+  path: string,
+  init: Pick<ApiFetchInit<string>, "signal"> = {},
+): Promise<string> {
+  const res = await send(path, init, "text/plain");
+  return res.text();
+}
+
+/** Like `apiFetch`, but also says which 2xx status answered (for routes whose body depends on it). */
+export async function apiFetchWithStatus<T = unknown>(
+  path: string,
+  init: ApiFetchInit<T> = {},
+): Promise<ApiResponse<T>> {
+  const res = await send(path, init, "application/json");
   if (res.status === 204) return { status: res.status, data: undefined as T };
   const json = await readJson(res);
   const schema = typeof init.schema === "function" ? init.schema(res.status) : init.schema;
