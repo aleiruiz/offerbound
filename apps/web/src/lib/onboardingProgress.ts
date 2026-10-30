@@ -6,7 +6,7 @@ import { z } from "zod";
  * about matter much (the spreadsheet import), but the record holds every step the owner completed
  * or skipped. Storage can be blocked or hold anything, so every access is guarded.
  */
-export const ONBOARDING_STORAGE_KEY = "offerbound.onboarding.v1";
+export const ONBOARDING_STORAGE_KEY = "offerbound.onboarding.v2";
 
 export interface OnboardingProgress {
   completed: number[];

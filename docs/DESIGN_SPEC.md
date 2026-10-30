@@ -148,7 +148,7 @@ Not mocked, built with the same patterns: **Daily targets** (pairs of number fie
 
 ### 5.8 Onboarding — artboard *Onboarding*
 
-Four-step `Stepper` (this content is a sequence, so numbers are right): Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail. Only the last step is required. The import step shows the file, a mapping preview table (status in your sheet → what it becomes → rows), skipped rows in a warning Alert, and *Import N rows* (contained) (AC-14.1–14.5, S-23). The last step explains what will be read and has *Start syncing* (contained), then shows the first-sync progress state. Progress is kept, so after a reload or a new sign-in the page reopens on the first unfinished step.
+Four-step `Stepper` (this content is a sequence, so numbers are right): Start syncing Gmail, Upload your CV, Import your spreadsheet, Write your search brief. Only the first step is required; the others can be skipped, and setup finishes from the last step. The import step shows the file, a mapping preview table (status in your sheet → what it becomes → rows), skipped rows in a warning Alert, and *Import N rows* (contained) (AC-14.1–14.5, S-23). The first step explains what will be read and has *Start syncing* (contained), then shows the first-sync progress state and *Continue*; the sync keeps running while the owner does the other steps. Sheet rows already found in Gmail are skipped. Progress is kept, so after a reload or a new sign-in the page reopens on the first unfinished step.
 
 ### 5.9 Sign in — artboard *Sign in*
 

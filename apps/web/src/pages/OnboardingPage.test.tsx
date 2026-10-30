@@ -66,10 +66,18 @@ const ME = {
 
 type Routes = Record<string, MockHandler>;
 
+const RUNNING = makeSyncStatus({
+  started: true,
+  lastSyncAt: null,
+  backfill: { state: "running", listed: 400, processed: 120 },
+});
+const NOT_STARTED = makeSyncStatus({ connection: "active", started: false, lastSyncAt: null });
+
 async function setup(routes: Routes = {}, { settled = true } = {}) {
   const api: MockApi = mockApi({
-    "GET /api/v1/gmail/status": () =>
-      makeSyncStatus({ connection: "active", started: false, lastSyncAt: null }),
+    // The sync is already running, so the page opens on the CV step (step 2); tests of the first
+    // step say otherwise with NOT_STARTED.
+    "GET /api/v1/gmail/status": () => RUNNING,
     "GET /api/v1/settings": () => DEFAULT_SETTINGS,
     "GET /api/v1/cv": () => null,
     ...routes,
@@ -124,44 +132,37 @@ async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
 describe("OnboardingPage", () => {
   // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
   heavyIt(
-    "shows four steps — Upload your CV, Import your spreadsheet, Write your search brief, Start syncing Gmail — and only the last can't be skipped",
+    "shows four steps — Start syncing Gmail, Upload your CV, Import your spreadsheet, Write your search brief — and only the first can't be skipped",
     async () => {
-      const { user } = await setup();
+      await setup({ "GET /api/v1/gmail/status": () => NOT_STARTED });
       expect(
         screen.getByRole("heading", { level: 1, name: "Set up Offerbound" }),
       ).toBeInTheDocument();
       expect(screen.getByRole("img", { name: "Offerbound" })).toHaveAttribute("src", lockupLight);
       const steps = screen.getByLabelText("Setup steps");
-      for (const name of [
+      const names = [
+        "Start syncing Gmail",
         "Upload your CV",
         "Import your spreadsheet",
         "Write your search brief",
-        "Start syncing Gmail",
-      ]) {
-        expect(within(steps).getByText(name)).toBeInTheDocument();
-      }
-      expect(within(steps).getByText("Upload your CV").closest("[aria-current]")).toHaveAttribute(
-        "aria-current",
-        "step",
-      );
+      ];
+      const labels = within(steps)
+        .getAllByText(/^(Start syncing|Upload|Import|Write)/)
+        .map((node) => node.textContent);
+      expect(labels).toEqual(names);
+      expect(
+        within(steps).getByText("Start syncing Gmail").closest("[aria-current]"),
+      ).toHaveAttribute("aria-current", "step");
 
-      // Steps 1 to 3 can be skipped, and the Back button is there from step 2 on.
+      // The first step has no Back and no Skip; the others can be skipped.
       expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
-      await skipTo(user, 3);
-      expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toHaveFocus();
       expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
-      expect(within(steps).getAllByText("Skipped")).toHaveLength(3);
-      expect(within(steps).queryByText("Optional")).toBeNull();
-
-      await user.click(screen.getByRole("button", { name: "Back" }));
-      expect(
-        screen.getByRole("heading", { level: 2, name: "Write your search brief" }),
-      ).toBeVisible();
+      expect(within(steps).getAllByText("Optional")).toHaveLength(3);
     },
   );
 
-  it("marks steps 1 to 3 Optional in the stepper until they are skipped, and never the last", async () => {
+  it("marks steps 2 to 4 Optional in the stepper until they are skipped, and never the first", async () => {
     const { user } = await setup();
     const steps = screen.getByLabelText("Setup steps");
     expect(within(steps).getAllByText("Optional")).toHaveLength(3);
@@ -472,6 +473,8 @@ describe("OnboardingPage", () => {
 
       expect(await screen.findByText("Applications.csv")).toBeInTheDocument();
       expect(screen.getByText("102 rows found under the title rows")).toBeInTheDocument();
+      // Gmail sync comes first, so rows it already found are skipped rather than duplicated.
+      expect(screen.getByText(/Rows already found in Gmail are skipped/)).toBeVisible();
       const table = screen.getByRole("table");
       expect(
         within(table).getByRole("columnheader", { name: "Status in your sheet" }),
@@ -751,6 +754,7 @@ describe("OnboardingPage", () => {
         const { api, user } = await setup({
           "GET /api/v1/settings": () => settings,
           "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+          "POST /api/v1/onboarding/complete": () => ME,
         });
         await skipTo(user, 2);
 
@@ -767,27 +771,28 @@ describe("OnboardingPage", () => {
           ...settings,
           search: { ...settings.search, brief: "Senior roles, remote from Mexico." },
         });
-        expect(
-          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-        ).toBeVisible();
+        // Saving the brief finishes setup: this is the last step.
+        expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
       },
     );
 
     // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
     heavyIt(
-      "after a successful save, coming back shows Continue and no Skip, whether or not the text was typed",
+      "when finishing fails after a save, Continue is offered again with no Skip, and retrying finishes",
       async () => {
-        const { user } = await setup({
+        let attempts = 0;
+        const { api, user } = await setup({
           "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
+          "POST /api/v1/onboarding/complete": () =>
+            (attempts += 1) === 1 ? apiError(500, "internal", "Boom.") : ME,
         });
         await skipTo(user, 2);
         setValue(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
         await user.click(screen.getByRole("button", { name: "Save and continue" }));
-        await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
+        expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't finish setup.");
 
-        await user.click(screen.getByRole("button", { name: "Back" }));
         expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
-        expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
         expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
 
@@ -795,12 +800,21 @@ describe("OnboardingPage", () => {
         setValue(screen.getByRole("textbox", { name: "Search brief" }), "Remote roles in Mexico");
         expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
         expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: "Save and continue" }));
-        expect(
-          await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" }),
-        ).toBeVisible();
+        setValue(screen.getByRole("textbox", { name: "Search brief" }), "Remote roles");
+        await user.click(screen.getByRole("button", { name: "Continue" }));
+        expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(2);
+        expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(1);
       },
     );
+
+    it("Skip this step finishes setup without saving anything", async () => {
+      const { api, user } = await setup({ "POST /api/v1/onboarding/complete": () => ME });
+      await skipTo(user, 3);
+      expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
+      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
+      expect(callsTo(api, "PUT", "/api/v1/settings")).toHaveLength(0);
+    });
 
     it("starts with an empty field instead of the shipped example text", async () => {
       const { user } = await setup();
@@ -834,76 +848,70 @@ describe("OnboardingPage", () => {
     });
   });
 
-  describe("the Gmail step", () => {
+  describe("the Gmail step (step 1)", () => {
     // Heavy under jsdom (MUI re-renders on every step); see heavyIt.
     heavyIt(
-      "Start syncing posts /gmail/start, shows first-sync progress, then completes onboarding and goes to /today",
+      "Start syncing posts /gmail/start, shows first-sync progress, and Continue goes to the CV while the sync keeps running",
       async () => {
-        let status = makeSyncStatus({ started: false, lastSyncAt: null });
-        const { api, user, queryClient } = await setup({
+        let status = NOT_STARTED;
+        const { api, user } = await setup({
           "GET /api/v1/gmail/status": () => status,
           "POST /api/v1/gmail/start": () => {
-            status = makeSyncStatus({
-              started: true,
-              lastSyncAt: null,
-              backfill: { state: "running", listed: 400, processed: 120 },
-            });
+            status = RUNNING;
             return jsonResponse(status, 202);
           },
-          "POST /api/v1/onboarding/complete": () => ME,
         });
-        await skipTo(user, 3);
         expect(screen.getByRole("list", { name: "What Offerbound reads" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Continue" })).not.toBeInTheDocument();
 
         await user.click(screen.getByRole("button", { name: "Start syncing" }));
 
-        const progress = await screen.findByText(/120 of 400 checked\./);
-        expect(progress).toBeInTheDocument();
+        expect(await screen.findByText(/120 of 400 checked\./)).toBeInTheDocument();
         expect(screen.getByRole("progressbar", { name: "First sync" })).toHaveAttribute(
           "aria-valuenow",
           "30",
         );
         const start = callsTo(api, "POST", "/api/v1/gmail/start")[0];
         expect(start?.headers.get("X-Offerbound-Request")).toBe("1");
+        // Starting the sync does not end setup, even once the sync is done.
         expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
 
-        // The next status check says the first sync is done.
-        status = makeSyncStatus({
-          started: true,
-          backfill: { state: "done", listed: 400, processed: 400 },
-        });
-        await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
-
-        expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
-        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
-        expect(queryClient.getQueryData(queryKeys.me)).toEqual(ME);
+        await user.click(screen.getByRole("button", { name: "Continue" }));
+        expect(screen.getByRole("heading", { level: 2, name: "Upload your CV" })).toBeVisible();
+        const steps = screen.getByLabelText("Setup steps");
+        expect(
+          within(steps).getByText("Start syncing Gmail").closest("[class*=MuiStepLabel-root]"),
+        ).not.toHaveTextContent(/Optional|Skipped/);
+        expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
       },
     );
 
-    it("Go to Today finishes setup while the first sync is still running", async () => {
-      const { api, user } = await setup({
-        "GET /api/v1/gmail/status": () =>
-          makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          }),
+    it("does not finish setup when the first sync is done; the owner still goes on to the CV", async () => {
+      const { api } = await setup({
+        "GET /api/v1/gmail/status": () => makeSyncStatus({ started: true }),
         "POST /api/v1/onboarding/complete": () => ME,
       });
-      // A first sync that was already started opens on the step that shows it.
-      expect(await screen.findByText(/120 of 400 checked\./)).toBeInTheDocument();
+      await settle();
+      expect(screen.getByRole("heading", { level: 2, name: "Upload your CV" })).toBeVisible();
+      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(0);
+    });
+
+    it("shows the progress of a sync that already started, with Continue, when the owner goes back", async () => {
+      const { user } = await setup();
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(screen.getByRole("heading", { level: 2, name: "Start syncing Gmail" })).toBeVisible();
+      expect(screen.getByText(/120 of 400 checked\./)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Start syncing" })).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Go to Today" }));
-      expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
-      expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Continue" }));
+      expect(screen.getByRole("heading", { level: 2, name: "Upload your CV" })).toBeVisible();
     });
 
     it("offers Connect Gmail instead of Start syncing when Google stopped Gmail access", async () => {
-      const { api, user } = await setup({
+      const { api } = await setup({
         "GET /api/v1/gmail/status": () =>
           makeSyncStatus({ connection: "missing_scope", started: false, lastSyncAt: null }),
       });
-      await skipTo(user, 3);
       expect(await screen.findByRole("link", { name: "Connect Gmail" })).toHaveAttribute(
         "href",
         "/api/v1/auth/google/start",
@@ -914,15 +922,15 @@ describe("OnboardingPage", () => {
 
     it("says so when starting fails, and lets the owner try again", async () => {
       const { user } = await setup({
+        "GET /api/v1/gmail/status": () => NOT_STARTED,
         "POST /api/v1/gmail/start": () => apiError(502, "upstream_error", "Google did not answer."),
       });
-      await skipTo(user, 3);
       await user.click(screen.getByRole("button", { name: "Start syncing" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't start syncing.");
       expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
     });
 
-    it("shows when the first sync stopped", async () => {
+    it("shows when the first sync stopped, and still lets the owner continue", async () => {
       await setup({
         "GET /api/v1/gmail/status": () =>
           makeSyncStatus({
@@ -930,10 +938,13 @@ describe("OnboardingPage", () => {
             backfill: { state: "failed", listed: 400, processed: 120 },
           }),
       });
+      const user = userEvent.setup({ delay: null });
+      await user.click(await screen.findByRole("button", { name: "Back" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("The first sync stopped");
-      expect(screen.getByRole("button", { name: "Go to Today" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
     });
   });
+
   describe("resuming", () => {
     const stored = (value: unknown) =>
       window.localStorage.setItem(
@@ -956,9 +967,10 @@ describe("OnboardingPage", () => {
     });
 
     it("opens on the first step that is neither completed nor skipped, with the earlier ones marked as before", async () => {
-      stored({ completed: [0], skipped: [1] });
+      stored({ completed: [1], skipped: [2] });
       const { user } = await setup();
       expect(heading("Write your search brief")).toBeVisible();
+      expect(labelOf("Start syncing Gmail")).not.toHaveTextContent(/Optional|Skipped/);
       expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
       expect(labelOf("Import your spreadsheet")).toHaveTextContent("Skipped");
       expect(labelOf("Write your search brief")).toHaveTextContent("Optional");
@@ -968,12 +980,25 @@ describe("OnboardingPage", () => {
       expect(heading("Import your spreadsheet")).toBeVisible();
     });
 
+    it("counts the sync as done once it started, and opens on the CV", async () => {
+      await setup();
+      expect(heading("Upload your CV")).toBeVisible();
+      expect(labelOf("Start syncing Gmail")).not.toHaveTextContent(/Optional|Skipped/);
+      expect(labelOf("Upload your CV")).toHaveTextContent("Optional");
+    });
+
+    it("opens on the first step when the sync has not started and nothing is kept", async () => {
+      await setup({ "GET /api/v1/gmail/status": () => NOT_STARTED });
+      expect(heading("Start syncing Gmail")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Start syncing" })).toBeEnabled();
+    });
+
     it("counts the CV as done when the server has a profile, and the brief when it has an owner brief", async () => {
       await setup({
         "GET /api/v1/cv": () => PROFILE,
         "GET /api/v1/settings": () => withBrief("Remote senior roles"),
       });
-      // The import has no server answer, so it is the first unfinished step.
+      // The import has no server answer, so it is the first unfinished step after the sync.
       expect(heading("Import your spreadsheet")).toBeVisible();
       expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
       expect(labelOf("Write your search brief")).not.toHaveTextContent(/Optional|Skipped/);
@@ -982,32 +1007,27 @@ describe("OnboardingPage", () => {
 
     it("does not count a blank brief or the repo-shipped one as done", async () => {
       await setup({ "GET /api/v1/settings": () => withBrief("   \n ") });
-      expect(heading("Upload your CV")).toBeVisible();
       expect(labelOf("Write your search brief")).toHaveTextContent("Optional");
     });
 
     it("lets the server win over the record: a skipped CV that exists on the server shows as done", async () => {
-      stored({ completed: [], skipped: [0] });
+      stored({ completed: [], skipped: [1] });
       await setup({ "GET /api/v1/cv": () => PROFILE });
       expect(heading("Import your spreadsheet")).toBeVisible();
       expect(labelOf("Upload your CV")).not.toHaveTextContent(/Optional|Skipped/);
     });
 
-    it("opens on the last step when the first sync already started, whatever the record says", async () => {
-      stored({ completed: [0], skipped: [] });
-      await setup({
-        "GET /api/v1/gmail/status": () =>
-          makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          }),
-      });
-      expect(heading("Start syncing Gmail")).toBeVisible();
-      expect(screen.getByText(/120 of 400 checked\./)).toBeInTheDocument();
+    it("never reads the record of the previous step order (v1)", async () => {
+      window.localStorage.setItem(
+        "offerbound.onboarding.v1",
+        JSON.stringify({ completed: [0, 1, 2], skipped: [] }),
+      );
+      await setup();
+      expect(heading("Upload your CV")).toBeVisible();
+      expect(labelOf("Import your spreadsheet")).toHaveTextContent("Optional");
     });
 
-    it("ignores and drops a record that is not valid, and opens on step 1", async () => {
+    it("ignores and drops a record that is not valid, and opens on the first unfinished step", async () => {
       for (const garbage of [
         "not json{",
         '"text"',
@@ -1019,8 +1039,8 @@ describe("OnboardingPage", () => {
       ]) {
         window.localStorage.clear();
         stored(garbage);
-        const { unmount } = await setup();
-        expect(heading("Upload your CV")).toBeVisible();
+        const { unmount } = await setup({ "GET /api/v1/gmail/status": () => NOT_STARTED });
+        expect(heading("Start syncing Gmail")).toBeVisible();
         expect(record()).toBeNull();
         unmount();
       }
@@ -1057,7 +1077,7 @@ describe("OnboardingPage", () => {
       expect(screen.queryByLabelText("Loading your setup")).not.toBeInTheDocument();
     });
 
-    it("opens on step 1 when an answer fails, instead of waiting for it", async () => {
+    it("opens without the failed answer instead of waiting for it", async () => {
       await setup({ "GET /api/v1/cv": () => apiError(500, "internal", "Boom.") });
       expect(heading("Upload your CV")).toBeVisible();
     });
@@ -1068,61 +1088,59 @@ describe("OnboardingPage", () => {
 
       await user.upload(screen.getByLabelText("Choose CV file"), file("cv.pdf", "application/pdf"));
       await user.click(await screen.findByRole("button", { name: "Continue" }));
-      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [0], skipped: [] });
+      // The sync was already started when the page opened: the server tells that, not the record.
+      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [1], skipped: [] });
 
       await user.click(screen.getByRole("button", { name: "Skip this step" }));
-      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [0], skipped: [1] });
+      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [1], skipped: [2] });
+    });
+
+    it("writes the sync step as completed when Continue is pressed after starting it here", async () => {
+      let status = NOT_STARTED;
+      const { user } = await setup({
+        "GET /api/v1/gmail/status": () => status,
+        "POST /api/v1/gmail/start": () => {
+          status = RUNNING;
+          return jsonResponse(status, 202);
+        },
+      });
+      await user.click(screen.getByRole("button", { name: "Start syncing" }));
+      await user.click(await screen.findByRole("button", { name: "Continue" }));
+      expect(JSON.parse(record() ?? "null")).toEqual({ completed: [0], skipped: [] });
     });
 
     it("clears the record when onboarding completes", async () => {
-      stored({ completed: [0], skipped: [1, 2] });
-      const { api, user } = await setup({
-        "GET /api/v1/gmail/status": () =>
-          makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          }),
-        "POST /api/v1/onboarding/complete": () => ME,
-      });
+      stored({ completed: [1], skipped: [2] });
+      const { api, user } = await setup({ "POST /api/v1/onboarding/complete": () => ME });
+      expect(heading("Write your search brief")).toBeVisible();
       expect(record()).not.toBeNull();
-      await user.click(screen.getByRole("button", { name: "Go to Today" }));
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
       expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeInTheDocument();
       expect(callsTo(api, "POST", "/api/v1/onboarding/complete")).toHaveLength(1);
       expect(record()).toBeNull();
     });
 
     it("keeps the record when finishing fails", async () => {
-      stored({ completed: [0], skipped: [] });
+      stored({ completed: [1], skipped: [2] });
       const { user } = await setup({
-        "GET /api/v1/gmail/status": () =>
-          makeSyncStatus({
-            started: true,
-            lastSyncAt: null,
-            backfill: { state: "running", listed: 400, processed: 120 },
-          }),
         "POST /api/v1/onboarding/complete": () => apiError(500, "internal", "Boom."),
       });
-      await user.click(screen.getByRole("button", { name: "Go to Today" }));
+      await user.click(screen.getByRole("button", { name: "Skip this step" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't finish setup.");
       expect(record()).not.toBeNull();
     });
 
     it("does not override a step the owner chose when the sync status changes later", async () => {
-      let status = makeSyncStatus({ connection: "active", started: false, lastSyncAt: null });
+      let status = RUNNING;
       const { user, queryClient } = await setup({ "GET /api/v1/gmail/status": () => status });
       expect(heading("Upload your CV")).toBeVisible();
       await user.click(screen.getByRole("button", { name: "Skip this step" }));
       expect(heading("Import your spreadsheet")).toBeVisible();
 
-      status = makeSyncStatus({
-        started: true,
-        backfill: { state: "running", listed: 400, processed: 120 },
-      });
+      status = makeSyncStatus({ started: true });
       await queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus });
       await settle();
       expect(heading("Import your spreadsheet")).toBeVisible();
-      expect(screen.queryByText(/120 of 400 checked\./)).not.toBeInTheDocument();
     });
   });
 });

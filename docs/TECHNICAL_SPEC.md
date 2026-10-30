@@ -734,7 +734,7 @@ Response rate counts an application as answered when it has at least one inbound
 
 ## 11. Frontend (functional; visuals in Phase 3)
 
-Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief → start syncing; each skippable except start), `/today`, `/applications`, `/applications/:id`, `/leads` (tabs New, Shortlisted, Applied, Dismissed, Suppressed), `/leads/import` (Should), `/interviews`, `/review`, `/settings/:section`.
+Routes: `/login`, `/onboarding` (steps: start syncing → CV → sheet import → search brief; each skippable except start), `/today`, `/applications`, `/applications/:id`, `/leads` (tabs New, Shortlisted, Applied, Dismissed, Suppressed), `/leads/import` (Should), `/interviews`, `/review`, `/settings/:section`.
 
 - Server state via TanStack Query; `Today` and `SyncStatus` poll every 30 s; review count every 60 s.
 - Mutations send `X-Offerbound-Request: 1` and `version`; `409 version_conflict` shows the fresh record with a *Changes were made elsewhere* notice.

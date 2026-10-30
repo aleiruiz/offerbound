@@ -46,25 +46,26 @@ import {
 } from "../lib/onboardingProgress";
 
 /**
- * Onboarding (DESIGN_SPEC §5.8, TECHNICAL_SPEC §11): upload the CV, import the spreadsheet, write
- * the search brief, start syncing Gmail. Only the last step is required. Every step stays mounted
+ * Onboarding (DESIGN_SPEC §5.8, TECHNICAL_SPEC §11): start syncing Gmail, upload the CV, import the
+ * spreadsheet, write the search brief. Only the first step is required; the sync keeps running
+ * while the owner does the rest, and setup finishes from the last step. Every step stays mounted
  * once the owner has been there, so going back shows what was already done. Progress is kept in
  * this browser and read from the server (CV, brief), so the page reopens on the first unfinished
  * step after a reload or a new sign-in.
  */
 
 const STEPS = [
+  "Start syncing Gmail",
   "Upload your CV",
   "Import your spreadsheet",
   "Write your search brief",
-  "Start syncing Gmail",
 ] as const;
 const LAST_STEP = STEPS.length - 1;
 /**
- * Steps before the last one can be skipped; the stepper says so under their names until the step
+ * Every step after the first can be skipped; the stepper says so under their names until the step
  * is completed or skipped.
  */
-const isOptional = (index: number) => index < LAST_STEP;
+const isOptional = (index: number) => index > 0;
 
 // ---------------------------------------------------------------------------------------------
 // Page
@@ -77,12 +78,13 @@ export function OnboardingPage() {
   // The first step is chosen once, when the three answers are in (a failed one counts as unknown),
   // so the page never opens on step 1 and then jumps.
   const ready = !cv.isPending && !settings.isPending && !status.isPending;
-  const initial = useRef<{ serverDone: ReadonlySet<number>; started: boolean } | null>(null);
+  const initial = useRef<{ serverDone: ReadonlySet<number> } | null>(null);
   if (ready && initial.current === null) {
     const done = new Set<number>();
-    if (cv.data) done.add(0);
-    if (hasOwnBrief(settings.data?.search.brief)) done.add(2);
-    initial.current = { serverDone: done, started: status.data?.started === true };
+    if (status.data?.started === true) done.add(0);
+    if (cv.data) done.add(1);
+    if (hasOwnBrief(settings.data?.search.brief)) done.add(3);
+    initial.current = { serverDone: done };
   }
 
   return (
@@ -109,11 +111,11 @@ export function OnboardingPage() {
             Set up Offerbound
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Four steps. Only the last one is required; you can come back to the others in Settings.
+            Four steps. Only the first one is required; you can come back to the others in Settings.
           </Typography>
         </Box>
         {initial.current ? (
-          <Steps serverDone={initial.current.serverDone} started={initial.current.started} />
+          <Steps serverDone={initial.current.serverDone} />
         ) : (
           <Skeleton variant="rounded" height={240} aria-label="Loading your setup" />
         )}
@@ -128,7 +130,9 @@ function hasOwnBrief(brief: string | undefined): boolean {
 }
 
 /** The stepper and the steps. Starts on the first step that is neither completed nor skipped. */
-function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; started: boolean }) {
+function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
+  const navigate = useNavigate();
+  const complete = useCompleteOnboarding();
   const [record] = useState(() => readOnboardingProgress(STEPS.length));
   const [completed, setCompleted] = useState<ReadonlySet<number>>(
     () => new Set([...record.completed, ...serverDone]),
@@ -137,7 +141,6 @@ function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; start
     () => new Set(record.skipped.filter((step) => !serverDone.has(step))),
   );
   const [firstOpen] = useState(() => {
-    if (started) return LAST_STEP;
     for (let step = 0; step < LAST_STEP; step += 1) {
       if (!completed.has(step) && !skipped.has(step)) return step;
     }
@@ -148,23 +151,22 @@ function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; start
   const [visited, setVisited] = useState<ReadonlySet<number>>(
     () => new Set(Array.from({ length: firstOpen + 1 }, (_, step) => step)),
   );
-  const touched = useRef(false);
-  const status = useSyncStatus();
 
   const goTo = (step: number) => {
-    touched.current = true;
     setActive(step);
     setVisited((previous) => new Set(previous).add(step));
   };
 
-  // Leaving and coming back while the first sync runs: open on the step that shows its progress.
-  const alreadyStarted = status.data?.started === true;
-  useEffect(() => {
-    if (alreadyStarted && !touched.current) {
-      setActive(LAST_STEP);
-      setVisited((previous) => new Set(previous).add(LAST_STEP));
-    }
-  }, [alreadyStarted]);
+  const finish = () => {
+    if (complete.isPending) return;
+    complete.mutate(undefined, {
+      onSuccess: () => {
+        // Setup is over: the kept progress must not outlive it.
+        clearOnboardingProgress();
+        void navigate("/today", { replace: true });
+      },
+    });
+  };
 
   const advance = (from: number, requested: "done" | "skipped") => {
     // The server already has this step's work (a CV, a brief), so skipping it changes nothing.
@@ -184,7 +186,9 @@ function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; start
       completed: [...nextCompleted].filter((step) => !serverDone.has(step)),
       skipped: [...nextSkipped],
     });
-    goTo(from + 1);
+    // Setup finishes from the last step, whether its work was done or skipped.
+    if (from === LAST_STEP) finish();
+    else goTo(from + 1);
   };
   const back = (from: number) => goTo(from - 1);
 
@@ -212,32 +216,37 @@ function Steps({ serverDone, started }: { serverDone: ReadonlySet<number>; start
         ))}
       </Stepper>
 
-      <StepSection id="cv" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
-        <CvStep onContinue={() => advance(0, "done")} onSkip={() => advance(0, "skipped")} />
+      <StepSection id="gmail" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
+        <GmailStep onContinue={() => advance(0, "done")} />
       </StepSection>
-      <StepSection
-        id="import"
-        title={STEPS[1]}
-        active={active === 1}
-        visited={visited.has(1)}
-        optional
-      >
-        <ImportStep
+      <StepSection id="cv" title={STEPS[1]} active={active === 1} visited={visited.has(1)}>
+        <CvStep
           onBack={() => back(1)}
           onContinue={() => advance(1, "done")}
           onSkip={() => advance(1, "skipped")}
         />
       </StepSection>
-      <StepSection id="brief" title={STEPS[2]} active={active === 2} visited={visited.has(2)}>
-        <BriefStep
-          active={active === 2}
+      <StepSection
+        id="import"
+        title={STEPS[2]}
+        active={active === 2}
+        visited={visited.has(2)}
+        optional
+      >
+        <ImportStep
           onBack={() => back(2)}
           onContinue={() => advance(2, "done")}
           onSkip={() => advance(2, "skipped")}
         />
       </StepSection>
-      <StepSection id="gmail" title={STEPS[3]} active={active === 3} visited={visited.has(3)}>
-        <GmailStep active={active === 3} onBack={() => back(3)} />
+      <StepSection id="brief" title={STEPS[3]} active={active === 3} visited={visited.has(3)}>
+        <BriefStep
+          active={active === 3}
+          finish={complete}
+          onBack={() => back(3)}
+          onContinue={() => advance(3, "done")}
+          onSkip={() => advance(3, "skipped")}
+        />
       </StepSection>
     </>
   );
@@ -338,9 +347,17 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Step 1: CV (AC-11.1, 11.3)
+// Step 2: CV (AC-11.1, 11.3)
 
-function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => void }) {
+function CvStep({
+  onBack,
+  onContinue,
+  onSkip,
+}: {
+  onBack: () => void;
+  onContinue: () => void;
+  onSkip: () => void;
+}) {
   const upload = useUploadCv();
   const [rejected, setRejected] = useState<"unsupported_file" | "too_large" | null>(null);
   // The last upload that gave a profile. A later upload that fails does not replace it: the server
@@ -447,7 +464,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
           <CvProfileSummary profile={profile} />
         </Box>
       ) : null}
-      <StepFooter onSkip={saved ? undefined : onSkip}>
+      <StepFooter onBack={onBack} onSkip={saved ? undefined : onSkip}>
         {saved ? (
           <Button variant="contained" onClick={onContinue}>
             Continue
@@ -459,7 +476,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
 }
 
 // ---------------------------------------------------------------------------------------------
-// Step 2: spreadsheet (AC-14.1-14.5, S-23)
+// Step 3: spreadsheet (AC-14.1-14.5, S-23)
 
 // The import itself is the shared SheetImport component; this step adds the skip and back footer.
 
@@ -480,7 +497,7 @@ function ImportStep({
           your list from your emails.
         </Typography>
       }
-      note="Your notes are kept as they are. Gmail sync starts in step 4, so your emails attach to these records instead of creating duplicates."
+      note="Your notes are kept as they are. Rows already found in Gmail are skipped, so nothing is duplicated."
       actions={({ imported, importLabel, canImport, importing, runImport }) => (
         <StepFooter onBack={onBack} onSkip={imported ? undefined : onSkip}>
           {imported ? (
@@ -499,18 +516,21 @@ function ImportStep({
 }
 
 // ---------------------------------------------------------------------------------------------
-// Step 3: search brief (AC-10.1)
+// Step 4: search brief (AC-10.1)
 
 const BRIEF_PLACEHOLDER =
   "For example: senior full-stack roles, remote from Mexico or with relocation support. At least US$8k per month. No agencies, no on-site only.";
 
 function BriefStep({
   active,
+  finish,
   onBack,
   onContinue,
   onSkip,
 }: {
   active: boolean;
+  /** Finishing setup is what this last step's buttons do; this is that request's state. */
+  finish: { isPending: boolean; isError: boolean; error: unknown };
   onBack: () => void;
   onContinue: () => void;
   onSkip: () => void;
@@ -584,15 +604,23 @@ function BriefStep({
         </Alert>
       ) : null}
 
+      {finish.isError ? (
+        <Alert severity="error" role="alert">
+          {`Couldn't finish setup. ${errorMessage(finish.error, "Check your connection and try again.")}`}
+        </Alert>
+      ) : null}
+
       <StepFooter onBack={onBack} onSkip={saved ? undefined : onSkip}>
         {unchanged ? (
-          <Button variant="contained" onClick={onContinue}>
+          <Button variant="contained" disabled={finish.isPending} onClick={onContinue}>
             Continue
           </Button>
         ) : (
           <Button
             variant="contained"
-            disabled={!settings.data || brief.trim() === "" || tooLong || save.isPending}
+            disabled={
+              !settings.data || brief.trim() === "" || tooLong || save.isPending || finish.isPending
+            }
             onClick={submit}
           >
             Save and continue
@@ -604,37 +632,16 @@ function BriefStep({
 }
 
 // ---------------------------------------------------------------------------------------------
-// Step 4: start syncing Gmail (AC-2.3)
+// Step 1: start syncing Gmail (AC-2.3)
 
-function GmailStep({ active, onBack }: { active: boolean; onBack: () => void }) {
-  const navigate = useNavigate();
+function GmailStep({ onContinue }: { onContinue: () => void }) {
   const status = useSyncStatus();
   const start = useStartGmail();
-  const complete = useCompleteOnboarding();
-  const finishing = useRef(false);
 
   const data = status.data;
   const started = data?.started === true;
   const backfill = data?.backfill;
   const needsAccess = data !== undefined && data.connection !== "active";
-
-  const finish = () => {
-    finishing.current = true;
-    complete.mutate(undefined, {
-      onSuccess: () => {
-        // Setup is over: the kept progress must not outlive it.
-        clearOnboardingProgress();
-        void navigate("/today", { replace: true });
-      },
-    });
-  };
-
-  // The first sync is done: setup is complete, so go to Today.
-  const firstSyncDone = started && backfill?.state === "done";
-  useEffect(() => {
-    if (active && firstSyncDone && !finishing.current) finish();
-    // `finish` only touches a ref and the mutation; it runs once per visit.
-  }, [active, firstSyncDone]);
 
   const notConnected =
     start.error instanceof ApiClientError && start.error.code === "not_connected";
@@ -644,7 +651,7 @@ function GmailStep({ active, onBack }: { active: boolean; onBack: () => void }) 
       <Typography sx={{ maxWidth: 680 }}>
         {started
           ? "Offerbound is reading your Gmail with read-only access. It never sends, deletes or labels email."
-          : "Offerbound reads your Gmail with read-only access. It never sends, deletes or labels email. Nothing is read until you press the button, so the spreadsheet import comes first."}
+          : "Offerbound reads your Gmail with read-only access. It never sends, deletes or labels email. Nothing is read until you press the button."}
       </Typography>
 
       {!started ? (
@@ -694,16 +701,10 @@ function GmailStep({ active, onBack }: { active: boolean; onBack: () => void }) 
         />
       )}
 
-      {complete.isError ? (
-        <Alert severity="error" role="alert">
-          {`Couldn't finish setup. ${errorMessage(complete.error, "Check your connection and try again.")}`}
-        </Alert>
-      ) : null}
-
-      <StepFooter onBack={started ? undefined : onBack}>
+      <StepFooter>
         {started ? (
-          <Button variant="contained" disabled={complete.isPending} onClick={finish}>
-            {complete.isError ? "Try again" : "Go to Today"}
+          <Button variant="contained" onClick={onContinue}>
+            Continue
           </Button>
         ) : (
           <Button
@@ -746,7 +747,8 @@ function FirstSync({
     >
       {state === "failed" ? (
         <Alert severity="error" role="alert">
-          The first sync stopped before it finished. Go to Today and use Sync now to try again.
+          The first sync stopped before it finished. Continue setup, then use Sync now on Today to
+          try again.
         </Alert>
       ) : (
         <>
