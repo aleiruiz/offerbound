@@ -19,7 +19,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import {
   useApplications,
@@ -33,6 +33,7 @@ import { AddApplicationDialog } from "../components/AddApplicationDialog";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { FlagChip, STATUS_LABEL, StatusChip } from "../components/StatusChip";
 import { formatDate, formatRelative, formatShortDate, formatTime } from "../lib/format";
+import { useLinkSx, usePhone } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
 
 /**
@@ -94,6 +95,7 @@ function StatusFilterChip({
   pressed: boolean;
   onToggle: () => void;
 }) {
+  const phone = usePhone();
   return (
     <Chip
       onClick={onToggle}
@@ -119,8 +121,9 @@ function StatusFilterChip({
       }
       label={count === undefined ? label : `${label} ${count}`}
       sx={(theme) => ({
-        height: 32,
-        borderRadius: "16px",
+        height: phone ? "auto" : 32,
+        minHeight: phone ? 44 : undefined,
+        borderRadius: phone ? "22px" : "16px",
         fontWeight: 600,
         fontSize: 14,
         px: status ? 0 : 0.5,
@@ -165,6 +168,7 @@ function ApplicationRow({
   focused: boolean;
 }) {
   const { lastCompanyActivityAt, nextInterviewAt, appliedAt } = application;
+  const linkSx = useLinkSx({ fontSize: "inherit", color: "text.primary" });
   return (
     <TableRow
       hover
@@ -179,8 +183,7 @@ function ApplicationRow({
           component={RouterLink}
           to={`/applications/${encodeURIComponent(application.id)}`}
           underline="none"
-          color="text.primary"
-          sx={{ fontWeight: 600 }}
+          sx={linkSx}
         >
           {application.company.name}
         </Link>
@@ -277,9 +280,18 @@ export function ApplicationsPage() {
 
   // The field answers at once; the address, and so the request, follows when typing pauses.
   const [text, setText] = useState(filters.q);
+  /** The last search text that the address and the field agreed on. */
+  const agreed = useRef(filters.q);
+  useEffect(() => {
+    // The address changed from outside (the nav link, Back): the field follows it.
+    if (filters.q === agreed.current) return;
+    agreed.current = filters.q;
+    setText(filters.q);
+  }, [filters.q]);
   useEffect(() => {
     if (text === filters.q) return;
     const timer = setTimeout(() => {
+      agreed.current = text.trim() === "" ? "" : text;
       setParams(
         nextParams((next) => {
           if (text.trim() === "") next.delete("q");

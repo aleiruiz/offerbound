@@ -1,7 +1,7 @@
 import type { ApplicationCreate, ApplicationSummary, Page } from "@offerbound/contracts";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes, useLocation } from "react-router";
+import { Link, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import {
   makeApplication,
@@ -80,6 +80,7 @@ function setup(
         <Route path="/applications/:id" element={<p>Detail page</p>} />
       </Routes>
       <Where />
+      <Link to="/applications">Applications nav</Link>
       <UndoSnackbar />
     </>,
     { route, width },
@@ -213,6 +214,36 @@ describe("ApplicationsPage", () => {
     const { api } = setup({}, { route: "/applications?status=hired&status=offer" });
     await screen.findByRole("link", { name: "Kestrel Pay" });
     expect(lastList(api).searchParams.getAll("status")).toEqual(["offer"]);
+  });
+
+  it("search follows the address: going to Applications from the nav clears it and it stays cleared", async () => {
+    const { api, user } = setup({}, { route: "/applications?q=north" });
+    await screen.findByRole("link", { name: "Kestrel Pay" });
+    expect(screen.getByRole("searchbox", { name: "Search" })).toHaveValue("north");
+    expect(lastList(api).searchParams.get("q")).toBe("north");
+    await user.click(screen.getByRole("link", { name: "Applications nav" }));
+    await waitFor(() => expect(screen.getByRole("searchbox", { name: "Search" })).toHaveValue(""));
+    await waitFor(() => expect(lastList(api).searchParams.get("q")).toBeNull());
+    // longer than the debounce: the old text must not be written back
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(screen.getByTestId("where")).toHaveTextContent(/^\/applications$/);
+    expect(lastList(api).searchParams.get("q")).toBeNull();
+  });
+
+  it("status chips and the company link are 44px targets on a phone and compact on a wide screen", async () => {
+    const phone = setup({}, { width: 390 });
+    await screen.findByRole("link", { name: "Kestrel Pay" });
+    expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ minHeight: "44px" });
+    expect(screen.getByRole("button", { name: "All 41" })).toHaveStyle({ minHeight: "44px" });
+    expect(screen.getByRole("link", { name: "Kestrel Pay" })).toHaveStyle({ minHeight: "44px" });
+    phone.unmount();
+
+    setup({}, { width: 1280 });
+    await screen.findByRole("link", { name: "Kestrel Pay" });
+    expect(screen.getByRole("button", { name: "Applied 12" })).toHaveStyle({ height: "32px" });
+    expect(screen.getByRole("link", { name: "Kestrel Pay" })).not.toHaveStyle({
+      minHeight: "44px",
+    });
   });
 
   it("the table is a real <table> with scope='col' headers and scrolls inside its Paper", async () => {

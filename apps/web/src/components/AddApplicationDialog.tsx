@@ -19,7 +19,7 @@ import { useState, type FormEvent } from "react";
 import { ApiClientError } from "../api/client";
 import { useCreateApplication, useTimezone } from "../api/hooks";
 import { localDayKey, localMidnightIso } from "../lib/format";
-import { isHttpUrl } from "../lib/url";
+import { CoreFields, REQUIRED_COMPANY, REQUIRED_ROLE, jobLinkError } from "./ApplicationFields";
 import { STATUS_LABEL } from "./StatusChip";
 import { useUndoSnackbar } from "./UndoSnackbar";
 
@@ -57,11 +57,10 @@ function Form({ onClose }: { onClose: () => void }) {
     const companyName = company.trim();
     const title = role.trim();
     const link = jobUrl.trim();
-    if (companyName === "") next.companyName = "Enter the company name";
-    if (title === "") next.title = "Enter the role";
-    if (link !== "" && !isHttpUrl(link)) {
-      next.jobUrl = "Enter a link that starts with http or https";
-    }
+    if (companyName === "") next.companyName = REQUIRED_COMPANY;
+    if (title === "") next.title = REQUIRED_ROLE;
+    const linkError = jobLinkError(link);
+    if (linkError) next.jobUrl = linkError;
     const appliedAt = appliedDay === "" ? null : localMidnightIso(appliedDay, timezone);
     if (appliedDay !== "" && appliedAt === null) next.appliedAt = "Enter a valid date";
     setErrors(next);
@@ -95,33 +94,15 @@ function Form({ onClose }: { onClose: () => void }) {
             {`Couldn't add the application. ${create.error instanceof ApiClientError ? create.error.message : "Check your connection and try again."}`}
           </Alert>
         ) : null}
-        <TextField
-          label="Company"
-          value={company}
-          onChange={(e) => setCompany(e.target.value)}
-          error={Boolean(errors.companyName)}
-          helperText={errors.companyName}
+        <CoreFields
+          values={{ company, role, jobUrl }}
+          errors={errors}
+          onChange={(c) => {
+            if (c.company !== undefined) setCompany(c.company);
+            if (c.role !== undefined) setRole(c.role);
+            if (c.jobUrl !== undefined) setJobUrl(c.jobUrl);
+          }}
           autoFocus
-          fullWidth
-          slotProps={{ htmlInput: { "aria-required": true } }}
-        />
-        <TextField
-          label="Role"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          error={Boolean(errors.title)}
-          helperText={errors.title}
-          fullWidth
-          slotProps={{ htmlInput: { "aria-required": true } }}
-        />
-        <TextField
-          label="Job link"
-          type="url"
-          value={jobUrl}
-          onChange={(e) => setJobUrl(e.target.value)}
-          error={Boolean(errors.jobUrl)}
-          helperText={errors.jobUrl}
-          fullWidth
         />
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField

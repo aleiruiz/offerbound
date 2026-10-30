@@ -5,11 +5,11 @@ import type {
   MessageSummary,
   TimelineEvent,
 } from "@offerbound/contracts";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { QueryClient } from "@tanstack/react-query";
-import { Route, Routes, useLocation } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { Link, Route, Routes, useLocation } from "react-router";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   makeApplication,
   makeApplicationDetail,
@@ -139,6 +139,10 @@ function setup(
         <Route path="/applications/:id" element={<ApplicationDetailPage />} />
       </Routes>
       <Where />
+      {/* mouse-down is cancelled so the click does not blur the notes field: only the unmount can save */}
+      <Link to="/applications" onMouseDown={(e) => e.preventDefault()}>
+        Leave
+      </Link>
       <UndoSnackbar />
     </>,
     { route, width },
@@ -160,6 +164,36 @@ function expectOtherScreensStale(
     expect(queryClient.getQueryState(key)?.isInvalidated, key.join("/")).toBe(true);
   }
 }
+
+/** Fake only the timers the page uses for autosave; the mock API answers on microtasks. */
+function fakeTimers() {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+}
+/** user-event waits on a timer Testing Library drains with Jest only, so fake-timer tests fire events. */
+const write = (field: HTMLElement, value: string) =>
+  act(() => {
+    fireEvent.change(field, { target: { value } });
+  });
+const advance = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+
+/**
+ * Lets a request that was just sent reach the mock API and be answered. Query and mutation
+ * bookkeeping uses short timers, so a few milliseconds of fake time pass as well (well under 800).
+ */
+const settle = () =>
+  act(async () => {
+    for (let i = 0; i < 4; i++) {
+      await new Promise((resolve) => setImmediate(resolve));
+      await vi.advanceTimersByTimeAsync(15);
+    }
+  });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const callsTo = (api: MockApi, method: string, path: string) =>
   api.calls.filter((c) => c.method === method && new URL(c.url).pathname === path);
@@ -399,13 +433,14 @@ describe("ApplicationDetailPage", () => {
     ) as HTMLElement;
     stale.focus();
     await user.keyboard("u");
-    expect(callsTo(api, "POST", "/api/v1/events/e-auto/undo")).toHaveLength(0);
+    // nothing at all was sent: no request of any kind for the stale entry
+    expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(0);
 
     const auto = entries.find((li) => li.getAttribute("data-event-id") === "e-auto") as HTMLElement;
     auto.focus();
     await user.keyboard("u");
     await waitFor(() => expect(callsTo(api, "POST", "/api/v1/events/e-auto/undo")).toHaveLength(1));
-    expect(callsTo(api, "POST", "/api/v1/events")).toHaveLength(0);
+    expect(api.calls.filter((c) => c.method !== "GET")).toHaveLength(1);
   });
 
   it("View email opens the side sheet with the plain-text body", async () => {
@@ -446,7 +481,7 @@ describe("ApplicationDetailPage", () => {
   it("notes autosave 800 ms after typing stops", async () => {
     const patches: ApplicationPatch[] = [];
     let current = detail();
-    const { user } = setup({
+    const { api } = setup({
       "GET /api/v1/applications/a1": () => current,
       "PATCH /api/v1/applications/a1": async (req) => {
         const body = (await req.clone().json()) as ApplicationPatch;
@@ -460,28 +495,34 @@ describe("ApplicationDetailPage", () => {
     expect(notes).toHaveValue("Ask about on-call expectations.");
     expect(screen.getByText("Saved automatically")).toBeInTheDocument();
 
-    await user.click(notes);
-    await user.paste(" Bring questions.");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await user.paste(" And more.");
-    // 1,000 ms after the first change but only 500 after the last: still waiting
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    fakeTimers();
+    write(notes, "Ask about on-call expectations. Bring questions.");
+    await advance(500);
+    write(notes, "Ask about on-call expectations. Bring questions. And more.");
+    // 1,300 ms after the first change but only 799 after the last: still waiting
+    await advance(799);
     expect(patches).toHaveLength(0);
-    expect(await screen.findByText("Saved", {}, { timeout: 3000 })).toBeInTheDocument();
+    await advance(1);
+    await settle();
     expect(patches).toEqual([
       { version: 3, notes: "Ask about on-call expectations. Bring questions. And more." },
     ]);
+    await settle();
+    expect(screen.getByText("Saved")).toBeInTheDocument();
 
     // clearing the notes saves null
-    await user.clear(notes);
-    await waitFor(() => expect(patches).toHaveLength(2), { timeout: 3000 });
+    write(notes, "");
+    await advance(800);
+    await settle();
+    expect(patches).toHaveLength(2);
     expect(patches[1]).toEqual({ version: 4, notes: null });
+    expect(callsTo(api, "PATCH", "/api/v1/applications/a1")).toHaveLength(2);
   });
 
   it("a conflict while saving notes keeps what was typed and saves it again on the fresh version", async () => {
     let current = detail();
     const patches: ApplicationPatch[] = [];
-    const { user } = setup({
+    setup({
       "GET /api/v1/applications/a1": () => current,
       "PATCH /api/v1/applications/a1": async (req) => {
         const body = (await req.clone().json()) as ApplicationPatch;
@@ -497,19 +538,25 @@ describe("ApplicationDetailPage", () => {
     });
     await loaded();
     const notes = screen.getByRole("textbox", { name: "Notes" });
-    await user.click(notes);
-    await user.paste(" More.");
-    await waitFor(() => expect(patches).toHaveLength(2), { timeout: 4000 });
+    fakeTimers();
+    write(notes, "Ask about on-call expectations. More.");
+    await advance(800);
+    await settle();
+    expect(patches).toHaveLength(1);
+    await advance(800);
+    await settle();
+    expect(patches).toHaveLength(2);
     expect(patches[1]).toEqual({ version: 4, notes: "Ask about on-call expectations. More." });
-    expect(await screen.findByText(/Changes were made elsewhere/)).toBeInTheDocument();
+    expect(screen.getByText(/Changes were made elsewhere/)).toBeInTheDocument();
     expect(notes).toHaveValue("Ask about on-call expectations. More.");
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    await settle();
+    expect(screen.getByText("Saved")).toBeInTheDocument();
   });
 
   it("when the notes themselves changed elsewhere, shows the fresh notes instead of overwriting them", async () => {
     let current = detail();
     const patches: ApplicationPatch[] = [];
-    const { user } = setup({
+    setup({
       "GET /api/v1/applications/a1": () => current,
       "PATCH /api/v1/applications/a1": async (req) => {
         patches.push((await req.clone().json()) as ApplicationPatch);
@@ -519,11 +566,197 @@ describe("ApplicationDetailPage", () => {
     });
     await loaded();
     const notes = screen.getByRole("textbox", { name: "Notes" });
-    await user.click(notes);
-    await user.paste(" More.");
-    await waitFor(() => expect(notes).toHaveValue("Edited on another device."), { timeout: 4000 });
-    expect(await screen.findByText(/Changes were made elsewhere/)).toBeInTheDocument();
+    fakeTimers();
+    write(notes, "Ask about on-call expectations. More.");
+    await advance(2000);
+    await settle();
+    expect(notes).toHaveValue("Edited on another device.");
+    expect(screen.getByText(/Changes were made elsewhere/)).toBeInTheDocument();
     expect(patches).toHaveLength(1);
+  });
+
+  it("leaving the page within 800 ms of typing still saves the notes", async () => {
+    const patches: ApplicationPatch[] = [];
+    const { user } = setup({
+      "PATCH /api/v1/applications/a1": async (req) => {
+        const body = (await req.clone().json()) as ApplicationPatch;
+        patches.push(body);
+        return detail({ version: 4, notes: body.notes ?? null });
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("textbox", { name: "Notes" }));
+    await user.paste(" Quick thought.");
+    expect(patches).toHaveLength(0);
+    await user.click(screen.getByRole("link", { name: "Leave" }));
+    expect(await screen.findByText("Applications list")).toBeInTheDocument();
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({
+      version: 3,
+      notes: "Ask about on-call expectations. Quick thought.",
+    });
+  });
+
+  it("clicking away from the notes saves them at once", async () => {
+    const patches: ApplicationPatch[] = [];
+    const { user } = setup({
+      "PATCH /api/v1/applications/a1": async (req) => {
+        const body = (await req.clone().json()) as ApplicationPatch;
+        patches.push(body);
+        return detail({ version: 4, notes: body.notes ?? null });
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("textbox", { name: "Notes" }));
+    await user.paste(" Another.");
+    await user.click(screen.getByRole("heading", { level: 1 }));
+    // well inside the 800 ms wait
+    await waitFor(() => expect(patches).toHaveLength(1), { timeout: 400 });
+  });
+
+  // AC-6.3
+  it("Edit details opens a dialog with the record's fields and patches only what changed, with version", async () => {
+    const patches: ApplicationPatch[] = [];
+    let current = detail({ country: "MX", sponsorshipText: "Not offered" });
+    const { user } = setup({
+      "GET /api/v1/applications/a1": () => current,
+      "PATCH /api/v1/applications/a1": async (req) => {
+        const body = (await req.clone().json()) as ApplicationPatch;
+        patches.push(body);
+        current = { ...current, ...body, version: 4 };
+        return current;
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit details" });
+    expect(within(dialog).getByLabelText("Company")).toHaveValue("Kestrel Pay");
+    expect(within(dialog).getByLabelText("Role")).toHaveValue("Senior Frontend Engineer, Payments");
+    expect(within(dialog).getByLabelText("Job link")).toHaveValue(
+      "https://jobs.example/kestrel-pay/7f3c9d",
+    );
+    expect(within(dialog).getByLabelText("Location")).toHaveValue("Remote, open to Mexico");
+    expect(within(dialog).getByRole("combobox", { name: "Work mode" })).toHaveTextContent("Remote");
+    expect(within(dialog).getByLabelText("Country")).toHaveValue("MX");
+    expect(within(dialog).getByLabelText("Compensation")).toHaveValue("US$9.5–11k / month");
+    expect(within(dialog).getByLabelText("Sponsorship")).toHaveValue("Not offered");
+    expect(within(dialog).getByLabelText("Applied date")).toHaveValue("2026-10-15");
+    // nothing changed yet: nothing to save
+    expect(within(dialog).getByRole("button", { name: "Save changes" })).toBeDisabled();
+
+    const role = within(dialog).getByLabelText("Role");
+    await user.clear(role);
+    await user.paste("Staff Frontend Engineer");
+    await user.clear(within(dialog).getByLabelText("Compensation"));
+    await user.clear(within(dialog).getByLabelText("Sponsorship"));
+    await user.click(within(dialog).getByRole("combobox", { name: "Work mode" }));
+    await user.click(screen.getByRole("option", { name: "Hybrid" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({
+      version: 3,
+      title: "Staff Frontend Engineer",
+      compensationText: null,
+      sponsorshipText: null,
+      workMode: "hybrid",
+    });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(await screen.findByText("Saved changes")).toBeInTheDocument();
+    expect(screen.getByText("Staff Frontend Engineer")).toBeInTheDocument();
+  });
+
+  it("Edit details sends a changed applied date as local midnight and the company name for a rename", async () => {
+    const patches: ApplicationPatch[] = [];
+    const { user } = setup({
+      "PATCH /api/v1/applications/a1": async (req) => {
+        patches.push((await req.clone().json()) as ApplicationPatch);
+        return detail({ version: 4 });
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit details" });
+    await user.clear(within(dialog).getByLabelText("Company"));
+    await user.paste("Kestrel Payments");
+    await user.clear(within(dialog).getByLabelText("Applied date"));
+    await user.paste("2026-10-05");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({
+      version: 3,
+      companyName: "Kestrel Payments",
+      appliedAt: "2026-10-05T06:00:00.000Z",
+    });
+  });
+
+  it("Edit details checks the fields before sending: a name, a role, and an http(s) job link", async () => {
+    const patches: unknown[] = [];
+    const { user } = setup({
+      "PATCH /api/v1/applications/a1": async (req) => {
+        patches.push(await req.clone().json());
+        return detail({ version: 4 });
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit details" });
+    await user.clear(within(dialog).getByLabelText("Company"));
+    await user.clear(within(dialog).getByLabelText("Role"));
+    await user.clear(within(dialog).getByLabelText("Job link"));
+    await user.paste("javascript:alert(1)");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    expect(within(dialog).getByText("Enter the company name")).toBeInTheDocument();
+    expect(within(dialog).getByText("Enter the role")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("Enter a link that starts with http or https"),
+    ).toBeInTheDocument();
+    expect(patches).toHaveLength(0);
+  });
+
+  it("Edit details: 409 version_conflict refetches, shows the conflict copy and keeps what was typed", async () => {
+    let current = detail();
+    const patches: ApplicationPatch[] = [];
+    const { api, user } = setup({
+      "GET /api/v1/applications/a1": () => current,
+      "PATCH /api/v1/applications/a1": async (req) => {
+        const body = (await req.clone().json()) as ApplicationPatch;
+        patches.push(body);
+        if (patches.length === 1) {
+          current = detail({ version: 4, locationText: "Lisbon" });
+          return apiError(409, "version_conflict", "Changes were made elsewhere.");
+        }
+        current = detail({ version: 5, locationText: "Lisbon", title: body.title ?? "" });
+        return current;
+      },
+    });
+    await loaded();
+    await user.click(screen.getByRole("button", { name: "Edit details" }));
+    const dialog = await screen.findByRole("dialog", { name: "Edit details" });
+    await user.clear(within(dialog).getByLabelText("Role"));
+    await user.paste("Staff Frontend Engineer");
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+    expect(await within(dialog).findByText(/Changes were made elsewhere/)).toBeInTheDocument();
+    await waitFor(() => expect(callsTo(api, "GET", "/api/v1/applications/a1")).toHaveLength(2));
+    // the dialog stays, with the typed role; the record behind it is the fresh one
+    expect(within(dialog).getByLabelText("Role")).toHaveValue("Staff Frontend Engineer");
+    expect(screen.getByRole("dialog", { name: "Edit details" })).toBeInTheDocument();
+
+    // the next save carries the fresh version, and only the field that was changed
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(patches).toHaveLength(2));
+    expect(patches[1]).toEqual({ version: 4, title: "Staff Frontend Engineer" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("links are 44px targets on a phone", async () => {
+    setup({}, { width: 390 });
+    await loaded();
+    const small = { minHeight: "44px" };
+    expect(screen.getByRole("link", { name: "Applications" })).toHaveStyle(small);
+    expect(screen.getByRole("link", { name: "Join video call" })).toHaveStyle(small);
+    expect(screen.getByRole("link", { name: /jobs\.example\/kestrel-pay/ })).toHaveStyle(small);
   });
 
   it("an unknown id shows the full-page error with Back to applications", async () => {

@@ -32,6 +32,7 @@ import {
   useUndoEvent,
   useUpdateApplication,
 } from "../api/hooks";
+import { EditApplicationDialog } from "../components/EditApplicationDialog";
 import { EmailSheet } from "../components/EmailSheet";
 import { INTERVIEW_KIND } from "../components/InterviewRow";
 import { MergeApplicationDialog } from "../components/MergeApplicationDialog";
@@ -40,6 +41,7 @@ import { FlagChip, STATUS_LABEL, StatusChip } from "../components/StatusChip";
 import { Timeline } from "../components/Timeline";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { formatDate, formatDateTime, formatShortDate, formatTime, zoneCity } from "../lib/format";
+import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 
 /**
@@ -176,6 +178,7 @@ function zoneNote(interview: Interview, tz: string): string {
 function NextInterview({ interviews, timezone }: { interviews: Interview[]; timezone: string }) {
   const now = useMemo(() => new Date(), [interviews]);
   const interview = nextInterview(interviews, now);
+  const linkSx = useLinkSx();
   return (
     <Card title="Next interview">
       {interview === null ? (
@@ -205,7 +208,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
                       target="_blank"
                       rel="noopener noreferrer"
                       underline="none"
-                      sx={{ fontWeight: 600 }}
+                      sx={linkSx}
                     >
                       Pick a time
                     </Link>
@@ -227,7 +230,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
                     target="_blank"
                     rel="noopener noreferrer"
                     underline="none"
-                    sx={{ fontWeight: 600 }}
+                    sx={linkSx}
                   >
                     Join video call
                   </Link>
@@ -308,14 +311,36 @@ function Emails({
 // ---------------------------------------------------------------------------------------------
 // Details and notes
 
-function Details({ detail, timezone }: { detail: ApplicationDetail; timezone: string }) {
+function Details({
+  detail,
+  timezone,
+  onEdit,
+}: {
+  detail: ApplicationDetail;
+  timezone: string;
+  onEdit: () => void;
+}) {
   const posting = isHttpUrl(detail.jobUrl) ? detail.jobUrl : null;
+  const linkSx = useLinkSx({ fontWeight: 400, fontSize: "inherit" });
   return (
-    <Card title="Details">
+    <Card
+      title="Details"
+      action={
+        <Button size="small" onClick={onEdit}>
+          Edit details
+        </Button>
+      }
+    >
       <Box component="dl" sx={{ m: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
         <Fact term="Job posting">
           {posting ? (
-            <Link href={posting} target="_blank" rel="noopener noreferrer" underline="none">
+            <Link
+              href={posting}
+              target="_blank"
+              rel="noopener noreferrer"
+              underline="none"
+              sx={linkSx}
+            >
               {shortUrl(posting)}
             </Link>
           ) : (
@@ -358,27 +383,30 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
   const [status, setStatus] = useState<NotesStatus>("idle");
   /** What the server is known to hold. */
   const saved = useRef(serverNotes);
-  const latest = useRef(detail);
   const fieldId = useId();
 
+  // Notes that changed on the server (an undo, a refetch) replace the field unless there is unsaved
+  // typing. Only a change counts: a render that still holds an older answer must not undo ours.
+  const seen = useRef(serverNotes);
   useEffect(() => {
-    latest.current = detail;
-  });
-
-  // Notes that changed on the server (an undo, a refetch) replace the field unless there is unsaved typing.
-  useEffect(() => {
+    if (serverNotes === seen.current) return;
+    seen.current = serverNotes;
     if (serverNotes !== saved.current && text === saved.current) {
       saved.current = serverNotes;
       setText(serverNotes);
     }
   }, [serverNotes, text]);
 
+  /** A save has been sent and not answered; `isPending` lags a render behind. */
+  const sending = useRef(false);
   const update = useUpdateApplication({
     onSuccess: (_detail, { patch }) => {
+      sending.current = false;
       saved.current = patch.notes ?? "";
       setStatus("saved");
     },
     onError: (error) => {
+      sending.current = false;
       if (isApiError(error, "version_conflict")) {
         onConflict();
         const fresh = queryClient.getQueryData<ApplicationDetail>(queryKeys.application(detail.id));
@@ -395,18 +423,30 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
   });
 
   const { isPending, mutate } = update;
+
+  // Save a pending edit now: when the field loses focus, and when the page is left.
+  const current = useRef({ text, isPending, mutate, detail });
+  useEffect(() => {
+    current.current = { text, isPending, mutate, detail };
+  });
+  const send = () => {
+    const c = current.current;
+    if (c.text === saved.current || c.isPending || sending.current) return;
+    sending.current = true;
+    c.mutate({ application: c.detail, patch: { notes: c.text === "" ? null : c.text } });
+  };
+  const flush = send;
+  const flushRef = useRef(flush);
+  useEffect(() => {
+    flushRef.current = flush;
+  });
+  useEffect(() => () => flushRef.current(), []);
+
   useEffect(() => {
     if (text === saved.current || isPending || status === "failed") return;
-    const timer = setTimeout(
-      () =>
-        mutate({
-          application: latest.current,
-          patch: { notes: text === "" ? null : text },
-        }),
-      NOTES_AUTOSAVE_MS,
-    );
+    const timer = setTimeout(() => flushRef.current(), NOTES_AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [text, isPending, status, detail.version, mutate]);
+  }, [text, isPending, status, detail.version]);
 
   return (
     <Card title="Notes" titleNode={<label htmlFor={fieldId}>Notes</label>}>
@@ -417,6 +457,7 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
           setText(e.target.value);
           setStatus("idle");
         }}
+        onBlur={flush}
         multiline
         minRows={5}
         fullWidth
@@ -483,17 +524,15 @@ function BackToApplications() {
   );
 }
 
-function NotFound({ error }: { error: unknown }) {
-  const missing = error instanceof ApiClientError && error.status === 404;
+function NotFound() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 560 }}>
       <Typography variant="h4" component="h1">
         Application not found
       </Typography>
       <Typography color="text.secondary">
-        {missing
-          ? "It may have been merged into another application or removed. Check the link, or go back to the list."
-          : "Go back to the list and open it again."}
+        It may have been merged into another application or removed. Check the link, or go back to
+        the list.
       </Typography>
       <BackToApplications />
     </Box>
@@ -511,6 +550,8 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   const [openEmail, setOpenEmail] = useState<string | null>(null);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [merging, setMerging] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const crumbSx = useLinkSx({ fontSize: "inherit" });
   const [conflict, setConflict] = useState(false);
   const menuId = useId();
   const latest = useRef(detail);
@@ -567,7 +608,7 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
       <Typography component="nav" aria-label="Breadcrumb" variant="caption" color="text.secondary">
-        <Link component={RouterLink} to="/applications" underline="none" sx={{ fontWeight: 600 }}>
+        <Link component={RouterLink} to="/applications" underline="none" sx={crumbSx}>
           Applications
         </Link>
         {" / "}
@@ -691,12 +732,13 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
           component="aside"
           sx={{ flex: "1 1 300px", minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}
         >
-          <Details detail={detail} timezone={timezone} />
+          <Details detail={detail} timezone={timezone} onEdit={() => setEditing(true)} />
           <Notes detail={detail} onConflict={() => setConflict(true)} />
         </Box>
       </Box>
 
       <EmailSheet messageId={openEmail} onClose={() => setOpenEmail(null)} timezone={timezone} />
+      <EditApplicationDialog open={editing} detail={detail} onClose={() => setEditing(false)} />
       <MergeApplicationDialog
         open={merging}
         source={detail}
@@ -717,7 +759,7 @@ export function ApplicationDetailPage() {
   if (query.data) return <Detail key={query.data.id} detail={query.data} />;
   if (query.isPending) return <DetailSkeleton />;
   if (query.error instanceof ApiClientError && query.error.status === 404) {
-    return <NotFound error={query.error} />;
+    return <NotFound />;
   }
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 560 }}>
