@@ -9,6 +9,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { STATUS_LABEL, StatusChip } from "./StatusChip";
+import { t } from "../i18n";
 
 /** The five stops of the route, in order (DESIGN_SPEC §6.2). */
 export const ROUTE_STOPS = [
@@ -118,7 +119,7 @@ function Marker({ from, to }: { from: ApplicationStatus; to: ApplicationStatus }
       data-testid="route-marker"
       data-stop={to}
       role="img"
-      aria-label={`This application is at ${STATUS_LABEL[to]}`}
+      aria-label={t("This application is at {status}", { status: STATUS_LABEL[to] })}
       style={{
         left: `${(at + 0.5) * (100 / ROUTE_STOPS.length)}%`,
         ...(reduced ? {} : { transition: `left ${MARKER_MS}ms ease-out` }),
@@ -169,7 +170,7 @@ export function PipelineRoute({ byStatus, movement }: PipelineRouteProps) {
             alternativeLabel
             nonLinear
             connector={<RouteConnector />}
-            aria-label="Active applications by stage"
+            aria-label={t("Active applications by stage")}
             sx={{ m: 0, p: 0, listStyle: "none" }}
           >
             {ROUTE_STOPS.map((status) => (
@@ -186,7 +187,7 @@ export function PipelineRoute({ byStatus, movement }: PipelineRouteProps) {
         </Box>
         <Box
           role="group"
-          aria-label="Closed"
+          aria-label={t("Closed")}
           sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, pl: "4%" }}
         >
           <Box
@@ -202,7 +203,7 @@ export function PipelineRoute({ byStatus, movement }: PipelineRouteProps) {
             }}
           />
           <Typography variant="caption" sx={{ fontWeight: 600 }}>
-            Closed
+            {t("Closed")}
           </Typography>
           {CLOSED.map((status) => (
             <Box

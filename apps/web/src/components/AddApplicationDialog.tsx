@@ -22,6 +22,7 @@ import { localDayKey, localMidnightIso } from "../lib/format";
 import { CoreFields, REQUIRED_COMPANY, REQUIRED_ROLE, jobLinkError } from "./ApplicationFields";
 import { STATUS_LABEL } from "./StatusChip";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { t } from "../i18n";
 
 type Field = "companyName" | "title" | "jobUrl" | "status" | "appliedAt" | "notes";
 type FieldErrors = Partial<Record<Field, string>>;
@@ -41,7 +42,7 @@ function Form({ onClose }: { onClose: () => void }) {
 
   const create = useCreateApplication({
     onSuccess: (detail) => {
-      snackbar.show(`Added ${detail.company.name}`);
+      snackbar.show(t("Added {company}", { company: detail.company.name }));
       onClose();
     },
     onError: (error) => {
@@ -57,12 +58,12 @@ function Form({ onClose }: { onClose: () => void }) {
     const companyName = company.trim();
     const title = role.trim();
     const link = jobUrl.trim();
-    if (companyName === "") next.companyName = REQUIRED_COMPANY;
-    if (title === "") next.title = REQUIRED_ROLE;
+    if (companyName === "") next.companyName = t(REQUIRED_COMPANY);
+    if (title === "") next.title = t(REQUIRED_ROLE);
     const linkError = jobLinkError(link);
     if (linkError) next.jobUrl = linkError;
     const appliedAt = appliedDay === "" ? null : localMidnightIso(appliedDay, timezone);
-    if (appliedDay !== "" && appliedAt === null) next.appliedAt = "Enter a valid date";
+    if (appliedDay !== "" && appliedAt === null) next.appliedAt = t("Enter a valid date");
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -76,7 +77,7 @@ function Form({ onClose }: { onClose: () => void }) {
     };
     const parsed = ApplicationCreateSchema.safeParse(body);
     if (!parsed.success) {
-      setErrors({ companyName: "Check the details and try again" });
+      setErrors({ companyName: t("Check the details and try again") });
       return;
     }
     create.mutate(parsed.data);
@@ -84,14 +85,14 @@ function Form({ onClose }: { onClose: () => void }) {
 
   return (
     <Box component="form" noValidate onSubmit={submit} sx={{ display: "contents" }}>
-      <DialogTitle id={TITLE_ID}>Add application</DialogTitle>
+      <DialogTitle id={TITLE_ID}>{t("Add application")}</DialogTitle>
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
         {create.isError &&
         !(create.error instanceof ApiClientError && create.error.code === "validation_failed") ? (
           <Alert severity="error">
-            {`Couldn't add the application. ${create.error instanceof ApiClientError ? create.error.message : "Check your connection and try again."}`}
+            {`${t("Couldn't add the application.")} ${create.error instanceof ApiClientError ? t(create.error.message) : t("Check your connection and try again.")}`}
           </Alert>
         ) : null}
         <CoreFields
@@ -107,7 +108,7 @@ function Form({ onClose }: { onClose: () => void }) {
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
             select
-            label="Status"
+            label={t("Status")}
             value={status}
             onChange={(e) => setStatus(ApplicationStatusSchema.parse(e.target.value))}
             error={Boolean(errors.status)}
@@ -121,7 +122,7 @@ function Form({ onClose }: { onClose: () => void }) {
             ))}
           </TextField>
           <TextField
-            label="Applied date"
+            label={t("Applied date")}
             type="date"
             value={appliedDay}
             onChange={(e) => setAppliedDay(e.target.value)}
@@ -132,7 +133,7 @@ function Form({ onClose }: { onClose: () => void }) {
           />
         </Box>
         <TextField
-          label="Notes"
+          label={t("Notes")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           error={Boolean(errors.notes)}
@@ -144,10 +145,10 @@ function Form({ onClose }: { onClose: () => void }) {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={create.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" variant="contained" disabled={create.isPending}>
-          Add application
+          {t("Add application")}
         </Button>
       </DialogActions>
     </Box>

@@ -19,6 +19,7 @@ import { useApplications, useMergeApplication } from "../api/hooks";
 import { ErrorState } from "./States";
 import { STATUS_LABEL } from "./StatusChip";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { t } from "../i18n";
 
 const TITLE_ID = "merge-application-title";
 const SEARCH_DEBOUNCE_MS = 300;
@@ -51,7 +52,7 @@ function Form({
 
   const merge = useMergeApplication({
     onSuccess: (target) => {
-      snackbar.show(`Merged into ${target.company.name}`);
+      snackbar.show(t("Merged into {company}", { company: target.company.name }));
       onMerged(target);
       onClose();
     },
@@ -59,17 +60,20 @@ function Form({
 
   return (
     <>
-      <DialogTitle id={TITLE_ID}>Merge into another application</DialogTitle>
+      <DialogTitle id={TITLE_ID}>{t("Merge into another application")}</DialogTitle>
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
         <Typography variant="body2" color="text.secondary">
-          {`Emails, interviews and timeline entries of ${source.company.name} move to the application you pick, and ${source.company.name} is deleted from the list.`}
+          {t(
+            "Emails, interviews and timeline entries of {company} move to the application you pick, and {company} is deleted from the list.",
+            { company: source.company.name },
+          )}
         </Typography>
         <TextField
-          label="Find an application"
+          label={t("Find an application")}
           type="search"
-          placeholder="Company or role"
+          placeholder={t("Company or role")}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -80,21 +84,21 @@ function Form({
         />
         {search.isError ? (
           <ErrorState
-            what="applications"
+            what={t("applications")}
             error={search.error}
             onRetry={() => void search.refetch()}
           />
         ) : search.isPending ? (
           <Typography variant="body2" color="text.secondary" role="status">
-            Searching
+            {t("Searching")}
           </Typography>
         ) : candidates.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            No other application matches.
+            {t("No other application matches.")}
           </Typography>
         ) : (
           <RadioGroup
-            aria-label="Application to merge into"
+            aria-label={t("Application to merge into")}
             value={intoId}
             onChange={(e) => setIntoId(e.target.value)}
           >
@@ -118,20 +122,20 @@ function Form({
         )}
         {merge.isError ? (
           <Alert severity="error">
-            {`Couldn't merge the applications. ${merge.error instanceof ApiClientError ? merge.error.message : "Check your connection and try again."}`}
+            {`${t("Couldn't merge the applications.")} ${merge.error instanceof ApiClientError ? t(merge.error.message) : t("Check your connection and try again.")}`}
           </Alert>
         ) : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={merge.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           variant="contained"
           disabled={intoId === "" || merge.isPending}
           onClick={() => merge.mutate({ id: source.id, intoId })}
         >
-          Merge
+          {t("Merge")}
         </Button>
       </DialogActions>
     </>

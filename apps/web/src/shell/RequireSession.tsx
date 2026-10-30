@@ -5,6 +5,7 @@ import Skeleton from "@mui/material/Skeleton";
 import { Navigate, Outlet, useLocation } from "react-router";
 import { ApiClientError } from "../api/client";
 import { useMe } from "../api/hooks";
+import { t } from "../i18n";
 
 /**
  * Guards every route except /login (AC-1.1): no session means a redirect to the sign-in page.
@@ -35,11 +36,11 @@ export function RequireSession() {
           severity="error"
           action={
             <Button color="inherit" size="small" onClick={() => void me.refetch()}>
-              Try again
+              {t("Try again")}
             </Button>
           }
         >
-          Couldn't load your account. Check your connection, then try again.
+          {t("Couldn't load your account. Check your connection, then try again.")}
         </Alert>
       </Box>
     );

@@ -9,6 +9,7 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useEffect } from "react";
 import { setShortcutDialogOpen, useShortcutDialogOpen } from "../lib/shortcuts";
+import { msg, t } from "../i18n";
 
 interface ShortcutGroup {
   title: string;
@@ -18,31 +19,31 @@ interface ShortcutGroup {
 // DESIGN_SPEC §9.3.
 const GROUPS: ShortcutGroup[] = [
   {
-    title: "Any list",
+    title: msg("Any list"),
     rows: [
-      { keys: ["j", "k"], label: "Move down or up (↓ and ↑ work inside a row)" },
-      { keys: ["Enter"], label: "Open the focused row" },
+      { keys: ["j", "k"], label: msg("Move down or up (↓ and ↑ work inside a row)") },
+      { keys: ["Enter"], label: msg("Open the focused row") },
     ],
   },
   {
-    title: "Leads",
+    title: msg("Leads"),
     rows: [
-      { keys: ["s"], label: "Shortlist" },
-      { keys: ["d"], label: "Dismiss" },
-      { keys: ["a"], label: "Mark applied" },
-      { keys: ["o"], label: "Open the posting" },
+      { keys: ["s"], label: msg("Shortlist") },
+      { keys: ["d"], label: msg("Dismiss") },
+      { keys: ["a"], label: msg("Mark applied") },
+      { keys: ["o"], label: msg("Open the posting") },
     ],
   },
-  { title: "Timeline", rows: [{ keys: ["u"], label: "Undo the focused entry" }] },
+  { title: msg("Timeline"), rows: [{ keys: ["u"], label: msg("Undo the focused entry") }] },
   {
-    title: "Anywhere",
+    title: msg("Anywhere"),
     rows: [
-      { keys: ["g", "t"], label: "Go to Today" },
-      { keys: ["g", "a"], label: "Go to Applications" },
-      { keys: ["g", "l"], label: "Go to Leads" },
-      { keys: ["g", "i"], label: "Go to Interviews" },
-      { keys: ["g", "r"], label: "Go to Review" },
-      { keys: ["?"], label: "Show this list" },
+      { keys: ["g", "t"], label: msg("Go to Today") },
+      { keys: ["g", "a"], label: msg("Go to Applications") },
+      { keys: ["g", "l"], label: msg("Go to Leads") },
+      { keys: ["g", "i"], label: msg("Go to Interviews") },
+      { keys: ["g", "r"], label: msg("Go to Review") },
+      { keys: ["?"], label: msg("Show this list") },
     ],
   },
 ];
@@ -95,20 +96,21 @@ export function ShortcutDialog() {
         component="h2"
         sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
       >
-        Keyboard shortcuts
-        <IconButton aria-label="Close" onClick={close} edge="end">
+        {t("Keyboard shortcuts")}
+        <IconButton aria-label={t("Close")} onClick={close} edge="end">
           <CloseOutlined fontSize="small" />
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          Shortcuts don't work while you're typing in a field. Every one has a button that does the
-          same.
+          {t(
+            "Shortcuts don't work while you're typing in a field. Every one has a button that does the same.",
+          )}
         </Typography>
         {GROUPS.map((group) => (
-          <Box key={group.title} component="section" aria-label={group.title}>
+          <Box key={group.title} component="section" aria-label={t(group.title)}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
-              {group.title}
+              {t(group.title)}
             </Typography>
             <Box component="dl" sx={{ m: 0 }}>
               {group.rows.map((row) => (
@@ -131,7 +133,7 @@ export function ShortcutDialog() {
                       >
                         {i > 0 ? (
                           <Typography variant="caption" color="text.secondary">
-                            then
+                            {t("then")}
                           </Typography>
                         ) : null}
                         <Key>{k}</Key>
@@ -139,7 +141,7 @@ export function ShortcutDialog() {
                     ))}
                   </Box>
                   <Box component="dd" sx={{ m: 0 }}>
-                    <Typography variant="body2">{row.label}</Typography>
+                    <Typography variant="body2">{t(row.label)}</Typography>
                   </Box>
                 </Box>
               ))}

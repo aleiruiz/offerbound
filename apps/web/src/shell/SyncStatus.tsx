@@ -9,6 +9,7 @@ import { ApiClientError } from "../api/client";
 import { useSyncGmail, useSyncStatus } from "../api/hooks";
 import { formatRelative } from "../lib/format";
 import { DEMO_REASON, DemoLock, useIsDemo } from "../lib/demo";
+import { t } from "../i18n";
 
 const visuallyHidden = {
   position: "absolute",
@@ -35,7 +36,9 @@ interface Summary {
 
 /** "2 minutes ago" is "2 min ago" in the narrow footer. */
 function shortRelative(iso: string, now: Date): string {
-  return formatRelative(iso, now).replace(/ minutes? ago$/, " min ago");
+  return formatRelative(iso, now)
+    .replace(/ minutes? ago$/, " min ago")
+    .replace(/ minutos?$/, " min");
 }
 
 type SyncAttempt = "none" | "running" | "failed";
@@ -54,41 +57,48 @@ function summarize(
   const data = status.data;
   if (!data) {
     return status.isError
-      ? { text: "Gmail status unavailable", tone: "error", canSync: false }
-      : { text: "Checking Gmail", tone: "idle", canSync: false };
+      ? { text: t("Gmail status unavailable"), tone: "error", canSync: false }
+      : { text: t("Checking Gmail"), tone: "idle", canSync: false };
   }
   switch (data.connection) {
     case "not_connected":
-      return { text: "Gmail not connected", tone: "idle", canSync: false };
+      return { text: t("Gmail not connected"), tone: "idle", canSync: false };
     case "disconnected":
-      return { text: "Gmail disconnected", tone: "idle", canSync: false };
+      return { text: t("Gmail disconnected"), tone: "idle", canSync: false };
     case "needs_reauth":
     case "missing_scope":
-      return { text: "Gmail needs reconnecting", tone: "attention", canSync: false };
+      return { text: t("Gmail needs reconnecting"), tone: "attention", canSync: false };
     case "active":
       break;
   }
   if (data.backfill.state === "running") {
     return {
-      text: `Gmail first sync: ${data.backfill.processed} of ${data.backfill.listed}`,
+      text: t("Gmail first sync: {processed} of {listed}", {
+        processed: data.backfill.processed,
+        listed: data.backfill.listed,
+      }),
       tone: "ok",
       canSync: true,
     };
   }
   // Only these plain states give way to the outcome of the last *Sync now*.
   if (attempt === "running") {
-    return { text: "Gmail is syncing now", tone: "ok", canSync: false };
+    return { text: t("Gmail is syncing now"), tone: "ok", canSync: false };
   }
   if (attempt === "failed") {
-    return { text: "Couldn't start a sync. Try again.", tone: "error", canSync: true };
+    return { text: t("Couldn't start a sync. Try again."), tone: "error", canSync: true };
   }
   if (data.lastError !== null) {
-    return { text: "Gmail last sync failed", tone: "error", canSync: true };
+    return { text: t("Gmail last sync failed"), tone: "error", canSync: true };
   }
   if (data.lastSyncAt === null) {
-    return { text: "Gmail connected, not synced yet", tone: "idle", canSync: true };
+    return { text: t("Gmail connected, not synced yet"), tone: "idle", canSync: true };
   }
-  return { text: `Gmail synced ${shortRelative(data.lastSyncAt, now)}`, tone: "ok", canSync: true };
+  return {
+    text: t("Gmail synced {when}", { when: shortRelative(data.lastSyncAt, now) }),
+    tone: "ok",
+    canSync: true,
+  };
 }
 
 function Dot({ tone }: { tone: Tone }) {
@@ -157,7 +167,7 @@ export function SyncStatus({ layout }: { layout: SyncLayout }) {
               disabled={disabled}
               sx={{ alignSelf: "flex-start", ml: -1, height: 30 }}
             >
-              Sync now
+              {t("Sync now")}
             </Button>
           </DemoLock>
         )}
@@ -166,10 +176,10 @@ export function SyncStatus({ layout }: { layout: SyncLayout }) {
   }
 
   const control = (
-    <Tooltip title={demo ? DEMO_REASON.gmail : "Sync now"}>
+    <Tooltip title={demo ? t(DEMO_REASON.gmail) : t("Sync now")}>
       <span>
         <IconButton
-          aria-label="Sync now"
+          aria-label={t("Sync now")}
           color="primary"
           onClick={syncNow}
           disabled={disabled || demo}

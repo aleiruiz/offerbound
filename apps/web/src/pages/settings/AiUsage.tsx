@@ -11,8 +11,9 @@ import { useTheme } from "@mui/material/styles";
 import type { AiUsage as AiUsageDto, LlmPurpose } from "@offerbound/contracts";
 import { useAiUsage } from "../../api/hooks";
 import { ErrorState } from "../../components/States";
-import { formatCount, formatShortDate, formatUsd, plural } from "../../lib/format";
+import { formatCount, formatShortDate, formatUsd } from "../../lib/format";
 import { SectionPaper } from "./shared";
+import { t, tn } from "../../i18n";
 
 /**
  * Settings, AI usage (AC-15.1, TECHNICAL_SPEC §13): month-to-date cost, calls and cost by purpose
@@ -21,22 +22,38 @@ import { SectionPaper } from "./shared";
 
 /** What each kind of call does, in the words the rest of the app uses. */
 const PURPOSE_LABEL: Record<LlmPurpose, string> = {
-  triage: "Sorting email",
-  extract: "Reading job emails",
-  rank: "Ranking leads",
-  search: "Searching for leads",
-  parse_report: "Reading reports",
-  cv_profile: "Reading your CV",
+  get triage() {
+    return t("Sorting email");
+  },
+  get extract() {
+    return t("Reading job emails");
+  },
+  get rank() {
+    return t("Ranking leads");
+  },
+  get search() {
+    return t("Searching for leads");
+  },
+  get parse_report() {
+    return t("Reading reports");
+  },
+  get cv_profile() {
+    return t("Reading your CV");
+  },
 };
 
 export function AiUsage() {
   const usage = useAiUsage();
   return (
-    <SectionPaper id="ai-usage-heading" title="AI usage" caption="Cost of the calls to OpenAI">
+    <SectionPaper
+      id="ai-usage-heading"
+      title={t("AI usage")}
+      caption={t("Cost of the calls to OpenAI")}
+    >
       {usage.isPending ? (
-        <Skeleton variant="rounded" height={200} aria-label="Loading AI usage" />
+        <Skeleton variant="rounded" height={200} aria-label={t("Loading AI usage")} />
       ) : usage.isError ? (
-        <ErrorState what="AI usage" error={usage.error} onRetry={() => void usage.refetch()} />
+        <ErrorState what={t("AI usage")} error={usage.error} onRetry={() => void usage.refetch()} />
       ) : (
         <Usage usage={usage.data} />
       )}
@@ -50,31 +67,35 @@ function Usage({ usage }: { usage: AiUsageDto }) {
     <>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
         <Typography variant="caption" color="text.secondary">
-          Month to date
+          {t("Month to date")}
         </Typography>
         <Typography sx={{ fontSize: 28, lineHeight: "32px", fontWeight: 800 }}>
           {formatUsd(usage.monthToDateMicros)}
         </Typography>
         {unknown > 0 ? (
           <Typography variant="caption" color="text.secondary">
-            {`${unknown === 1 ? "1 call has" : `${formatCount(unknown)} calls have`} no known price and ${unknown === 1 ? "is" : "are"} not counted in this total.`}
+            {tn(
+              unknown,
+              "1 call has no known price and is not counted in this total.",
+              "{count} calls have no known price and are not counted in this total.",
+            )}
           </Typography>
         ) : null}
       </Box>
 
       {usage.byPurpose.length === 0 ? (
-        <Typography color="text.secondary">No AI calls this month yet.</Typography>
+        <Typography color="text.secondary">{t("No AI calls this month yet.")}</Typography>
       ) : (
         <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
-          <Table aria-label="Cost by purpose" sx={{ minWidth: 420 }}>
+          <Table aria-label={t("Cost by purpose")} sx={{ minWidth: 420 }}>
             <TableHead>
               <TableRow>
-                <TableCell scope="col">Purpose</TableCell>
+                <TableCell scope="col">{t("Purpose")}</TableCell>
                 <TableCell scope="col" align="right">
-                  Calls
+                  {t("Calls")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Cost
+                  {t("Cost")}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -85,9 +106,16 @@ function Usage({ usage }: { usage: AiUsageDto }) {
                   <TableCell align="right">{formatCount(row.calls)}</TableCell>
                   <TableCell align="right">
                     {row.calls > 0 && row.unknownCostCalls >= row.calls
-                      ? "Unknown"
+                      ? t("Unknown")
                       : row.unknownCostCalls > 0
-                        ? `${formatUsd(row.costMicros)}, ${plural(row.unknownCostCalls, "call", "calls")} unknown`
+                        ? tn(
+                            row.unknownCostCalls,
+                            "{cost}, 1 call unknown",
+                            "{cost}, {count} calls unknown",
+                            {
+                              cost: formatUsd(row.costMicros),
+                            },
+                          )
                         : formatUsd(row.costMicros)}
                   </TableCell>
                 </TableRow>
@@ -99,7 +127,7 @@ function Usage({ usage }: { usage: AiUsageDto }) {
 
       <Box component="figure" sx={{ m: 0, display: "flex", flexDirection: "column", gap: 0.75 }}>
         <Typography component="figcaption" variant="subtitle2">
-          Daily cost, last 30 days
+          {t("Daily cost, last 30 days")}
         </Typography>
         <DailyChart days={usage.last30Days.slice(-30)} />
       </Box>
@@ -129,7 +157,7 @@ function DailyChart({ days }: { days: AiUsageDto["last30Days"] }) {
       component="svg"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
-      aria-label="Daily AI cost, last 30 days"
+      aria-label={t("Daily AI cost, last 30 days")}
       sx={{ width: "100%", maxWidth: 720, height: "auto", display: "block" }}
     >
       <line x1={LEFT} x2={W - 8} y1={BASE} y2={BASE} stroke={theme.palette.divider} />

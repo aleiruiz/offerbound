@@ -26,6 +26,7 @@ import {
 } from "../../lib/files";
 import { SectionPaper } from "./shared";
 import { DemoLock } from "../../lib/demo";
+import { t } from "../../i18n";
 
 /**
  * Settings, CV (DESIGN_SPEC §5.7, AC-11.3, AC-11.4): the read-only profile with *Replace CV* and
@@ -58,9 +59,9 @@ export function Cv() {
 
   let body;
   if (cv.isPending && !profileFailed) {
-    body = <Skeleton variant="rounded" height={120} aria-label="Loading your CV" />;
+    body = <Skeleton variant="rounded" height={120} aria-label={t("Loading your CV")} />;
   } else if (cv.isError && !profileFailed && !profile) {
-    body = <ErrorState what="your CV" error={cv.error} onRetry={() => void cv.refetch()} />;
+    body = <ErrorState what={t("your CV")} error={cv.error} onRetry={() => void cv.refetch()} />;
   } else if (profileFailed) {
     body = (
       <Alert
@@ -75,15 +76,15 @@ export function Cv() {
               disabled={retry.isPending}
               onClick={() => retry.mutate()}
             >
-              Retry profile
+              {t("Retry profile")}
             </Button>
           </DemoLock>
         }
       >
         <Box component="span" sx={{ fontWeight: 700 }}>
-          Your CV was saved, but its profile isn't ready.
+          {t("Your CV was saved, but its profile isn't ready.")}
         </Box>{" "}
-        Retry the profile, or add the CV again.
+        {t("Retry the profile, or add the CV again.")}
       </Alert>
     );
   } else if (profile) {
@@ -91,17 +92,22 @@ export function Cv() {
       <>
         <CvProfileSummary profile={profile} showSecondary />
         <Typography variant="caption" color="text.secondary" component="p">
-          Green: core skills. Grey: secondary skills. Leads list their gaps against this profile.
+          {t(
+            t(
+              "Green: core skills. Grey: secondary skills. Leads list their gaps against this profile.",
+            ),
+          )}
         </Typography>
       </>
     );
   } else {
     body = (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-        <Typography sx={{ fontWeight: 600 }}>No CV profile yet</Typography>
+        <Typography sx={{ fontWeight: 600 }}>{t("No CV profile yet")}</Typography>
         <Typography variant="body2" color="text.secondary">
-          Add your CV so Offerbound can rank leads against your skills. If you added one before and
-          this still shows, add it again.
+          {t(
+            "Add your CV so Offerbound can rank leads against your skills. If you added one before and this still shows, add it again.",
+          )}
         </Typography>
       </Box>
     );
@@ -111,14 +117,14 @@ export function Cv() {
     <SectionPaper
       id="cv-heading"
       title="CV"
-      caption="Only the text and this profile are stored, not the file."
+      caption={t("Only the text and this profile are stored, not the file.")}
     >
       {body}
 
       {retry.isError ? (
         <Alert severity="error" role="alert">
-          {`Couldn't build the profile. ${
-            retry.error instanceof ApiClientError ? retry.error.message : "Try again."
+          {`${t("Couldn't build the profile.")} ${
+            retry.error instanceof ApiClientError ? t(retry.error.message) : t("Try again.")
           }`}
         </Alert>
       ) : null}
@@ -138,26 +144,30 @@ export function Cv() {
           aria-live="polite"
           sx={{ display: "flex", flexDirection: "column", gap: 1 }}
         >
-          <LinearProgress aria-label="Reading your CV" />
+          <LinearProgress aria-label={t("Reading your CV")} />
           <Typography variant="body2" color="text.secondary">
-            Reading your CV and building your profile. This usually takes under a minute.
+            {t("Reading your CV and building your profile. This usually takes under a minute.")}
           </Typography>
         </Box>
       ) : null}
       {replaced ? (
         <Alert severity="success" role="status">
-          CV replaced. Leads you already have keep their scores until you press Re-rank new leads.
+          {t(
+            t(
+              "CV replaced. Leads you already have keep their scores until you press Re-rank new leads.",
+            ),
+          )}
         </Alert>
       ) : null}
       {rerank.isSuccess ? (
         <Alert severity="info" role="status">
-          Ranking your new leads again. Their scores update in Leads shortly.
+          {t("Ranking your new leads again. Their scores update in Leads shortly.")}
         </Alert>
       ) : null}
       {rerank.isError ? (
         <Alert severity="error" role="alert">
-          {`Couldn't re-rank your leads. ${
-            rerank.error instanceof ApiClientError ? rerank.error.message : "Try again."
+          {`${t("Couldn't re-rank your leads.")} ${
+            rerank.error instanceof ApiClientError ? t(rerank.error.message) : t("Try again.")
           }`}
         </Alert>
       ) : null}
@@ -165,7 +175,7 @@ export function Cv() {
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
         <DemoLock reason="upload">
           <FilePicker
-            label={profile || profileFailed ? "Replace CV" : "Choose CV file"}
+            label={profile || profileFailed ? t("Replace CV") : t("Choose CV file")}
             accept={CV_ACCEPT}
             onFile={choose}
             disabled={reading}
@@ -173,7 +183,7 @@ export function Cv() {
         </DemoLock>
         {profile ? (
           <Button variant="outlined" disabled={rerank.isPending} onClick={() => rerank.mutate()}>
-            Re-rank new leads
+            {t("Re-rank new leads")}
           </Button>
         ) : null}
       </Box>

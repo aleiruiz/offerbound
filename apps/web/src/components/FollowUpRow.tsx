@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { RowActions } from "./RowActions";
 import { DEFAULT_TIMEZONE, formatShortDate } from "../lib/format";
+import { t, tn } from "../i18n";
 
 const DAY_MS = 86_400_000;
 
@@ -11,18 +12,24 @@ function days(from: string, now: Date): number {
 }
 
 function plural(n: number): string {
-  return n === 1 ? "1 day" : `${n} days`;
+  return tn(n, "1 day", "{count} days");
 }
 
 /** "Applied Oct 20, no reply for 9 days." in plain words (DESIGN_SPEC §6.5). */
 export function followUpReason(app: ApplicationSummary, tz: string, now: Date): string {
   if (app.lastCompanyActivityAt) {
-    return `Last reply from the company ${formatShortDate(app.lastCompanyActivityAt, tz)}, ${plural(days(app.lastCompanyActivityAt, now))} ago.`;
+    return t("Last reply from the company {date}, {days} ago.", {
+      date: formatShortDate(app.lastCompanyActivityAt, tz),
+      days: plural(days(app.lastCompanyActivityAt, now)),
+    });
   }
   if (app.appliedAt) {
-    return `Applied ${formatShortDate(app.appliedAt, tz)}, no reply for ${plural(days(app.appliedAt, now))}.`;
+    return t("Applied {date}, no reply for {days}.", {
+      date: formatShortDate(app.appliedAt, tz),
+      days: plural(days(app.appliedAt, now)),
+    });
   }
-  return "No reply from the company yet.";
+  return t("No reply from the company yet.");
 }
 
 export interface FollowUpRowProps {
@@ -64,11 +71,11 @@ export function FollowUpRow({
         actions={[
           {
             key: "followed",
-            label: "Mark followed up",
+            label: t("Mark followed up"),
             kind: "outlined",
             onClick: () => onMarkFollowedUp(application),
           },
-          { key: "open", label: "Open", kind: "text", to: `/applications/${application.id}` },
+          { key: "open", label: t("Open"), kind: "text", to: `/applications/${application.id}` },
         ]}
       />
     </Box>

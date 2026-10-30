@@ -1,16 +1,35 @@
 import type { ApplicationStatus } from "@offerbound/contracts";
 import Chip, { type ChipProps } from "@mui/material/Chip";
+import { t } from "../i18n";
 
 export const STATUS_LABEL: Record<ApplicationStatus, string> = {
-  applied: "Applied",
-  screening: "Screening",
-  assessment: "Assessment",
-  interviewing: "Interviewing",
-  offer: "Offer",
-  accepted: "Accepted",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
-  abandoned: "Abandoned",
+  get applied() {
+    return t("Applied");
+  },
+  get screening() {
+    return t("Screening");
+  },
+  get assessment() {
+    return t("Assessment");
+  },
+  get interviewing() {
+    return t("Interviewing");
+  },
+  get offer() {
+    return t("Offer");
+  },
+  get accepted() {
+    return t("Accepted");
+  },
+  get rejected() {
+    return t("Rejected");
+  },
+  get withdrawn() {
+    return t("Withdrawn");
+  },
+  get abandoned() {
+    return t("Abandoned");
+  },
 };
 
 /** DESIGN_SPEC §6.1: the soft status pair, always with the word. Abandoned is dashed (DS-5). */

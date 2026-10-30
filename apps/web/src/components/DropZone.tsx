@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { useState, type DragEvent, type ReactNode, type Ref } from "react";
+import { t } from "../i18n";
 
 /**
  * A drop target around a file chooser. The chooser (a `FilePicker`) stays inside as the child, so
@@ -10,7 +11,7 @@ import { useState, type DragEvent, type ReactNode, type Ref } from "react";
  */
 export function DropZone({
   label,
-  hint = "or drop a file here",
+  hint,
   onFile,
   disabled = false,
   children,
@@ -92,7 +93,7 @@ export function DropZone({
           // Phones and tablets have no pointer to drag with, so the hint would only add noise.
           sx={{ "@media (hover: none)": { display: "none" } }}
         >
-          {over ? "Drop the file to add it" : hint}
+          {over ? t("Drop the file to add it") : (hint ?? t("or drop a file here"))}
         </Typography>
       )}
     </Box>
