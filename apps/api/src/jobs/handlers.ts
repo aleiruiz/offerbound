@@ -19,6 +19,7 @@ import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
 import { runBackup, type BackupDeps } from "../ops/backup.js";
 import { runMaintenance } from "../ops/maintenance.js";
+import { runTimersTick } from "../timers/tick.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
@@ -256,6 +257,11 @@ const maintenanceDaily: JobHandler = async (ctx) => {
   await runMaintenance(ctx, ctx.clock());
 };
 
+/** `timers.tick`, every 15 minutes (§6.7): follow-ups, abandonment and interview completion. */
+const timersTick: JobHandler = async (ctx) => {
+  await runTimersTick(ctx);
+};
+
 /**
  * The handlers registered, by queue. A queue without a handler is created but not consumed.
  */
@@ -270,6 +276,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
   [QUEUES.backupNightly]: backupNightlyHandler(),
   [QUEUES.maintenanceDaily]: maintenanceDaily,
+  [QUEUES.timersTick]: timersTick,
 };
 
 /**

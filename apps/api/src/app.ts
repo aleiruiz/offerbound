@@ -11,11 +11,15 @@ import { registerAuthRoutes } from "./routes/auth.js";
 import { registerGmailRoutes } from "./routes/gmail.js";
 import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCvRoutes } from "./routes/cv.js";
+import { registerDailyActivityRoutes } from "./routes/daily-activity.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
+import { registerInterviewRoutes } from "./routes/interviews.js";
 import { registerLeadRoutes } from "./routes/leads.js";
 import { registerMeRoutes } from "./routes/me.js";
+import { registerNavCountsRoutes } from "./routes/nav-counts.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
+import { registerTodayRoutes } from "./routes/today.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -99,6 +103,10 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerInterviewRoutes(guarded, deps);
+        registerTodayRoutes(guarded, deps);
+        registerDailyActivityRoutes(guarded, deps);
+        registerNavCountsRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
