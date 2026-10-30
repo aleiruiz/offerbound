@@ -30,6 +30,9 @@ a migration adds, changes or removes a hand-written object.
 
 Notes:
 
+- The GIN indexes on `company.aliases`, `company.domains` and `company.ats_slugs` are declared in
+  `schema.prisma` (`type: Gin`, `map:` the same names), so Prisma manages them and a diff never
+  drops them. They are created by the generated part of the migration, not the hand-written part.
 - The `event` expression index replaces the generated `entity_key` column of DATA_MODEL §3.8 with
   the same guarantee (the plan's refinement); there is no `entity_key` column.
 - Prisma list columns generate as nullable `text[]`. The migration adds `not null` to every array

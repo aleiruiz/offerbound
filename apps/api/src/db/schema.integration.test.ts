@@ -179,6 +179,25 @@ describe("schema constraints", () => {
     await prisma.event.create({ data: noMessage });
   });
 
+  it("rejects a duplicate lead-only event but allows a lead and an application event for one message", async () => {
+    const base = await makeLeadBase();
+    const lead = await makeLead(base);
+    const application = await makeApplication(base.companyId);
+    const message = await makeMessage();
+    const event = {
+      messageId: message.id,
+      type: "email_received",
+      actor: "system",
+      summary: "Received an alert",
+      undoable: true,
+    } as const;
+    await prisma.event.create({ data: { ...event, leadId: lead.id } });
+    await expectConstraint(prisma.event.create({ data: { ...event, leadId: lead.id } }), UNIQUE);
+    // The same message and type on an application is a different record.
+    await prisma.event.create({ data: { ...event, applicationId: application.id } });
+    expect(await prisma.event.count()).toBe(2);
+  });
+
   it("allows the same message and type for two different applications", async () => {
     const company = await makeCompany();
     const first = await makeApplication(company.id);
@@ -216,7 +235,7 @@ describe("schema constraints", () => {
   it("accepts only id 1 in gmail_connection", async () => {
     const connection = {
       googleSub: "sub-1",
-      email: "owner@example.test",
+      email: "owner@owner.example",
       scopes: ["openid"],
       status: "active",
       backfillSince: new Date("2026-09-01T00:00:00.000Z"),

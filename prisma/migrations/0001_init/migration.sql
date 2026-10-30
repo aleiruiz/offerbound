@@ -92,9 +92,9 @@ CREATE TABLE "company" (
     "version" INTEGER NOT NULL DEFAULT 1,
     "name" TEXT NOT NULL,
     "normalized_name" TEXT NOT NULL,
-    "aliases" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-    "domains" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-    "ats_slugs" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    "aliases" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
+    "domains" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
+    "ats_slugs" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "website_domain" TEXT,
     "group_id" UUID,
     "created_source" TEXT NOT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE "lead" (
     "track" TEXT,
     "fit_score" SMALLINT,
     "fit_reason" TEXT,
-    "gaps" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    "gaps" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "eligible" "tri_state" NOT NULL DEFAULT 'unknown',
     "eligibility_reason" TEXT,
     "status" "lead_status" NOT NULL DEFAULT 'new',
@@ -215,7 +215,7 @@ CREATE TABLE "interview" (
     "meeting_url" TEXT,
     "scheduling_url" TEXT,
     "location" TEXT,
-    "interviewers" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    "interviewers" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "ics_uid" TEXT,
     "source_message_id" TEXT,
     "notes" TEXT,
@@ -231,7 +231,7 @@ CREATE TABLE "gmail_message" (
     "thread_id" TEXT NOT NULL,
     "internal_date" TIMESTAMPTZ(3) NOT NULL,
     "direction" "message_direction" NOT NULL,
-    "label_ids" TEXT[] NOT NULL,
+    "label_ids" TEXT[] NOT NULL, -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "state" "message_state" NOT NULL DEFAULT 'discovered',
     "triage_method" "triage_method",
     "triage_rule" TEXT,
@@ -300,7 +300,7 @@ CREATE TABLE "review_item" (
     "confidence" REAL,
     "plan" JSONB,
     "candidates" JSONB NOT NULL DEFAULT '[]',
-    "reasons" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    "reasons" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[], -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "resolution" JSONB,
     "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resolved_at" TIMESTAMPTZ(3),
@@ -376,7 +376,7 @@ CREATE TABLE "gmail_connection" (
     "id" SMALLINT NOT NULL,
     "google_sub" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "scopes" TEXT[] NOT NULL,
+    "scopes" TEXT[] NOT NULL, -- hand-edited: NOT NULL (see MANUAL_SQL.md)
     "refresh_token_enc" TEXT,
     "access_token_enc" TEXT,
     "access_token_expires_at" TIMESTAMPTZ(3),
@@ -452,6 +452,15 @@ CREATE UNIQUE INDEX "company_normalized_name_key" ON "company"("normalized_name"
 
 -- CreateIndex
 CREATE INDEX "company_group_id_idx" ON "company"("group_id");
+
+-- CreateIndex
+CREATE INDEX "company_aliases_gin" ON "company" USING GIN ("aliases");
+
+-- CreateIndex
+CREATE INDEX "company_domains_gin" ON "company" USING GIN ("domains");
+
+-- CreateIndex
+CREATE INDEX "company_ats_slugs_gin" ON "company" USING GIN ("ats_slugs");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "contact_email_key" ON "contact"("email");
@@ -618,11 +627,6 @@ create unique index event_message_type_entity_key on event
 
 -- Partial index (DATA_MODEL 3.4)
 create index application_follow_up_due_idx on application (follow_up_due) where follow_up_due;
-
--- GIN indexes on company arrays (DATA_MODEL 3.1)
-create index company_aliases_gin on company using gin (aliases);
-create index company_domains_gin on company using gin (domains);
-create index company_ats_slugs_gin on company using gin (ats_slugs);
 
 -- Check constraints
 alter table lead add constraint lead_suppressed_reason

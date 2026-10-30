@@ -1,9 +1,8 @@
 // Offerbound data model. DATA_MODEL.md is the authority for columns, enums, defaults and indexes.
 //
-// Prisma 6 cannot express partial unique indexes, expression indexes, check constraints, citext
-// extensions or the GIN indexes on company arrays. Those are hand-written in
-// migrations/0001_init/migration.sql and listed in MANUAL_SQL.md. Check every new migration for
-// DROP statements against that list.
+// Prisma 6 cannot express partial unique indexes, expression indexes or check constraints, and it
+// does not manage extensions here. Those are hand-written in migrations/0001_init/migration.sql
+// and listed in MANUAL_SQL.md. Check every new migration for DROP statements against that list.
 
 generator client {
   provider      = "prisma-client-js"
@@ -309,7 +308,7 @@ enum LlmCallStatus {
 // Tables (DATA_MODEL §3)
 // ---------------------------------------------------------------------------------------------
 
-/// §3.1. GIN indexes on aliases, domains and ats_slugs are hand-written (MANUAL_SQL.md).
+/// §3.1. The GIN indexes on aliases, domains and ats_slugs are declared here with the names the migration uses.
 model Company {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   version        Int      @default(1)
@@ -333,6 +332,9 @@ model Company {
   reviewItems  ReviewItem[]
 
   @@index([groupId])
+  @@index([aliases], type: Gin, map: "company_aliases_gin")
+  @@index([domains], type: Gin, map: "company_domains_gin")
+  @@index([atsSlugs], type: Gin, map: "company_ats_slugs_gin")
   @@map("company")
 }
 
@@ -526,13 +528,13 @@ model GmailMessage {
   processedAt       DateTime?        @map("processed_at") @db.Timestamptz(3)
   updatedAt         DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  application  Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
-  leads        Lead[]
-  interviews   Interview[]
-  events       Event[]
-  reviewItems  ReviewItem[]
-  intakeBatchs IntakeBatch[]
-  llmCalls     LlmCall[]
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  leads         Lead[]
+  interviews    Interview[]
+  events        Event[]
+  reviewItems   ReviewItem[]
+  intakeBatches IntakeBatch[]
+  llmCalls      LlmCall[]
 
   @@index([state, internalDate])
   @@index([threadId])
