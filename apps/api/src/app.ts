@@ -16,6 +16,7 @@ import { registerImportRoutes } from "./routes/import.js";
 import { registerLeadRoutes } from "./routes/leads.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
+import { registerSearchRoutes } from "./routes/search.js";
 
 /**
  * pino redaction (SECURITY §4, TECHNICAL_SPEC §16). Handlers log ids and codes only; these paths
@@ -99,6 +100,7 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerSearchRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },

@@ -19,6 +19,7 @@ import { gmailAuthIsLost, markExtractionFailed } from "../pipeline/failure.js";
 import { resendPendingExtractions, runTriageBatch, TRIAGE_BATCH_SIZE } from "../pipeline/triage.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
+import { searchRunHandler } from "../leads/search.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
 
 /** What a handler knows about the job it is running. */
@@ -255,6 +256,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
+  [QUEUES.searchRun]: searchRunHandler,
 };
 
 /**
