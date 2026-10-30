@@ -1,5 +1,5 @@
 import { createTheme, type Shadows, type Theme } from "@mui/material/styles";
-import type { ApplicationStatus } from "./api/contracts-stub";
+import type { ApplicationStatus } from "@offerbound/contracts";
 
 export type ThemeMode = "light" | "dark";
 
@@ -15,6 +15,8 @@ export interface OfferboundTokens {
   routeTint: string;
   signalTint: string;
   stopTint: string;
+  /** The route color that reads on the `ink` ground of a snackbar (the other mode's route). */
+  routeOnInk: string;
 }
 
 declare module "@mui/material/styles" {
@@ -38,13 +40,13 @@ const light = {
   line: "#dce1dc",
   lineControl: "#7a8580",
   route: "#0a7356",
-  routeDark: "#075a43",
   onRoute: "#ffffff",
   routeTint: "#e2f1eb",
   signal: "#8f5400",
   signalTint: "#fcefd8",
   stop: "#b3261e",
   stopTint: "#fbe8e6",
+  routeOnInk: "#4fd1a5",
   shadow: "0 8px 24px rgba(22,32,46,0.16)",
   status: {
     applied: { main: "#2f55a4", tint: "#e7edf9" },
@@ -68,13 +70,13 @@ const dark = {
   line: "#26313b",
   lineControl: "#6e7b85",
   route: "#4fd1a5",
-  routeDark: "#3bb58b",
   onRoute: "#05281d",
   routeTint: "#12352b",
   signal: "#f2b24c",
   signalTint: "#3a2a0e",
   stop: "#ff8a80",
   stopTint: "#3d1a18",
+  routeOnInk: "#0a7356",
   shadow: "0 8px 24px rgba(0,0,0,0.55)",
   status: {
     applied: { main: "#9db8f5", tint: "#1c2a47" },
@@ -93,15 +95,30 @@ const fontFamily = 'Overpass, "Segoe UI", system-ui, sans-serif';
 
 const label = { fontSize: "14px", lineHeight: "20px", fontWeight: 600 } as const;
 
-export function createOfferboundTheme(mode: ThemeMode): Theme {
+export interface ThemeOptions {
+  /**
+   * Phone widths (below 600px, DESIGN_SPEC §4): fields default to `size="medium"` and buttons
+   * and icon buttons are at least 44px square (§9.4).
+   */
+  touch?: boolean;
+}
+
+const TOUCH_TARGET = 44;
+
+export function createOfferboundTheme(
+  mode: ThemeMode,
+  { touch = false }: ThemeOptions = {},
+): Theme {
   const t = mode === "light" ? light : dark;
+  const fieldSize = touch ? "medium" : "small";
   // Everything that floats shares one shadow; in-page sections are outlined and have none.
   const shadows = ["none", ...Array<string>(24).fill(t.shadow)] as Shadows;
 
   return createTheme({
     palette: {
       mode,
-      primary: { main: t.route, dark: t.routeDark, contrastText: t.onRoute },
+      // primary.dark (hover) is derived by MUI from the route token; tokens.json defines none.
+      primary: { main: t.route, contrastText: t.onRoute },
       warning: { main: t.signal },
       error: { main: t.stop },
       background: { default: t.bg, paper: t.surface },
@@ -114,6 +131,7 @@ export function createOfferboundTheme(mode: ThemeMode): Theme {
         routeTint: t.routeTint,
         signalTint: t.signalTint,
         stopTint: t.stopTint,
+        routeOnInk: t.routeOnInk,
       },
     },
     shape: { borderRadius: 6 },
@@ -145,8 +163,16 @@ export function createOfferboundTheme(mode: ThemeMode): Theme {
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: {
-          root: { textTransform: "none" },
+          root: {
+            textTransform: "none",
+            ...(touch ? { minHeight: TOUCH_TARGET, minWidth: TOUCH_TARGET } : {}),
+          },
           outlined: { borderColor: t.lineControl },
+        },
+      },
+      MuiIconButton: {
+        styleOverrides: {
+          root: touch ? { minHeight: TOUCH_TARGET, minWidth: TOUCH_TARGET } : {},
         },
       },
       MuiPaper: {
@@ -165,8 +191,8 @@ export function createOfferboundTheme(mode: ThemeMode): Theme {
         defaultProps: { size: "small" },
         styleOverrides: { root: { borderRadius: 4, fontWeight: 600 } },
       },
-      MuiTextField: { defaultProps: { size: "small", variant: "outlined" } },
-      MuiSelect: { defaultProps: { size: "small", variant: "outlined" } },
+      MuiTextField: { defaultProps: { size: fieldSize, variant: "outlined" } },
+      MuiSelect: { defaultProps: { size: fieldSize, variant: "outlined" } },
       MuiOutlinedInput: {
         styleOverrides: {
           root: { borderRadius: 4 },
@@ -187,11 +213,14 @@ export function createOfferboundTheme(mode: ThemeMode): Theme {
       MuiSnackbarContent: { styleOverrides: { root: { backgroundColor: t.ink, color: t.bg } } },
       MuiAlert: {
         styleOverrides: {
+          // Alert is a Paper, so the elevation-0 Paper border above would reach it: none here.
           root: ({ ownerState }) => {
-            if (ownerState.variant && ownerState.variant !== "standard") return {};
+            if (ownerState.variant === "outlined") return {};
+            if (ownerState.variant && ownerState.variant !== "standard") return { border: "none" };
             const severity = ownerState.color ?? ownerState.severity;
             if (severity === "warning") {
               return {
+                border: "none",
                 backgroundColor: t.signalTint,
                 color: t.ink,
                 "& .MuiAlert-icon": { color: t.signal },
@@ -199,12 +228,13 @@ export function createOfferboundTheme(mode: ThemeMode): Theme {
             }
             if (severity === "error") {
               return {
+                border: "none",
                 backgroundColor: t.stopTint,
                 color: t.ink,
                 "& .MuiAlert-icon": { color: t.stop },
               };
             }
-            return {};
+            return { border: "none" };
           },
         },
       },

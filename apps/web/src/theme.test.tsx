@@ -1,4 +1,8 @@
+import Alert from "@mui/material/Alert";
+import Paper from "@mui/material/Paper";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { renderWithProviders } from "../test/render";
 import { createOfferboundTheme } from "./theme";
 
 describe("createOfferboundTheme", () => {
@@ -62,5 +66,45 @@ describe("createOfferboundTheme", () => {
     expect(light.divider).toBe("#dce1dc");
     expect(light.warning.main).toBe("#8f5400");
     expect(dark.error.main).toBe("#ff8a80");
+  });
+});
+
+describe("theme refinements", () => {
+  it("an Alert has no border, while an elevation-0 Paper keeps the line border", () => {
+    renderWithProviders(
+      <>
+        <Alert severity="warning">Heads up</Alert>
+        <Alert severity="error" variant="filled">
+          Broken
+        </Alert>
+        <Paper data-testid="paper">Section</Paper>
+      </>,
+    );
+    for (const alert of screen.getAllByRole("alert")) {
+      expect(getComputedStyle(alert).borderStyle).not.toBe("solid");
+    }
+    expect(getComputedStyle(screen.getByTestId("paper")).borderStyle).toBe("solid");
+  });
+
+  it("primary.dark is derived from the route token, not an invented color", () => {
+    for (const mode of ["light", "dark"] as const) {
+      const theme = createOfferboundTheme(mode);
+      expect(theme.palette.primary.dark).not.toBe("#3bb58b");
+      expect(theme.palette.primary.dark).not.toBe(theme.palette.primary.main);
+    }
+  });
+
+  it("below 600px (touch) text fields default to size medium and buttons are 44px targets", () => {
+    const desktop = createOfferboundTheme("light");
+    const touch = createOfferboundTheme("light", { touch: true });
+    expect(desktop.components?.MuiTextField?.defaultProps?.size).toBe("small");
+    expect(touch.components?.MuiTextField?.defaultProps?.size).toBe("medium");
+    expect(touch.components?.MuiSelect?.defaultProps?.size).toBe("medium");
+    const root = touch.components?.MuiButton?.styleOverrides?.root;
+    expect(root).toMatchObject({ minHeight: 44 });
+    expect(touch.components?.MuiIconButton?.styleOverrides?.root).toMatchObject({
+      minHeight: 44,
+      minWidth: 44,
+    });
   });
 });
