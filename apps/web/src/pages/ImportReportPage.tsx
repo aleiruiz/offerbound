@@ -36,10 +36,13 @@ const ANNOTATION: Record<
   { label: string; color: "success" | "default" | "warning" }
 > = {
   new: { label: "New", color: "success" },
-  duplicate: { label: "You already have this", color: "default" },
-  company_already_seen: { label: "Company already seen", color: "warning" },
-  excluded_seniority: { label: "Seniority you excluded", color: "warning" },
+  duplicate: { label: "Already tracked", color: "default" },
+  company_already_seen: { label: "Suppressed: company already seen", color: "warning" },
+  excluded_seniority: { label: "Suppressed: seniority excluded", color: "warning" },
 };
+
+/** Commit discards a row Offerbound already has, even when it is sent, so it can't be checked. */
+const canKeep = (annotation: ReportRowAnnotation) => annotation !== "duplicate";
 
 const EXPIRED = "This preview expired or was already used. Paste the report again.";
 
@@ -153,7 +156,8 @@ function PreviewTable({
   onToggle: (rowId: string) => void;
   onToggleAll: () => void;
 }) {
-  const all = preview.rows.length > 0 && kept.size === preview.rows.length;
+  const selectable = preview.rows.filter((r) => canKeep(r.annotation));
+  const all = selectable.length > 0 && selectable.every((r) => kept.has(r.rowId));
   return (
     <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
       <Table sx={{ minWidth: 640 }} aria-label="Roles in the report">
@@ -163,6 +167,7 @@ function PreviewTable({
               <Checkbox
                 checked={all}
                 indeterminate={kept.size > 0 && !all}
+                disabled={selectable.length === 0}
                 onChange={onToggleAll}
                 slotProps={{ input: { "aria-label": "Keep every row" } }}
               />
@@ -181,6 +186,7 @@ function PreviewTable({
                 <TableCell padding="checkbox">
                   <Checkbox
                     checked={kept.has(row.rowId)}
+                    disabled={!canKeep(row.annotation)}
                     onChange={() => onToggle(row.rowId)}
                     slotProps={{
                       input: { "aria-label": `Keep ${row.lead.company}, ${row.lead.title}` },
@@ -217,6 +223,10 @@ export function ImportReportPage() {
   const data = preview.data;
   const done = commit.isSuccess;
   const keptCount = kept.size;
+  // What commit will do with the kept rows: new ones become leads in New, the rest are Suppressed.
+  const keptRows = data?.rows.filter((r) => kept.has(r.rowId)) ?? [];
+  const keptNew = keptRows.filter((r) => r.annotation === "new").length;
+  const keptSuppressed = keptRows.length - keptNew;
 
   const read = () => {
     commit.reset();
@@ -227,6 +237,13 @@ export function ImportReportPage() {
     });
   };
 
+  const startOver = () => {
+    commit.reset();
+    preview.reset();
+    setKept(new Set());
+    setText("");
+  };
+
   const toggle = (rowId: string) =>
     setKept((prev) => {
       const next = new Set(prev);
@@ -234,9 +251,10 @@ export function ImportReportPage() {
       return next;
     });
   const toggleAll = () =>
-    setKept((prev) =>
-      data && prev.size < data.rows.length ? new Set(data.rows.map((r) => r.rowId)) : new Set(),
-    );
+    setKept((prev) => {
+      const selectable = data?.rows.filter((r) => canKeep(r.annotation)) ?? [];
+      return prev.size < selectable.length ? new Set(selectable.map((r) => r.rowId)) : new Set();
+    });
 
   const runImport = () => {
     if (!data || keptCount === 0) return;
@@ -319,8 +337,8 @@ export function ImportReportPage() {
             <>
               <PreviewTable preview={data} kept={kept} onToggle={toggle} onToggleAll={toggleAll} />
               <Typography variant="caption" color="text.secondary">
-                Rows you already have or whose company you have seen start unchecked. Check any you
-                want to add anyway.
+                Rows already tracked can't be added. Rows from companies you've seen, or for a level
+                you excluded, start unchecked: if you add them they go to Suppressed, not New.
               </Typography>
             </>
           ) : null}
@@ -339,12 +357,17 @@ export function ImportReportPage() {
           severity="success"
           role="status"
           action={
-            <Button color="inherit" size="small" component={RouterLink} to="/leads">
-              Go to Leads
-            </Button>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+              <Button color="inherit" size="small" onClick={startOver}>
+                Import another report
+              </Button>
+              <Button color="inherit" size="small" component={RouterLink} to="/leads">
+                Go to Leads
+              </Button>
+            </Box>
           }
         >
-          {`Importing ${plural(keptCount, "lead", "leads")}. They appear in New once their links are checked.`}
+          {`Imported ${plural(keptCount, "lead", "leads")}: ${keptNew} in New, ${keptSuppressed} in Suppressed.${keptNew > 0 ? " New leads appear once their links are checked." : ""}`}
         </Alert>
       ) : null}
 

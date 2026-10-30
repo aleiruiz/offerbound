@@ -115,9 +115,9 @@ describe("Import a report", () => {
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(5);
     expect(within(rows[0]!).getByText("New")).toBeInTheDocument();
-    expect(within(rows[2]!).getByText("You already have this")).toBeInTheDocument();
-    expect(within(rows[3]!).getByText("Company already seen")).toBeInTheDocument();
-    expect(within(rows[4]!).getByText("Seniority you excluded")).toBeInTheDocument();
+    expect(within(rows[2]!).getByText("Already tracked")).toBeInTheDocument();
+    expect(within(rows[3]!).getByText("Suppressed: company already seen")).toBeInTheDocument();
+    expect(within(rows[4]!).getByText("Suppressed: seniority excluded")).toBeInTheDocument();
 
     expect(keepBox("Tidewater")).toBeChecked();
     expect(keepBox("Kittiwake")).toBeChecked();
@@ -172,17 +172,83 @@ describe("Import a report", () => {
 
     const call = api.calls.find((c) => c.url.endsWith("/leads/import/commit"));
     expect(await call?.json()).toEqual({ previewId: "preview-1", keepRowIds: ["r2", "r4"] });
-    expect(await screen.findByText(/Importing 2 leads/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Imported 2 leads: 1 in New, 1 in Suppressed. New leads appear once their links are checked.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Import \d/ })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("link", { name: "Go to Leads" }));
     expect(await screen.findByTestId("where")).toHaveTextContent("/leads");
   });
 
+  it("can't keep a row Offerbound already tracks, and leaves it out of the count", async () => {
+    const { api, user } = setup();
+    await readReport(user);
+    const duplicate = keepBox("Brightline");
+    expect(duplicate).toBeDisabled();
+    expect(duplicate).not.toBeChecked();
+    // The other already-seen rows stay checkable.
+    expect(keepBox("Halyard")).toBeEnabled();
+    expect(keepBox("Sable")).toBeEnabled();
+
+    // Select all takes every row except the tracked one.
+    await user.click(screen.getByRole("checkbox", { name: "Keep every row" }));
+    expect(duplicate).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Import 4 leads" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Import 4 leads" }));
+    const call = api.calls.find((c) => c.url.endsWith("/leads/import/commit"));
+    expect(await call?.json()).toEqual({
+      previewId: "preview-1",
+      keepRowIds: ["r1", "r2", "r4", "r5"],
+    });
+  });
+
+  it("says which kept rows go to Suppressed, before and after the import", async () => {
+    const { user } = setup();
+    await readReport(user);
+    expect(
+      screen.getByText(/Rows already tracked can't be added\..*go to Suppressed, not New\./),
+    ).toBeInTheDocument();
+    await user.click(keepBox("Halyard"));
+    await user.click(keepBox("Sable"));
+    await user.click(screen.getByRole("button", { name: "Import 4 leads" }));
+    expect(
+      await screen.findByText(
+        "Imported 4 leads: 2 in New, 2 in Suppressed. New leads appear once their links are checked.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("doesn't promise New when only suppressed rows were kept", async () => {
+    const { user } = setup();
+    await readReport(user);
+    await user.click(keepBox("Tidewater"));
+    await user.click(keepBox("Kittiwake"));
+    await user.click(keepBox("Halyard"));
+    await user.click(screen.getByRole("button", { name: "Import 1 lead" }));
+    expect(
+      await screen.findByText("Imported 1 lead: 0 in New, 1 in Suppressed."),
+    ).toBeInTheDocument();
+  });
+
+  it("offers to import another report after a success", async () => {
+    const { user } = setup();
+    await readReport(user);
+    await user.click(screen.getByRole("button", { name: "Import 2 leads" }));
+    await user.click(await screen.findByRole("button", { name: "Import another report" }));
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Imported/)).not.toBeInTheDocument();
+    const box = screen.getByLabelText("Report");
+    expect(box).toHaveValue("");
+    expect(box).toBeEnabled();
+  });
+
   it("disables the import when nothing is kept", async () => {
     const { user } = setup();
     await readReport(user);
-    await user.click(screen.getByRole("checkbox", { name: "Keep every row" })); // 2 of 5: select all
+    await user.click(screen.getByRole("checkbox", { name: "Keep every row" })); // 2 of 4: select all
     await user.click(screen.getByRole("checkbox", { name: "Keep every row" })); // none
     expect(screen.getByRole("button", { name: "Import 0 leads" })).toBeDisabled();
   });
