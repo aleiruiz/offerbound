@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { useState, type DragEvent, type ReactNode } from "react";
+import { useState, type DragEvent, type ReactNode, type Ref } from "react";
 
 /**
  * A drop target around a file chooser. The chooser (a `FilePicker`) stays inside as the child, so
@@ -14,7 +14,10 @@ export function DropZone({
   onFile,
   disabled = false,
   children,
+  ref,
 }: {
+  /** The zone's element, for callers that need to know whether focus is inside it. */
+  ref?: Ref<HTMLDivElement>;
   /** The accessible name of the zone, for example "CV drop zone". */
   label: string;
   hint?: string;
@@ -52,6 +55,7 @@ export function DropZone({
 
   return (
     <Box
+      ref={ref}
       role="group"
       aria-label={label}
       data-drag-over={over ? "true" : undefined}

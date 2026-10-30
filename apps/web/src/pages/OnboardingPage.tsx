@@ -342,6 +342,19 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
   const [saved, setSaved] = useState(false);
   const [profileFailed, setProfileFailed] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const zone = useRef<HTMLDivElement>(null);
+  const statusRegion = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
+
+  // The chooser unmounts while the CV is read. If it had focus, move focus to the status region
+  // (the next Tab reaches Skip or Continue) instead of letting it fall back to the page.
+  const reading = upload.isPending;
+  useEffect(() => {
+    if (reading && refocus.current) {
+      refocus.current = false;
+      statusRegion.current?.focus();
+    }
+  }, [reading]);
 
   const choose = (file: File) => {
     const reason = !hasAllowedType(file, CV_ACCEPT)
@@ -355,6 +368,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
       return;
     }
     setFileName(file.name);
+    refocus.current = zone.current?.contains(document.activeElement) ?? false;
     upload.mutate(file, {
       onSuccess: (outcome) => {
         setSaved(true);
@@ -371,7 +385,7 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
         Add your CV as a PDF or DOCX, up to 5 MB. Offerbound reads its text to rank leads against
         your skills. The file itself isn't kept, only the text and the profile built from it.
       </Typography>
-      <DropZone label="CV drop zone" onFile={choose} disabled={upload.isPending}>
+      <DropZone ref={zone} label="CV drop zone" onFile={choose} disabled={upload.isPending}>
         {upload.isPending ? null : (
           <FilePicker
             label={saved ? "Replace CV" : "Choose CV file"}
@@ -379,7 +393,13 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
             onFile={choose}
           />
         )}
-        <Box role="status" aria-live="polite" sx={{ flex: "1 1 280px", minWidth: 0 }}>
+        <Box
+          ref={statusRegion}
+          role="status"
+          aria-live="polite"
+          tabIndex={-1}
+          sx={{ flex: "1 1 280px", minWidth: 0, outline: "none" }}
+        >
           {upload.isPending ? (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {fileName ? (
@@ -389,7 +409,9 @@ function CvStep({ onContinue, onSkip }: { onContinue: () => void; onSkip: () => 
               ) : null}
               <LinearProgress aria-label="Reading your CV" />
               <Typography variant="body2" color="text.secondary">
-                {`Reading ${fileName ?? "your CV"} and building your profile. This usually takes under a minute; keep this page open.`}
+                {/* The file name is on the line above; repeating it would not wrap on a phone. */}
+                Reading your CV and building your profile. This usually takes under a minute; keep
+                this page open.
               </Typography>
             </Box>
           ) : null}
@@ -458,6 +480,11 @@ const CSV_REJECTED = {
   too_large: "That file is larger than 2 MB. Export only the Applications tab and try again.",
 } as const;
 
+/**
+ * Stopgap until `POST /import/sheet/preview` exists (T7.5): today it answers 404, and the page
+ * must not call that an expired preview. When T7.5 lands, narrow this to `not_found` or remove it,
+ * so a transient preview failure doesn't tell the owner to skip.
+ */
 const IMPORT_UNAVAILABLE =
   "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.";
 

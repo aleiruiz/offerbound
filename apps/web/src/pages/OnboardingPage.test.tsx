@@ -1,6 +1,6 @@
 import type { CvProfile, ImportSummary, Settings, SheetPreview } from "@offerbound/contracts";
 import { DEFAULT_SETTINGS } from "@offerbound/contracts";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -78,7 +78,7 @@ function setup(routes: Routes = {}) {
     { route: "/onboarding" },
   );
   // The operating system's picker can hand over any file despite `accept`, so tests bypass it too.
-  return { api, ...rendered, user: userEvent.setup({ applyAccept: false }) };
+  return { api, ...rendered, user: userEvent.setup({ applyAccept: false, delay: null }) };
 }
 
 function file(name: string, type: string, bytes = 8): File {
@@ -91,12 +91,31 @@ const callsTo = (api: MockApi, method: string, path: string) =>
 /** A drop carrying these files, the way a browser reports a drag from the desktop. */
 const dropping = (...files: File[]) => ({ dataTransfer: { files, types: ["Files"] } });
 
+/** Lets queued promise callbacks run, so "nothing was sent" is checked after a request would have been. */
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => {
     resolve = r;
   });
   return { promise, resolve };
+}
+
+/** Types by pasting: one event instead of one per key, which is slow on the multiline field. */
+async function typeText(
+  user: ReturnType<typeof userEvent.setup>,
+  field: HTMLElement,
+  text: string,
+) {
+  await user.click(field);
+  if (field instanceof HTMLTextAreaElement) {
+    field.setSelectionRange(field.value.length, field.value.length);
+  }
+  await user.paste(text);
 }
 
 async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
@@ -243,19 +262,43 @@ describe("OnboardingPage", () => {
       expect(status).toHaveAttribute("aria-live", "polite");
       expect(within(status).getByText("my-long-cv-file-name.pdf")).toBeInTheDocument();
       expect(within(status).getByRole("progressbar", { name: "Reading your CV" })).toBeVisible();
+      // The name is shown once, ellipsized; the sentence doesn't repeat it, since a long name has
+      // no break points and would push the page wider than a phone.
       expect(status).toHaveTextContent(
-        "Reading my-long-cv-file-name.pdf and building your profile. This usually takes under a minute; keep this page open.",
+        "Reading your CV and building your profile. This usually takes under a minute; keep this page open.",
       );
+      expect(within(status).getAllByText(/my-long-cv-file-name\.pdf/)).toHaveLength(1);
+      expect(within(status).getByText("my-long-cv-file-name.pdf")).toHaveStyle({
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+      });
       // No greyed-out chooser and no drop hint while the upload runs.
       expect(within(zone).queryByRole("button", { name: /CV/ })).not.toBeInTheDocument();
       expect(within(zone).queryByText("or drop a file here")).not.toBeInTheDocument();
       fireEvent.drop(zone, dropping(file("second.pdf", "application/pdf")));
+      await settle();
       expect(callsTo(api, "POST", "/api/v1/cv")).toHaveLength(1);
+      expect(status).not.toHaveTextContent("second.pdf");
 
       answer.resolve(jsonResponse(PROFILE, 201));
       expect(await screen.findByRole("region", { name: "Your CV profile" })).toBeInTheDocument();
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Replace CV" })).toBeInTheDocument();
+    });
+
+    it("moves focus to the status region when the chooser that had it goes away", async () => {
+      const answer = deferred<Response>();
+      setup({ "POST /api/v1/cv": () => answer.promise });
+      const chooser = screen.getByLabelText("Choose CV file");
+      // A browser leaves focus on the input after its picker closes.
+      chooser.focus();
+      fireEvent.change(chooser, { target: { files: [file("cv.pdf", "application/pdf")] } });
+      const zone = screen.getByRole("group", { name: "CV drop zone" });
+      await waitFor(() => expect(within(zone).getByRole("status")).toHaveFocus());
+      answer.resolve(jsonResponse(PROFILE, 201));
+      await screen.findByRole("region", { name: "Your CV profile" });
+      expect(within(zone).getByRole("status")).toHaveFocus();
     });
 
     it("says 'We couldn't read text from that file' on 422 cv_no_text", async () => {
@@ -494,6 +537,63 @@ describe("OnboardingPage", () => {
       expect(callsTo(api, "POST", "/api/v1/import/sheet/preview")).toHaveLength(0);
     });
 
+    it("ignores drops while the preview is read and after the import", async () => {
+      const answer = deferred<Response>();
+      const { api, user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () => answer.promise,
+        "POST /api/v1/import/sheet/commit": () => jsonResponse(SUMMARY, 201),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      const zone = screen.getByRole("group", { name: "CSV drop zone" });
+      fireEvent.drop(zone, dropping(file("second.csv", "text/csv")));
+      await settle();
+      expect(callsTo(api, "POST", "/api/v1/import/sheet/preview")).toHaveLength(1);
+
+      answer.resolve(jsonResponse(PREVIEW));
+      await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
+      await screen.findByText(/Imported 35 applications/);
+      fireEvent.drop(zone, dropping(file("third.csv", "text/csv")));
+      await settle();
+      expect(callsTo(api, "POST", "/api/v1/import/sheet/preview")).toHaveLength(1);
+      expect(screen.getByText("Applications.csv")).toBeInTheDocument();
+    });
+
+    it("says import isn't available yet on a server error from the preview", async () => {
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/preview": () =>
+          apiError(500, "internal_error", "Something went wrong."),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Spreadsheet import isn't available yet. Skip this step; you can import later from Settings.",
+      );
+    });
+
+    it("keeps the commit's own message for a server error or an unreadable answer", async () => {
+      let answer: MockHandler = () => apiError(500, "internal_error", "Something went wrong.");
+      const { user } = await toImport({
+        "POST /api/v1/import/sheet/commit": (req) => answer(req),
+      });
+      await user.upload(
+        screen.getByLabelText("Choose CSV file"),
+        file("Applications.csv", "text/csv"),
+      );
+      await user.click(await screen.findByRole("button", { name: "Import 101 rows" }));
+      expect(await screen.findByText("Something went wrong.")).toBeVisible();
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
+
+      answer = () => new Response("<html>Bad gateway</html>", { status: 502 });
+      await user.click(screen.getByRole("button", { name: "Import 101 rows" }));
+      expect(await screen.findByText("The server answered with status 502.")).toBeVisible();
+      expect(screen.queryByText(/isn't available yet/)).not.toBeInTheDocument();
+    });
+
     it("says import isn't available yet, not 'expired', when the preview route is missing", async () => {
       const { user } = await toImport({
         "POST /api/v1/import/sheet/preview": () => apiError(404, "not_found", "Not found."),
@@ -590,7 +690,7 @@ describe("OnboardingPage", () => {
       const field = await screen.findByRole("textbox", { name: "Search brief" });
       expect(field).toHaveValue("Old brief");
       await user.clear(field);
-      await user.type(field, "Senior roles, remote from Mexico.");
+      await typeText(user, field, "Senior roles, remote from Mexico.");
       expect(screen.getByText("33 of 12,000 characters")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
 
@@ -611,7 +711,11 @@ describe("OnboardingPage", () => {
         "PUT /api/v1/settings": async (req) => (await req.clone().json()) as Settings,
       });
       await skipTo(user, 2);
-      await user.type(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
+      await typeText(
+        user,
+        await screen.findByRole("textbox", { name: "Search brief" }),
+        "Remote roles",
+      );
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
       await screen.findByRole("heading", { level: 2, name: "Start syncing Gmail" });
 
@@ -622,7 +726,7 @@ describe("OnboardingPage", () => {
       expect(screen.queryByRole("button", { name: "Save and continue" })).not.toBeInTheDocument();
 
       // Editing again offers to save the change, and still no Skip.
-      await user.type(screen.getByRole("textbox", { name: "Search brief" }), " in Mexico");
+      await typeText(user, screen.getByRole("textbox", { name: "Search brief" }), " in Mexico");
       expect(screen.getByRole("button", { name: "Save and continue" })).toBeEnabled();
       expect(screen.queryByRole("button", { name: "Skip this step" })).not.toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
@@ -657,7 +761,11 @@ describe("OnboardingPage", () => {
           apiError(502, "upstream_error", "The database didn't answer."),
       });
       await skipTo(user, 2);
-      await user.type(await screen.findByRole("textbox", { name: "Search brief" }), "Remote roles");
+      await typeText(
+        user,
+        await screen.findByRole("textbox", { name: "Search brief" }),
+        "Remote roles",
+      );
       await user.click(screen.getByRole("button", { name: "Save and continue" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't save your brief.");
       expect(screen.getByRole("textbox", { name: "Search brief" })).toHaveValue("Remote roles");
