@@ -60,6 +60,8 @@ export interface LeadRowProps {
   onMarkApplied?: (lead: Lead) => void;
   onDismiss?: (lead: Lead) => void;
   onReconsider?: (lead: Lead) => void;
+  /** Found since the owner's previous visit: a New chip first and the signal tint on the row. */
+  isNew?: boolean;
   /** Shown for leads that came from an email. */
   onViewEmail?: (lead: Lead) => void;
 }
@@ -85,6 +87,7 @@ export function LeadRow({
   onMarkApplied,
   onDismiss,
   onReconsider,
+  isNew,
   onViewEmail,
 }: LeadRowProps) {
   const compensation = formatCompensation(lead.compensation);
@@ -174,6 +177,7 @@ export function LeadRow({
         py: 1.75,
         listStyle: "none",
         "&:not(:first-of-type)": { borderTop: 1, borderColor: "divider" },
+        ...(isNew ? { bgcolor: (theme) => theme.palette.tokens.signalTint } : {}),
         "&[aria-current='true']": {
           bgcolor: (theme) => theme.palette.tokens.surfaceSunken,
           outline: (theme) => `2px solid ${theme.palette.primary.main}`,
@@ -202,6 +206,7 @@ export function LeadRow({
           </Box>
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+          {isNew ? <FlagChip tone="signal" variant="outlined" label="New" /> : null}
           {lead.track ? (
             <FlagChip tone="neutral" label={trackLabels?.[lead.track] ?? lead.track} />
           ) : null}

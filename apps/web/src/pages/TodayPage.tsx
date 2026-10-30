@@ -38,6 +38,7 @@ import { FlagChip } from "../components/StatusChip";
 import { TargetMeter } from "../components/TargetMeter";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { formatDate, formatLongDay, formatShortDate, formatTime, zoneCity } from "../lib/format";
+import { isFoundSince, useLeadsSince } from "../lib/last-visit";
 import { usePipelineMovement } from "../lib/pipeline-movement";
 import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
@@ -491,6 +492,8 @@ function TopLeads({
 }) {
   const setStatus = useSetLeadStatus();
   const snackbar = useUndoSnackbar();
+  // Today only reads the mark; the Leads page is what marks leads as seen.
+  const since = useLeadsSince({ markSeen: false });
 
   if (today.topLeads.length === 0) {
     const search = settings?.search;
@@ -533,6 +536,7 @@ function TopLeads({
           lead={lead}
           timezone={timezone}
           now={now}
+          isNew={isFoundSince(lead.foundAt, since)}
           onShortlist={(l) => act(l, "shortlisted")}
           onDismiss={(l) => act(l, "dismissed")}
         />
