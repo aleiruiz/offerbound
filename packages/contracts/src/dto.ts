@@ -125,6 +125,12 @@ export const ApplicationSummarySchema = z.object({
 });
 export type ApplicationSummary = z.infer<typeof ApplicationSummarySchema>;
 
+/** An interview with its application, as returned by `GET /interviews` and inside `Today`. */
+export const InterviewWithApplicationSchema = InterviewSchema.extend({
+  application: ApplicationSummarySchema,
+});
+export type InterviewWithApplication = z.infer<typeof InterviewWithApplicationSchema>;
+
 export const ApplicationDetailSchema = ApplicationSummarySchema.extend({
   jobUrl: z.string().nullable(),
   locationText: z.string().nullable(),
@@ -206,7 +212,7 @@ export const TodaySchema = z.object({
     prepMinutes: count,
   }),
   followUpsDue: z.array(ApplicationSummarySchema),
-  upcomingInterviews: z.array(InterviewSchema.extend({ application: ApplicationSummarySchema })),
+  upcomingInterviews: z.array(InterviewWithApplicationSchema),
   topLeads: z.array(LeadSchema),
   review: z.object({ open: count, first: z.array(ReviewItemSchema) }),
   sync: SyncStatusSchema,
@@ -285,6 +291,7 @@ export type ApplicationCreate = z.infer<typeof ApplicationCreateSchema>;
 
 export const ApplicationPatchSchema = z.object({
   version,
+  companyName: requiredText.optional(),
   title: requiredText.optional(),
   jobUrl: z.httpUrl().nullable().optional(),
   status: ApplicationStatusSchema.optional(),
@@ -360,6 +367,7 @@ export const ReviewActionSchema = z.enum([
 ]);
 export type ReviewAction = z.infer<typeof ReviewActionSchema>;
 
+// Per-action requirements (for example, attach needs applicationId) are enforced by the API.
 export const ReviewResolveSchema = z.object({
   action: ReviewActionSchema,
   applicationId: z.string().optional(),

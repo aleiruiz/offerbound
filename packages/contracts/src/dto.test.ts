@@ -6,6 +6,7 @@ import {
   ApplicationPatchSchema,
   DailyActivityBodySchema,
   EmailFixtureSchema,
+  InterviewWithApplicationSchema,
   LeadPatchSchema,
   PageSchema,
   ParsedMessageSchema,
@@ -42,6 +43,13 @@ describe("request bodies", () => {
     expect(
       LeadPatchSchema.safeParse({ status: "dismissed", dismissedReason: "x", version: 1 }).success,
     ).toBe(true);
+  });
+
+  it("lets an application patch rename the company, but not to an empty name", () => {
+    expect(
+      ApplicationPatchSchema.parse({ version: 1, companyName: "Northwind Labs" }).companyName,
+    ).toBe("Northwind Labs");
+    expect(ApplicationPatchSchema.safeParse({ version: 1, companyName: "  " }).success).toBe(false);
   });
 
   it("creates an application with nullable optional fields present", () => {
@@ -93,6 +101,10 @@ describe("response shapes", () => {
       undoneAt: null,
     };
     expect(TimelineEventSchema.parse(event)).toEqual(event);
+  });
+
+  it("reuses InterviewWithApplication for Today's upcoming interviews", () => {
+    expect(TodaySchema.shape.upcomingInterviews.element).toBe(InterviewWithApplicationSchema);
   });
 
   it("keeps Today's pipeline counts exhaustive over application statuses", () => {
