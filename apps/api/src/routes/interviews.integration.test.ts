@@ -68,6 +68,7 @@ type InterviewSeed = {
   endsAt?: Date | null;
   kind?: "recruiter_screen" | "technical";
   notes?: string | null;
+  createdAt?: Date;
 };
 function seedInterview(seed: InterviewSeed) {
   return prisma.interview.create({
@@ -78,6 +79,7 @@ function seedInterview(seed: InterviewSeed) {
       startsAt: seed.startsAt ?? null,
       endsAt: seed.endsAt ?? null,
       notes: seed.notes ?? null,
+      ...(seed.createdAt && { createdAt: seed.createdAt }),
     },
   });
 }
@@ -137,7 +139,7 @@ describe("GET /interviews", () => {
     expect(page.items.map((i) => i.id)).toEqual([row.id]);
   });
 
-  it("past lists completed and earlier interviews, descending", async () => {
+  it("past lists completed, cancelled and earlier interviews, descending", async () => {
     const { call } = await appWith();
     const app = await seedApplication("Acme Robotics");
     const oldest = await seedInterview({
@@ -155,12 +157,36 @@ describe("GET /interviews", () => {
       status: "cancelled",
       startsAt: at(-50),
     });
+    // Cancelled interviews are past whatever their time: one still ahead, and one that never got a
+    // time (it sorts by when it was created).
+    const cancelledAhead = await seedInterview({
+      applicationId: app.id,
+      status: "cancelled",
+      startsAt: at(30),
+    });
+    const cancelledUnscheduled = await seedInterview({
+      applicationId: app.id,
+      status: "cancelled",
+      createdAt: at(-20),
+    });
     // Not past: still ahead, or still to be scheduled.
     await seedInterview({ applicationId: app.id, status: "scheduled", startsAt: at(5) });
     await seedInterview({ applicationId: app.id, status: "to_schedule" });
 
     const page = PageOfInterviews.parse((await call("GET", "/interviews?range=past")).json());
-    expect(page.items.map((i) => i.id)).toEqual([newest.id, middle.id, oldest.id]);
+    expect(page.items.map((i) => i.id)).toEqual([
+      cancelledAhead.id,
+      newest.id,
+      cancelledUnscheduled.id,
+      middle.id,
+      oldest.id,
+    ]);
+    // ...and a cancelled interview is never upcoming.
+    const upcoming = PageOfInterviews.parse(
+      (await call("GET", "/interviews?range=upcoming")).json(),
+    );
+    expect(upcoming.items.map((i) => i.status).sort()).toEqual(["scheduled", "to_schedule"]);
+    expect(await countUpcomingInterviews(prisma, NOW)).toBe(2);
   });
 
   it("pages with a cursor and never repeats or skips a row", async () => {

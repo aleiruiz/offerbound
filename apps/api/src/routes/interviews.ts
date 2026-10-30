@@ -26,10 +26,10 @@ import { ApiError, errorBody } from "../http/errors.js";
  *
  * - **Upcoming** is every `to_schedule` interview (no time yet, listed first) followed by the
  *   `scheduled` ones that start now or later, earliest first. **Past** is every `completed`
- *   interview and every other interview that started before now (a `scheduled` one the timer has
- *   not completed yet, or a cancelled one), latest first. A cancelled interview that has not yet
- *   started, and one cancelled before it got a time, is in neither list; it still shows on its
- *   application. `countUpcomingInterviews` counts exactly the Upcoming set, so the navigation
+ *   and every `cancelled` interview, whatever its time, plus any `scheduled` one that started
+ *   before now (the timer has not completed it yet), latest first; an interview with no start
+ *   sorts by when it was created. A cancelled interview is never Upcoming.
+ *   `countUpcomingInterviews` counts exactly the Upcoming set, so the navigation
  *   badge and the list agree.
  * - **PATCH** is an owner edit: it carries the `version`, does not take the intake lock and is not
  *   undoable (§6.6). A stale version answers `409 version_conflict` with the record as `current`.
@@ -109,8 +109,8 @@ async function pageKeys(
   return prisma.$queryRaw`
     SELECT i.id::text AS id, 1 AS g, ${SORT_TIME_SQL} AS t
     FROM interview i
-    WHERE i.status <> 'to_schedule'::interview_status
-      AND (i.status = 'completed'::interview_status OR i.starts_at < ${now}) ${afterSql}
+    WHERE (i.status IN ('completed'::interview_status, 'cancelled'::interview_status)
+           OR (i.status = 'scheduled'::interview_status AND i.starts_at < ${now})) ${afterSql}
     ORDER BY t DESC, i.id DESC
     LIMIT ${take}`;
 }
@@ -251,12 +251,16 @@ function changesOf(row: InterviewRow, patch: Patch): Changes {
   return changes;
 }
 
-/** A scheduled interview needs a start, and an end cannot come before it. */
-function assertTimesMakeSense(row: InterviewRow, changes: Changes): void {
-  if (!("status" in changes || "startsAt" in changes || "endsAt" in changes)) return;
-  const status = changes.status ?? row.status;
-  const startsAt = "startsAt" in changes ? changes.startsAt : row.startsAt;
-  const endsAt = "endsAt" in changes ? changes.endsAt : row.endsAt;
+/**
+ * The rules for an interview's times, shared with the create route (T7.1): a `scheduled` interview
+ * needs a start, and an end cannot come before it. Throws 400 `validation_failed` with the field.
+ */
+export function assertInterviewTimes(interview: {
+  status: InterviewRow["status"];
+  startsAt: Date | null;
+  endsAt: Date | null;
+}): void {
+  const { status, startsAt, endsAt } = interview;
   if (status === "scheduled" && !startsAt) {
     throw new ApiError(400, "validation_failed", "A scheduled interview needs a start time.", {
       startsAt: "required_when_scheduled",
@@ -267,6 +271,16 @@ function assertTimesMakeSense(row: InterviewRow, changes: Changes): void {
       endsAt: "before_start",
     });
   }
+}
+
+/** Checks the row as it would be after `changes`; a patch that leaves status and times alone is not checked. */
+function assertTimesMakeSense(row: InterviewRow, changes: Changes): void {
+  if (!("status" in changes || "startsAt" in changes || "endsAt" in changes)) return;
+  assertInterviewTimes({
+    status: changes.status ?? row.status,
+    startsAt: "startsAt" in changes ? (changes.startsAt ?? null) : row.startsAt,
+    endsAt: "endsAt" in changes ? (changes.endsAt ?? null) : row.endsAt,
+  });
 }
 
 function eventFor(
