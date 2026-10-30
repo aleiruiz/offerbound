@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -86,5 +86,16 @@ describe("AppShell", () => {
     renderShell(400, "/settings/gmail");
     const nav = screen.getByRole("navigation", { name: "Main" });
     expect(within(nav).getByRole("button", { name: "More" })).toHaveClass("Mui-selected");
+  });
+
+  it("g then i goes to Interviews and ? lists the shortcuts", async () => {
+    const user = userEvent.setup();
+    renderShell(1000);
+    await user.keyboard("?");
+    expect(screen.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await user.keyboard("gi");
+    expect(await screen.findByRole("heading", { name: "Interviews" })).toBeInTheDocument();
   });
 });

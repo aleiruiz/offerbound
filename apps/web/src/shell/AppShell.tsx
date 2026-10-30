@@ -18,6 +18,9 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
 import { useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router";
+import { ShortcutDialog } from "../components/ShortcutDialog";
+import { UndoSnackbar } from "../components/UndoSnackbar";
+import { useGlobalShortcuts } from "../lib/shortcuts";
 import {
   BOTTOM_NAV_KEYS,
   MORE_NAV_KEYS,
@@ -253,6 +256,7 @@ function BottomNav({ active }: { active: NavItem | undefined }) {
  * and a top bar with bottom navigation below 600px. Pages render in the outlet.
  */
 export function AppShell() {
+  useGlobalShortcuts();
   const variant = useShellVariant();
   const { pathname } = useLocation();
   const active = activeNavItem(pathname);
@@ -289,6 +293,8 @@ export function AppShell() {
         </Box>
       </Box>
       {variant === "bottom" && <BottomNav active={active} />}
+      <ShortcutDialog />
+      <UndoSnackbar />
     </Box>
   );
 }

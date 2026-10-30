@@ -12,15 +12,17 @@ export interface RenderOptions {
   mode?: "light" | "dark";
   /** Viewport width in px; 1280 (md and up) by default. */
   width?: number;
+  /** Emulates `prefers-reduced-motion: reduce`. */
+  reducedMotion?: boolean;
 }
 
 export type ProvidersResult = RenderResult & { queryClient: QueryClient };
 
 export function renderWithProviders(
   ui: ReactElement,
-  { route = "/", mode = "light", width = 1280 }: RenderOptions = {},
+  { route = "/", mode = "light", width = 1280, reducedMotion = false }: RenderOptions = {},
 ): ProvidersResult {
-  setViewport({ width, dark: mode === "dark" });
+  setViewport({ width, dark: mode === "dark", reducedMotion });
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchOnWindowFocus: true },
@@ -29,7 +31,7 @@ export function renderWithProviders(
   });
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={createOfferboundTheme(mode)}>
+      <ThemeProvider theme={createOfferboundTheme(mode, { touch: width < 600 })}>
         <CssBaseline />
         <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
       </ThemeProvider>

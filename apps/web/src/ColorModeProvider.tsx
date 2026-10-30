@@ -45,6 +45,8 @@ export function useColorMode(): ColorModeValue {
 export function ColorModeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(readStoredPreference);
   const systemDark = useMediaQuery("(prefers-color-scheme: dark)", { noSsr: true });
+  // DESIGN_SPEC §4: below 600px controls are size medium with 44px targets.
+  const touch = useMediaQuery("(max-width: 599.95px)", { noSsr: true });
   const mode: ThemeMode = preference === "system" ? (systemDark ? "dark" : "light") : preference;
 
   const setPreference = useCallback((next: ThemePreference) => {
@@ -52,7 +54,7 @@ export function ColorModeProvider({ children }: { children: ReactNode }) {
     setPreferenceState(next);
   }, []);
 
-  const theme = useMemo(() => createOfferboundTheme(mode), [mode]);
+  const theme = useMemo(() => createOfferboundTheme(mode, { touch }), [mode, touch]);
   const value = useMemo(
     () => ({ preference, mode, setPreference }),
     [preference, mode, setPreference],
