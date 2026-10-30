@@ -164,16 +164,16 @@ type ExclusionGroup = { names: string[] };
 /** Longest company name sent in the exclusion list. */
 export const EXCLUSION_NAME_MAX_CHARS = 120;
 /** Most names sent in the exclusion list, over all groups. */
-export const EXCLUSION_MAX_NAMES = 200;
+export const EXCLUSION_MAX_NAMES = 2000;
 
 /**
- * A name that is safe to put in the prompt: control characters removed (including line and
- * paragraph separators), trimmed, at most 120 characters and never ending on half a surrogate
+ * A name that is safe to put in the prompt: control and format characters removed (zero-width
+ * and bidirectional marks, line and paragraph separators), trimmed, at most 120 characters and never ending on half a surrogate
  * pair. Company names come from stored records and from model output, which is untrusted
  * (SECURITY §9). Returns null when nothing is left.
  */
 function cleanName(name: string): string | null {
-  let clean = name.replace(/[\p{Cc}\u2028\u2029]/gu, "").trim();
+  let clean = name.replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, "").trim();
   if (clean.length > EXCLUSION_NAME_MAX_CHARS) {
     clean = clean.slice(0, EXCLUSION_NAME_MAX_CHARS);
     const last = clean.charCodeAt(clean.length - 1);
@@ -183,17 +183,16 @@ function cleanName(name: string): string | null {
   return clean === "" ? null : clean;
 }
 
-function sameName(a: string, b: string): boolean {
-  return a.normalize("NFC").toLowerCase() === b.normalize("NFC").toLowerCase();
-}
-
 /**
  * Every company the owner has already seen: any company with a lead or application, plus the other
  * members of its corporate group, each with its name and aliases; one group per corporate group
  * (AC-10.3). `extra` holds company names returned by earlier rounds of this run that are not
- * stored (a dead posting's company), each its own group. Every name is cleaned (`cleanName`) and
- * the list holds at most 200 names: stored groups come first, then `extra`, and later names are
- * left out. Sorted, so the same data gives the same prompt.
+ * stored (a dead posting's company), each its own group. Every name is cleaned (`cleanName`).
+ *
+ * The list holds at most 2,000 names (about 30 KB of prompt). Over that, this run's `extra` names
+ * are kept first, then stored groups from the most recently created (a group is as recent as its
+ * newest member), so the companies the search is most likely to meet again stay in; the oldest
+ * are left out. The result is sorted, so the same data gives the same prompt.
  */
 async function buildExclusions(
   prisma: PrismaClient,
@@ -203,46 +202,46 @@ async function buildExclusions(
     prisma.lead.findMany({ distinct: ["companyId"], select: { companyId: true } }),
     prisma.application.findMany({ distinct: ["companyId"], select: { companyId: true } }),
     prisma.company.findMany({
-      select: { id: true, name: true, aliases: true, groupId: true },
+      select: { id: true, name: true, aliases: true, groupId: true, createdAt: true },
     }),
   ]);
   const seen = new Set([...withLead, ...withApp].map((row) => row.companyId));
   const rootOf = (c: { id: string; groupId: string | null }): string => c.groupId ?? c.id;
   const seenRoots = new Set(companies.filter((c) => seen.has(c.id)).map(rootOf));
 
-  const byRoot = new Map<string, string[]>();
+  const byRoot = new Map<string, { names: string[]; newest: number }>();
   for (const company of companies) {
     const root = rootOf(company);
     if (!seenRoots.has(root)) continue;
-    byRoot.set(root, [...(byRoot.get(root) ?? []), company.name, ...company.aliases]);
+    const entry = byRoot.get(root) ?? { names: [], newest: 0 };
+    entry.names.push(company.name, ...company.aliases);
+    entry.newest = Math.max(entry.newest, company.createdAt.getTime());
+    byRoot.set(root, entry);
   }
+  const clean = (names: readonly string[]): string[] =>
+    [...new Set(names.map(cleanName).filter((n): n is string => n !== null))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+  const stored = [...byRoot.values()]
+    .map((entry) => ({ names: clean(entry.names), newest: entry.newest }))
+    .filter((entry) => entry.names.length > 0)
+    .sort((a, b) => b.newest - a.newest || (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
+
+  // Names of this run that are not already in a stored group, each its own group.
+  const known = new Set(stored.flatMap((entry) => entry.names.map((n) => n.toLowerCase())));
+  const fresh = clean(extra).filter((name) => !known.has(name.toLowerCase()));
 
   let room = EXCLUSION_MAX_NAMES;
   const groups: ExclusionGroup[] = [];
-  const take = (names: readonly string[]): ExclusionGroup | null => {
-    const cleaned = [...new Set(names.map(cleanName).filter((n): n is string => n !== null))]
-      .sort((a, b) => a.localeCompare(b))
-      .slice(0, room);
-    room -= cleaned.length;
-    return cleaned.length === 0 ? null : { names: cleaned };
-  };
-  const stored = [...byRoot.values()]
-    .map((names) => [...names].sort((a, b) => a.localeCompare(b)))
-    .sort((a, b) => (a[0] ?? "").localeCompare(b[0] ?? ""));
-  for (const names of stored) {
-    const group = take(names);
-    if (group !== null) groups.push(group);
+  for (const name of fresh.slice(0, room)) {
+    groups.push({ names: [name] });
+    room -= 1;
   }
-  for (const name of extra) {
-    const group = take([name]);
-    if (
-      group !== null &&
-      !groups.some((g) => g.names.some((n) => sameName(n, group.names[0] ?? "")))
-    ) {
-      groups.push(group);
-    } else if (group !== null) {
-      room += 1;
-    }
+  for (const entry of stored) {
+    if (room <= 0) break;
+    const names = entry.names.slice(0, room);
+    room -= names.length;
+    groups.push({ names });
   }
   return groups.sort((a, b) => (a.names[0] ?? "").localeCompare(b.names[0] ?? ""));
 }
