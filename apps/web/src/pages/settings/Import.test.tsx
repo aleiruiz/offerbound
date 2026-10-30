@@ -1,5 +1,5 @@
 import type { ImportSummary, SheetPreview } from "@offerbound/contracts";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -80,5 +80,14 @@ describe("Settings, Import", () => {
     expect(alert).toHaveTextContent("This file was already imported");
     // Nothing here is a step that can be skipped.
     expect(alert).not.toHaveTextContent("Skip this step");
+  });
+
+  it("links to the paste-a-report importer", async () => {
+    setup();
+    const section = await screen.findByRole("region", { name: "Paste a report" });
+    expect(within(section).getByRole("link", { name: "Paste a report" })).toHaveAttribute(
+      "href",
+      "/leads/import",
+    );
   });
 });
