@@ -359,6 +359,74 @@ describe("runTimersTick", () => {
     });
   });
 
+  describe("a manual reopen restarts the clock", () => {
+    const reopenByOwner = async (applicationId: string, key: "fromStatus" | "from", at: Date) => {
+      await prisma.event.create({
+        data: {
+          applicationId,
+          type: "status_changed",
+          actor: "owner",
+          occurredAt: at,
+          summary: "Status changed",
+          data: { [key]: "abandoned", toStatus: "applied" },
+          undoable: false,
+        },
+      });
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: { status: "applied", statusBeforeAbandon: null, version: { increment: 1 } },
+      });
+    };
+
+    it.each(["fromStatus", "from"] as const)(
+      "is not abandoned again after the owner moves it out of abandoned (%s)",
+      async (key) => {
+        const app = await seedApplication({ appliedAt: ago(30 * DAY) });
+        expect(await runTimersTick(ctx())).toEqual({ abandoned: 1, flagged: 0, completed: 0 });
+        await reopenByOwner(app.id, key, NOW);
+
+        expect(await runTimersTick(ctx())).toEqual({ abandoned: 0, flagged: 0, completed: 0 });
+        const fourteenDays = new Date(NOW.getTime() + 14 * DAY);
+        expect(await runTimersTick(testWorkerCtx({ clock: () => fourteenDays }))).toEqual({
+          abandoned: 1,
+          flagged: 0,
+          completed: 0,
+        });
+      },
+    );
+
+    it("ignores status changes that did not leave abandoned, and other applications' reopens", async () => {
+      const first = await seedApplication({ appliedAt: ago(30 * DAY) });
+      const other = await seedApplication({ title: "SRE", appliedAt: ago(30 * DAY) });
+      await prisma.event.create({
+        data: {
+          applicationId: first.id,
+          type: "status_changed",
+          actor: "owner",
+          occurredAt: ago(1 * DAY),
+          summary: "Status changed",
+          data: { fromStatus: "applied", toStatus: "screening" },
+          undoable: false,
+        },
+      });
+      await prisma.event.create({
+        data: {
+          applicationId: other.id,
+          type: "status_changed",
+          actor: "owner",
+          occurredAt: ago(1 * DAY),
+          summary: "Status changed",
+          data: { fromStatus: "abandoned", toStatus: "applied" },
+          undoable: false,
+        },
+      });
+      expect(await runTimersTick(ctx())).toEqual({ abandoned: 1, flagged: 0, completed: 0 });
+      expect((await prisma.application.findUniqueOrThrow({ where: { id: first.id } })).status).toBe(
+        "abandoned",
+      );
+    });
+  });
+
   it("is the handler of the timers.tick queue", async () => {
     await seedApplication({ appliedAt: ago(30 * DAY) });
     const handler = HANDLERS[QUEUES.timersTick];

@@ -25,8 +25,8 @@ import { getSettings } from "../settings/service.js";
  * interview completing are recorded but are not offered for undo, because the next tick would
  * put them straight back.
  *
- * An undone abandonment restarts the application's clock at the undo (an undo that the next
- * tick reverted would be no undo), read from `event.undone_at`.
+ * An undone abandonment, or a manual move out of Abandoned, restarts the application's clock
+ * there (otherwise the next tick would abandon it again); see {@link clockRestarts}.
  *
  * Owner edits take no lock, so every write carries the version it was planned against. A record
  * the owner edited since it was read is skipped; the next tick looks at it again.
@@ -85,19 +85,12 @@ async function applyApplicationTimers(
   const rows = await tx.application.findMany({
     where: { status: { in: ["applied", "screening", "assessment", "interviewing"] } },
   });
-  // One grouped query: when each application's abandonment was last undone.
-  const undone = await tx.event.groupBy({
-    by: ["applicationId"],
-    where: {
-      type: "abandoned",
-      undoneAt: { not: null },
-      applicationId: { in: rows.map((row) => row.id) },
-    },
-    _max: { undoneAt: true },
-  });
-  const undoneAt = new Map(undone.map((u) => [u.applicationId, u._max.undoneAt]));
+  const restarted = await clockRestarts(
+    tx,
+    rows.map((row) => row.id),
+  );
   const actions = evaluateTimers(
-    rows.map((row) => ({ ...row, undoneAbandonAt: undoneAt.get(row.id) ?? null })),
+    rows.map((row) => ({ ...row, clockRestartedAt: restarted.get(row.id) ?? null })),
     timers,
     now,
   );
@@ -116,6 +109,25 @@ async function applyApplicationTimers(
     else flagged += 1;
   }
   return { abandoned, flagged };
+}
+
+/**
+ * When each application's clock was last restarted by the owner: the latest `undone_at` of an
+ * `abandoned` event (an undone abandonment), or the latest `status_changed` event that moved it
+ * out of `abandoned` (`data.fromStatus`, or `data.from`). One grouped query for all of them.
+ */
+async function clockRestarts(tx: Tx, ids: string[]): Promise<Map<string, Date>> {
+  if (ids.length === 0) return new Map();
+  const rows = await tx.$queryRaw<{ id: string; at: Date }[]>`
+    SELECT application_id::text AS id,
+           max(CASE WHEN type = 'abandoned' THEN undone_at ELSE occurred_at END) AS at
+    FROM event
+    WHERE application_id = ANY(${ids}::uuid[])
+      AND ((type = 'abandoned' AND undone_at IS NOT NULL)
+        OR (type = 'status_changed'
+            AND (data ->> 'fromStatus' = 'abandoned' OR data ->> 'from' = 'abandoned')))
+    GROUP BY application_id`;
+  return new Map(rows.map((r) => [r.id, r.at]));
 }
 
 type ApplicationRow = Prisma.ApplicationGetPayload<object>;
