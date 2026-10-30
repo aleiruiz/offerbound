@@ -1,0 +1,17 @@
+{
+  "name": "@offerbound/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
+    "eval:emails": "tsx --conditions=@offerbound/source scripts/eval-emails.ts"
+  },
+  "dependencies": {
+    "@offerbound/contracts": "workspace:*",
+    "@offerbound/domain": "workspace:*"
+  }
+}
