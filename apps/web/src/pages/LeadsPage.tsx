@@ -282,8 +282,8 @@ export function LeadsPage() {
   const snackbar = useUndoSnackbar();
   const demo = useIsDemo();
   const refreshLeads = useRefreshLeads();
-  // Fixed for the whole visit; the page then stores the time of this visit for the next one.
-  const since = useLeadsSince({ markSeen: true });
+  // Fixed for the whole visit. The visit is stored for the next one once the list has loaded.
+  const since = useLeadsSince({ markSeen: query.isSuccess });
 
   const tracks = useMemo(
     () =>
@@ -496,7 +496,7 @@ export function LeadsPage() {
           <SearchCaption runs={runs.data} timezone={timezone} now={now} />
           {newCount > 0 ? (
             <Typography variant="caption" color="text.secondary" component="p">
-              {`${newCount} new since your last visit`}
+              {`${newCount} new in this list since your last visit`}
             </Typography>
           ) : null}
         </Box>

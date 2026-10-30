@@ -183,7 +183,7 @@ Each entry: date and time (caption), a sentence starting with what happened in b
 
 ### 6.4 Lead row
 
-Fit score (24/28 800) with "fit" beneath; company (600) and title (muted) on one line; chips: track, work mode, verification, compensation (stated amount in neutral, estimate as a separate *Estimate* `signal` chip); one-sentence reason; caption with gaps and source. Actions on the right: *Shortlist* (outlined), *Mark applied* (text), dismiss (icon), open posting (icon) or view recruiter email (icon). Rows are separated by dividers inside one Paper, not separate cards. A lead found since the owner's previous visit to Leads on this device (kept in `localStorage`; none on the first visit) gets a *New* `signal` chip first in the chips and a `signal-tint` row background, on Leads and Today's *Top new leads*, and the Leads caption adds "N new since your last visit".
+Fit score (24/28 800) with "fit" beneath; company (600) and title (muted) on one line; chips: track, work mode, verification, compensation (stated amount in neutral, estimate as a separate *Estimate* `signal` chip); one-sentence reason; caption with gaps and source. Actions on the right: *Shortlist* (outlined), *Mark applied* (text), dismiss (icon), open posting (icon) or view recruiter email (icon). Rows are separated by dividers inside one Paper, not separate cards. A lead found since the owner's previous visit to Leads on this device (kept in `localStorage`; none on the first visit) gets a *New* `signal` chip first in the chips and a `signal-tint` row background, on Leads and Today's *Top new leads*, and the Leads caption adds "N new in this list since your last visit".
 
 ### 6.5 Other patterns
 

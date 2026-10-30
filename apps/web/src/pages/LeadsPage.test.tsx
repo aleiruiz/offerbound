@@ -1015,7 +1015,7 @@ describe("LeadsPage", () => {
       expect(newChip("Tidewater Labs")).toBeInTheDocument();
       expect(newChip("Marlin Analytics")).toBeInTheDocument();
       expect(newChip("Quillon Works")).not.toBeInTheDocument();
-      expect(screen.getByText("2 new since your last visit")).toBeInTheDocument();
+      expect(screen.getByText("2 new in this list since your last visit")).toBeInTheDocument();
       expect(screen.getAllByText("New", { selector: ".MuiChip-label" })).toHaveLength(2);
     });
 
@@ -1023,7 +1023,7 @@ describe("LeadsPage", () => {
       window.localStorage.setItem(LEADS_SEEN_KEY, "2026-10-29T14:00:00.000Z");
       setup({}, { leads: LEADS });
       await screen.findByText("Tidewater Labs");
-      expect(screen.getByText("1 new since your last visit")).toBeInTheDocument();
+      expect(screen.getByText("1 new in this list since your last visit")).toBeInTheDocument();
     });
 
     it("highlights nothing and shows no count on the first visit ever", async () => {
@@ -1058,7 +1058,7 @@ describe("LeadsPage", () => {
       window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
       const { queryClient } = setup({}, { leads: LEADS });
       await screen.findByText("Tidewater Labs");
-      expect(screen.getByText("2 new since your last visit")).toBeInTheDocument();
+      expect(screen.getByText("2 new in this list since your last visit")).toBeInTheDocument();
       // Time passes and the leads are fetched again: the page has already stored a later time,
       // yet the same rows stay highlighted.
       act(() => {
@@ -1069,7 +1069,7 @@ describe("LeadsPage", () => {
       });
       await screen.findByText("Tidewater Labs");
       expect(newChip("Tidewater Labs")).toBeInTheDocument();
-      expect(screen.getByText("2 new since your last visit")).toBeInTheDocument();
+      expect(screen.getByText("2 new in this list since your last visit")).toBeInTheDocument();
     });
 
     it("highlights a lead on any tab it appears in", async () => {
@@ -1083,6 +1083,77 @@ describe("LeadsPage", () => {
       setup({}, { leads: [...LEADS, shortlisted], route: "/leads?tab=shortlisted" });
       await screen.findByText("Plover Robotics");
       expect(newChip("Plover Robotics")).toBeInTheDocument();
+    });
+
+    it("counts the rows of the current tab, not every lead", async () => {
+      window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
+      const shortlisted = makeLead({
+        id: "n4",
+        company: { id: "c9", name: "Plover Robotics" },
+        status: "shortlisted",
+        foundAt: "2026-10-29T16:00:00Z",
+      });
+      setup({}, { leads: [...LEADS, shortlisted], route: "/leads?tab=shortlisted" });
+      await screen.findByText("Plover Robotics");
+      expect(screen.getByText("1 new in this list since your last visit")).toBeInTheDocument();
+    });
+
+    it("counts the rows of a filtered list", async () => {
+      window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
+      const trackA = makeLead({ id: "n5", track: "A", foundAt: "2026-10-29T13:04:00Z" });
+      const trackB = makeLead({
+        id: "n6",
+        track: "B",
+        company: { id: "c10", name: "Osprey Cloud" },
+        foundAt: "2026-10-29T14:00:00Z",
+      });
+      const trackBOld = makeLead({
+        id: "n7",
+        track: "B",
+        company: { id: "c11", name: "Heron Data" },
+        foundAt: "2026-10-27T14:00:00Z",
+      });
+      setup({}, { leads: [trackA, trackB, trackBOld], route: "/leads?track=B" });
+      await screen.findByText("Osprey Cloud");
+      expect(screen.queryByText("Tidewater Labs")).not.toBeInTheDocument();
+      expect(screen.getByText("1 new in this list since your last visit")).toBeInTheDocument();
+    });
+
+    it("keeps the same mark when switching tabs within the page", async () => {
+      window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
+      const shortlistedNew = makeLead({
+        id: "n4",
+        company: { id: "c9", name: "Plover Robotics" },
+        status: "shortlisted",
+        foundAt: "2026-10-29T16:00:00Z",
+      });
+      const shortlistedOld = makeLead({
+        id: "n8",
+        company: { id: "c12", name: "Egret Labs" },
+        status: "shortlisted",
+        foundAt: "2026-10-29T09:00:00Z",
+      });
+      const { user } = setup({}, { leads: [...LEADS, shortlistedNew, shortlistedOld] });
+      await screen.findByText("Tidewater Labs");
+      expect(window.localStorage.getItem(LEADS_SEEN_KEY)).toBe("2026-10-29T18:00:00.000Z");
+      act(() => {
+        vi.setSystemTime(new Date("2026-10-29T20:00:00Z"));
+      });
+      await user.click(await tab(/^Shortlisted/));
+      await screen.findByText("Plover Robotics");
+      expect(newChip("Plover Robotics")).toBeInTheDocument();
+      expect(newChip("Egret Labs")).not.toBeInTheDocument();
+      expect(screen.getByText("1 new in this list since your last visit")).toBeInTheDocument();
+    });
+
+    it("does not store the visit when the leads fail to load", async () => {
+      window.localStorage.setItem(LEADS_SEEN_KEY, PREVIOUS);
+      setup(
+        { "GET /api/v1/leads": () => apiError(500, "internal_error", "Something went wrong.") },
+        { leads: LEADS },
+      );
+      await screen.findByRole("button", { name: /retry|try again/i });
+      expect(window.localStorage.getItem(LEADS_SEEN_KEY)).toBe(PREVIOUS);
     });
 
     it("does not crash and highlights nothing when storage throws", async () => {
