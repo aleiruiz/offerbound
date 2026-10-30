@@ -794,6 +794,6 @@ Routes: `/login`, `/onboarding` (steps: CV → sheet import → search brief →
 
 - **Logs:** pino JSON; redact `authorization`, cookies, tokens, `body_text`, `subject`, `snippet`; log message ids, job ids, durations, outcome codes. Never log email content (SECURITY §4).
 - **Health:** `/health` liveness; `/ready` checks `SELECT 1` and pg-boss state. Coolify healthchecks use them; Coolify notifications for failed deploys.
-- **Backups:** `backup.nightly` runs `pg_dump -Fc` to `/backups/offerbound-YYYY-MM-DD.dump`, deletes files older than `BACKUP_RETENTION_DAYS`. Restore: stop `worker`, `pg_restore --clean --if-exists -d "$DATABASE_URL" <file>`, start `worker`. Off-server copies: OQ-3.
+- **Backups:** `backup.nightly` runs `pg_dump -Fc` to `/backups/offerbound-YYYY-MM-DD.dump` and deletes dated dumps older than `BACKUP_RETENTION_DAYS` (default 14). Restore goes through the `db` container; the steps, manual backups and off-server copies (OQ-3) are in [operations.md](operations.md).
 - **Capacity:** one owner, dozens of job emails a day, ≤ ~100 leads a day. Expected RAM for one Offerbound stack ≈ 400–600 MB (Postgres ~150 MB, api ~150 MB, worker ~200 MB, Caddy ~20 MB); two stacks fit alongside MTGRulesLawyer on 8 GB.
 - **CI** (`.github/workflows/ci.yml`): install (pnpm cache), `prisma generate`, lint, typecheck, unit + integration tests with a Postgres 17 service, build all apps, `gitleaks` secret scan. Required for merge (D33).
