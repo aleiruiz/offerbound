@@ -7,7 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { LeadsPage } from "./pages/LeadsPage";
 import { InterviewsPage } from "./pages/InterviewsPage";
-import { SettingsPage } from "./pages/placeholders";
+import { SettingsPage } from "./pages/settings/SettingsPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { TodayPage } from "./pages/TodayPage";
 import { AppShell } from "./shell/AppShell";

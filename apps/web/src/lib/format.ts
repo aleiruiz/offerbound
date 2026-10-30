@@ -188,3 +188,26 @@ export function zoneCity(tz: string): string {
   const name = tz.split("/").pop() ?? tz;
   return name.replace(/_/g, " ");
 }
+
+const countFormat = new Intl.NumberFormat("en-US");
+
+/** "2,148": a count with thousands separators. */
+export function formatCount(n: number): string {
+  return countFormat.format(n);
+}
+
+/** "1 row", "2,148 rows". */
+export function rowsLabel(n: number): string {
+  return n === 1 ? "1 row" : `${countFormat.format(n)} rows`;
+}
+
+/** "1 application", "3 applications". */
+export function plural(n: number, one: string, many: string): string {
+  return `${countFormat.format(n)} ${n === 1 ? one : many}`;
+}
+
+/** "US$0.61" from millionths of a dollar; "<US$0.01" for a cost that rounds away to nothing. */
+export function formatUsd(micros: number): string {
+  if (micros > 0 && micros < 5_000) return "<US$0.01";
+  return `US$${(micros / 1_000_000).toFixed(2)}`;
+}

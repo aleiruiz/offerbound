@@ -1,4 +1,5 @@
 import {
+  AiUsageSchema,
   ApplicationDetailSchema,
   ApplicationSummarySchema,
   CvProfileSchema,
@@ -20,6 +21,7 @@ import {
   SyncStatusSchema,
   TodaySchema,
   UndoResultSchema,
+  type AiUsage,
   type ApplicationCreate,
   type ApplicationDetail,
   type ApplicationPatch,
@@ -73,6 +75,11 @@ export const queryKeys = {
   syncStatus: ["sync-status"] as const,
   navCounts: ["nav-counts"] as const,
   settings: ["settings"] as const,
+  /** The active CV profile, or null when there is none. */
+  cv: ["cv"] as const,
+  /** True after an upload whose profile step failed, until a profile exists again. */
+  cvProfileFailed: ["cv", "profile-failed"] as const,
+  aiUsage: ["ai-usage"] as const,
   today: ["today"] as const,
 };
 
@@ -138,6 +145,32 @@ export function useSyncGmail() {
   });
 }
 
+/** `POST /gmail/disconnect`: revoke Google's access, delete the tokens and stop syncing (AC-2.8). */
+export function useDisconnectGmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/gmail/disconnect", { method: "POST" }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.syncStatus }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.today }),
+      ]),
+  });
+}
+
+/** `GET /ai-usage`: month-to-date cost, calls by purpose and the last 30 days (AC-15.1). */
+export function useAiUsage() {
+  return useQuery<AiUsage>({
+    queryKey: queryKeys.aiUsage,
+    queryFn: ({ signal }) => apiFetch("/ai-usage", { schema: AiUsageSchema, signal }),
+  });
+}
+
+/** `POST /auth/logout`: end the session on the server (AC-1.4). */
+export function useSignOut() {
+  return useMutation({ mutationFn: () => apiFetch("/auth/logout", { method: "POST" }) });
+}
+
 /** `GET /settings`: the full settings, which `PUT /settings` replaces as a whole. */
 export function useSettings(options: { enabled?: boolean } = {}) {
   return useQuery({
@@ -167,11 +200,38 @@ function fileForm(file: File): FormData {
 export type CvUploadOutcome =
   { profileStatus: "ok"; profile: CvProfile } | { profileStatus: "failed"; profile: null };
 
+/** `GET /cv`: the active CV profile, or null when none has been uploaded (or its profile failed). */
+export function useCv() {
+  return useQuery({
+    queryKey: queryKeys.cv,
+    queryFn: ({ signal }) => apiFetch("/cv", { schema: CvProfileSchema.nullable(), signal }),
+  });
+}
+
+/**
+ * Whether the last upload of this session stored the CV text without a profile (a 202). `GET /cv`
+ * answers null both then and when there is no CV, so the page remembers the difference itself; a
+ * reload loses it, and the owner is offered a new upload instead.
+ */
+export function useCvProfileFailed(): boolean {
+  return (
+    useQuery({
+      queryKey: queryKeys.cvProfileFailed,
+      queryFn: () => false,
+      initialData: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    }).data ?? false
+  );
+}
+
 /**
  * `POST /cv`: upload a PDF or DOCX. TECHNICAL_SPEC §10.1: 201 with a bare `CvProfile`, or 202 with
- * `profileStatus: "failed"`; the HTTP status says which.
+ * `profileStatus: "failed"`; the HTTP status says which. The answer also updates the cached
+ * profile, so Settings shows it without another request.
  */
 export function useUploadCv() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (file: File): Promise<CvUploadOutcome> => {
       const { status, data } = await apiFetchWithStatus<CvProfile | { profileStatus: "failed" }>(
@@ -186,6 +246,32 @@ export function useUploadCv() {
         ? { profileStatus: "failed", profile: null }
         : { profileStatus: "ok", profile: data as CvProfile };
     },
+    onSuccess: (outcome) => {
+      // A new CV whose profile failed is the one on file now: the old profile no longer applies.
+      queryClient.setQueryData(queryKeys.cv, outcome.profile);
+      queryClient.setQueryData(queryKeys.cvProfileFailed, outcome.profileStatus === "failed");
+    },
+  });
+}
+
+/** `POST /cv/retry-profile`: build the profile again from the stored CV text. */
+export function useRetryCvProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/cv/retry-profile", { method: "POST", schema: CvProfileSchema }),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(queryKeys.cv, profile);
+      queryClient.setQueryData(queryKeys.cvProfileFailed, false);
+    },
+  });
+}
+
+/** `POST /leads/rerank`: rank the new leads again against the current CV profile (AC-11.4). */
+export function useRerankLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/leads/rerank", { method: "POST", body: { scope: "new" } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.leads }),
   });
 }
 

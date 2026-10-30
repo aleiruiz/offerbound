@@ -107,19 +107,6 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-/** Types by pasting: one event instead of one per key, which is slow on the multiline field. */
-async function typeText(
-  user: ReturnType<typeof userEvent.setup>,
-  field: HTMLElement,
-  text: string,
-) {
-  await user.click(field);
-  if (field instanceof HTMLTextAreaElement) {
-    field.setSelectionRange(field.value.length, field.value.length);
-  }
-  await user.paste(text);
-}
-
 async function skipTo(user: ReturnType<typeof userEvent.setup>, steps: number) {
   for (let i = 0; i < steps; i += 1) {
     await user.click(await screen.findByRole("button", { name: "Skip this step" }));
