@@ -40,6 +40,15 @@ const ROLE_JACCARD_MIN = 0.6;
 /** Statuses only the owner sets; an email never matches into them through the company. */
 const TERMINAL: readonly ApplicationStatus[] = ["accepted", "withdrawn"];
 
+/** Recruiter outreach attaches only to an application still in play (§6.4); otherwise it is a lead. */
+const ACTIVE: readonly ApplicationStatus[] = [
+  "applied",
+  "screening",
+  "assessment",
+  "interviewing",
+  "offer",
+];
+
 /** Categories that create an application when nothing matches (§6.4 rule 4). */
 const CREATING: readonly EmailCategory[] = [
   "application_confirmation",
@@ -118,6 +127,8 @@ function convertibleLead(
  * Decides what an email belongs to. First hit wins: linked thread, job key, then the resolved
  * company's (and group's) non-terminal applications; otherwise create, or ask the owner.
  * `job_alert` and `not_job_related` are never about an application and return `none`.
+ * `recruiter_outreach` matches only an application in Applied through Offer (by job key or company);
+ * a thread link still wins, and with no active application the result is `none` (a lead, §6.4).
  */
 export function matchApplication(
   s: MatchSnapshot,
@@ -137,15 +148,24 @@ export function matchApplication(
   }
   if (link?.leadId) return { kind: "lead_thread", leadId: link.leadId };
 
+  const isOutreach = m.category === "recruiter_outreach";
+  const candidateStatuses = isOutreach ? ACTIVE : null;
+
   if (m.jobKey !== null) {
-    const byKey = s.applications.find((a) => a.jobKey === m.jobKey);
+    const byKey = s.applications.find(
+      (a) => a.jobKey === m.jobKey && (candidateStatuses?.includes(a.status) ?? true),
+    );
     if (byKey) return { kind: "application", applicationId: byKey.id, via: "job_key" };
   }
 
   if (m.company.kind === "existing") {
     const members = groupMembers(m.company.companyId, s.companies);
     const open = s.applications.filter(
-      (a) => members.has(a.companyId) && !TERMINAL.includes(a.status),
+      (a) =>
+        members.has(a.companyId) &&
+        (candidateStatuses === null
+          ? !TERMINAL.includes(a.status)
+          : candidateStatuses.includes(a.status)),
     );
     const [first, ...rest] = open;
     if (first !== undefined && rest.length === 0) {

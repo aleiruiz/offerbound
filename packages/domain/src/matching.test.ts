@@ -266,4 +266,72 @@ describe("matchApplication", () => {
       applicationId: "a1",
     });
   });
+  describe("recruiter outreach attaches only to an active application (TECHNICAL_SPEC §6.4)", () => {
+    const outreach = (s: MatchSnapshot, over: Parameters<typeof message>[0] = {}) =>
+      matchApplication(s, message({ category: "recruiter_outreach", ...over }));
+
+    it("a lone rejected or abandoned application at the company is not matched", () => {
+      for (const status of ["rejected", "abandoned", "accepted", "withdrawn"] as const) {
+        const s = snapshot({ applications: [app("a1", "c1", "Backend Engineer", status)] });
+        expect(outreach(s)).toEqual({ kind: "none" });
+      }
+    });
+
+    it("a lone active application is matched", () => {
+      for (const status of [
+        "applied",
+        "screening",
+        "assessment",
+        "interviewing",
+        "offer",
+      ] as const) {
+        const s = snapshot({ applications: [app("a1", "c1", "Backend Engineer", status)] });
+        expect(outreach(s)).toEqual({ kind: "application", applicationId: "a1", via: "company" });
+      }
+    });
+
+    it("closed applications are ignored when counting the open ones", () => {
+      const s = snapshot({
+        applications: [
+          app("a-closed", "c1", "Backend Engineer", "rejected"),
+          app("a-open", "c1", "Data Analyst", "interviewing"),
+        ],
+      });
+      expect(outreach(s)).toEqual({ kind: "application", applicationId: "a-open", via: "company" });
+    });
+
+    it("several active applications still go through the role check, then ambiguity", () => {
+      const s = snapshot({
+        applications: [
+          app("a1", "c1", "Backend Engineer"),
+          app("a2", "c1", "Data Analyst", "screening"),
+          app("a3", "c1", "Backend Engineer", "rejected"),
+        ],
+      });
+      expect(outreach(s)).toEqual({ kind: "application", applicationId: "a1", via: "company" });
+      expect(outreach(s, { roleTitle: "Designer" })).toMatchObject({
+        kind: "ambiguous",
+        candidates: [{ id: "a1" }, { id: "a2" }],
+      });
+    });
+
+    it("a job key hit on a closed application does not attach the outreach", () => {
+      const s = snapshot({
+        applications: [app("a1", "c2", "Platform Engineer", "rejected", "key-1")],
+      });
+      expect(outreach(s, { jobKey: "key-1", company: at("c1") })).toEqual({ kind: "none" });
+    });
+
+    it("a linked thread still wins whatever the status", () => {
+      const s = snapshot({
+        threadLinks: new Map([["t1", { applicationId: "a1", leadId: null }]]),
+        applications: [app("a1", "c1", "Backend Engineer", "rejected")],
+      });
+      expect(outreach(s)).toMatchObject({
+        kind: "application",
+        applicationId: "a1",
+        via: "thread",
+      });
+    });
+  });
 });
