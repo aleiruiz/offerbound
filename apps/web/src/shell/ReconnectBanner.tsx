@@ -2,9 +2,7 @@ import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useSyncStatus } from "../api/hooks";
-
-/** Where the sign-in flow that asks Google for Gmail access starts (TECHNICAL_SPEC §10.1). */
-export const GOOGLE_START_PATH = "/api/v1/auth/google/start";
+import { GOOGLE_START_PATH } from "../api/paths";
 
 /**
  * The warning under the top bar on every page when Google stopped Offerbound's access

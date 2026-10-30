@@ -4,6 +4,8 @@ import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import SyncOutlined from "@mui/icons-material/SyncOutlined";
+import { useEffect } from "react";
+import { ApiClientError } from "../api/client";
 import { useSyncGmail, useSyncStatus } from "../api/hooks";
 import { formatRelative } from "../lib/format";
 
@@ -35,14 +37,19 @@ function shortRelative(iso: string, now: Date): string {
   return formatRelative(iso, now).replace(/ minutes? ago$/, " min ago");
 }
 
+type SyncAttempt = "none" | "running" | "failed";
+
+/** Why the last *Sync now* did not start one: a sync is already under way, or it failed. */
+function attemptOf(error: unknown): SyncAttempt {
+  if (error === null) return "none";
+  return error instanceof ApiClientError && error.code === "already_running" ? "running" : "failed";
+}
+
 function summarize(
   status: ReturnType<typeof useSyncStatus>,
-  failedToStart: boolean,
+  attempt: SyncAttempt,
   now: Date,
 ): Summary {
-  if (failedToStart) {
-    return { text: "Couldn't start a sync. Try again.", tone: "error", canSync: true };
-  }
   const data = status.data;
   if (!data) {
     return status.isError
@@ -66,6 +73,13 @@ function summarize(
       tone: "ok",
       canSync: true,
     };
+  }
+  // Only these plain states give way to the outcome of the last *Sync now*.
+  if (attempt === "running") {
+    return { text: "Gmail is syncing now", tone: "ok", canSync: false };
+  }
+  if (attempt === "failed") {
+    return { text: "Couldn't start a sync. Try again.", tone: "error", canSync: true };
   }
   if (data.lastError !== null) {
     return { text: "Gmail last sync failed", tone: "error", canSync: true };
@@ -108,7 +122,13 @@ export function SyncStatus({ layout }: { layout: SyncLayout }) {
   const sync = useSyncGmail();
   // Read so the sentence ("2 min ago") is re-rendered after every poll, even for unchanged data.
   void status.dataUpdatedAt;
-  const summary = summarize(status, sync.isError, new Date());
+  // The outcome of the last *Sync now* describes the status it was sent against: when the status
+  // changes (structural sharing keeps `data` the same object while it is unchanged) it is stale.
+  const resetSync = sync.reset;
+  useEffect(() => {
+    resetSync();
+  }, [status.data, resetSync]);
+  const summary = summarize(status, attemptOf(sync.error), new Date());
   const disabled = !summary.canSync || sync.isPending;
   const syncNow = () => sync.mutate();
 
@@ -161,7 +181,7 @@ export function SyncStatus({ layout }: { layout: SyncLayout }) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5 }}>
         <Tooltip title={summary.text} placement="right" describeChild>
-          <Box role="status" aria-live="polite" sx={{ p: 1 }}>
+          <Box role="status" aria-live="polite" sx={{ position: "relative", p: 1 }}>
             <Dot tone={summary.tone} />
             <Box component="span" sx={visuallyHidden}>
               {summary.text}
