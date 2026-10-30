@@ -33,12 +33,10 @@ export const DEMO_RULES: Readonly<Record<string, Rule>> = {
   "POST /import/sheet/commit": "block",
   "POST /leads/import/preview": "block",
   "POST /leads/import/commit": "block",
-  "POST /companies/:id/merge": "block",
-  // There is no mailbox to connect, and re-reading a message needs the real one.
+  // There is no mailbox to connect.
   "POST /gmail/start": "block",
   "POST /gmail/sync": "block",
   "POST /gmail/disconnect": "block",
-  "POST /messages/:id/reprocess": "block",
 
   // Edits: only the fields that are not text.
   "PATCH /applications/:id": { patch: ["version", "status", "appliedAt", "workMode"] },
@@ -53,6 +51,8 @@ export const DEMO_RULES: Readonly<Record<string, Rule>> = {
   // Actions without free text.
   "POST /applications/:id/follow-up-done": "allow",
   "POST /applications/:id/merge": "allow",
+  "POST /companies/:id/merge": "allow",
+  "POST /messages/:id/reprocess": "allow",
   "POST /leads/rerank": "allow",
   "POST /leads/:id/mark-applied": "allow",
   "POST /leads/:id/reconsider": "allow",
@@ -87,8 +87,8 @@ function bodyObject(request: FastifyRequest): Record<string, unknown> | null {
     : null;
 }
 
-/** Review actions that would re-read the mailbox, or that carry the visitor's own text. */
-const BLOCKED_REVIEW_ACTIONS = new Set(["reprocess", "retry", "edit_apply"]);
+/** The review action that carries the visitor's own text (a job link). */
+const BLOCKED_REVIEW_ACTIONS = new Set(["edit_apply"]);
 
 /** True when the request may go on. */
 function permitted(request: FastifyRequest, rule: Rule | undefined): boolean {

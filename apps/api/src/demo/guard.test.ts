@@ -57,17 +57,21 @@ describe("demoReadOnlyGuard", () => {
     expect(await run("PATCH", url, { version: 1, notes: "x" })).toBe("403 demo_read_only");
   });
 
-  it("lets review decisions through except the ones with text or a mailbox", async () => {
+  it("lets review decisions through except the ones with text", async () => {
     const url = "/api/v1/review-items/:id/resolve";
     expect(await run("POST", url, { action: "attach", applicationId: "x" })).toBe("passed");
     expect(await run("POST", url, { action: "dismiss" })).toBe("passed");
-    for (const body of [
-      { action: "edit_apply" },
-      { action: "retry" },
-      { action: "reprocess" },
-      { action: "apply", edits: {} },
-    ]) {
+    // Re-reading the mailbox is a review action like any other (the mailbox is the fake one).
+    expect(await run("POST", url, { action: "retry" })).toBe("passed");
+    expect(await run("POST", url, { action: "reprocess" })).toBe("passed");
+    for (const body of [{ action: "edit_apply" }, { action: "apply", edits: {} }]) {
       expect(await run("POST", url, body)).toBe("403 demo_read_only");
     }
+  });
+
+  it("lets merges and reprocessing through: they carry no text", async () => {
+    expect(await run("POST", "/api/v1/companies/:id/merge", { intoId: "x" })).toBe("passed");
+    expect(await run("POST", "/api/v1/applications/:id/merge", { intoId: "x" })).toBe("passed");
+    expect(await run("POST", "/api/v1/messages/:id/reprocess", {})).toBe("passed");
   });
 });

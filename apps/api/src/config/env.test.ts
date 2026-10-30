@@ -130,13 +130,29 @@ describe("loadEnv", () => {
     expect(error.forbidden).toHaveLength(7);
   });
 
-  it("demo mode counts a forbidden variable set to an empty string as present (AC-16.1)", () => {
-    const error = failure(
+  it("demo mode boots with forbidden variables set to empty strings (compose passes blanks)", () => {
+    const env = loadEnv(
       demoEnv({
         OPENAI_API_KEY: "",
         OWNER_EMAIL: "  ",
         GOOGLE_CLIENT_ID: "",
         OPENAI_MODEL_RANK: "",
+        AI_PRICING: "",
+        GMAIL_BACKFILL_SINCE: "",
+      }),
+    );
+    expect(env.mode).toBe("demo");
+    expect(env.openai).toBeNull();
+    expect(env.ownerEmail).toBeNull();
+  });
+
+  it("demo mode refuses the same variables once they hold a value (AC-16.1)", () => {
+    const error = failure(
+      demoEnv({
+        OPENAI_API_KEY: "x",
+        OWNER_EMAIL: "o@example.com",
+        GOOGLE_CLIENT_ID: "y",
+        OPENAI_MODEL_RANK: "m",
       }),
     );
     expect(error.forbidden.sort()).toEqual(

@@ -2,7 +2,6 @@ import type { WorkerCtx } from "../deps.js";
 import { withIntakeLock } from "../db/lock.js";
 import { ApiError } from "../http/errors.js";
 import { QUEUES, type JobQueue, type QueueName } from "../jobs/queues.js";
-import { FakeLlmProvider } from "../llm/fake-provider.js";
 import { applyEligibleMessages } from "../pipeline/apply.js";
 import { runExtract } from "../pipeline/extract.js";
 import { runTriageBatch } from "../pipeline/triage.js";
@@ -41,8 +40,7 @@ function inlineQueue(queue: JobQueue): JobQueue {
 export async function simulateEmail(ctx: WorkerCtx): Promise<{ messageId: string }> {
   if (ctx.env.mode !== "demo") throw new Error("Simulated email only runs in demo mode.");
   const mailbox = await ctx.gmail();
-  const { llm } = ctx;
-  if (!(mailbox instanceof FakeMailbox) || !(llm instanceof FakeLlmProvider)) {
+  if (!(mailbox instanceof FakeMailbox)) {
     throw new ApiError(503, "not_ready", "The demo mailbox is not available.");
   }
   const now = ctx.clock();
@@ -52,13 +50,6 @@ export async function simulateEmail(ctx: WorkerCtx): Promise<{ messageId: string
       (await tx.gmailMessage.findMany({ select: { id: true } })).map((m) => m.id),
     );
     const fixture = mailbox.deliverNext(used, now);
-    // The model answers for this message with what the fixture says, moved to now.
-    if (fixture.llm.triage !== null) {
-      llm.register("triage", { messageId: fixture.id }, fixture.llm.triage);
-    }
-    if (fixture.llm.extraction !== null) {
-      llm.register("extract", { messageId: fixture.id }, fixture.llm.extraction);
-    }
     // What sync leaves behind: the id, with placeholder values until triage reads the message.
     await tx.gmailMessage.create({
       data: {

@@ -276,9 +276,9 @@ export function loadEnv(raw: NodeJS.ProcessEnv): Env {
         DEMO_FORBIDDEN_EXACT.includes(name) ||
         name.startsWith("OPENAI_") ||
         name.startsWith("GOOGLE_");
-      // Present is present: an empty value counts too (a compose file that passes `VAR: ""` still
-      // hands the variable to the process), unlike the optional variables, where empty means unset.
-      if (forbiddenName && raw[name] !== undefined) forbidden.push(name);
+      // Empty means unset here as everywhere (compose passes `VAR: ""` for blank fields, and an
+      // empty value carries no secret).
+      if (forbiddenName && read(name) !== undefined) forbidden.push(name);
     }
     if (missing.length > 0 || forbidden.length > 0 || invalid.length > 0) {
       throw new EnvError(missing, forbidden, invalid);

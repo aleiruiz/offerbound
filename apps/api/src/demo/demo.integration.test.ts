@@ -74,8 +74,8 @@ describe("demo mode", () => {
     }
     expect(error).toBeInstanceOf(EnvError);
     expect((error as EnvError).forbidden).toEqual(["OPENAI_API_KEY"]);
-    // An empty value is still a value.
-    expect(() => loadEnv({ ...base, OPENAI_API_KEY: "" })).toThrow(EnvError);
+    // An empty value carries no secret: it counts as unset.
+    expect(loadEnv({ ...base, OPENAI_API_KEY: "" }).mode).toBe("demo");
   });
 
   it("GET /me in demo → { mode: 'demo', email: null } without a session", async () => {
@@ -254,6 +254,38 @@ describe("Simulate an incoming email", () => {
     expect(await prisma.company.count({ where: { name: "Ironbark Labs" } })).toBe(1);
   });
 
+  it("reprocessing a simulated message in the worker gives the same dates the simulation did", async () => {
+    // The API process simulates; the worker is another process with its own mailbox and model.
+    const { call, deps, applicationByCompany } = await demo();
+    const simulated = await call("POST", "/demo/simulate-email");
+    const id = simulated.json<{ messageId: string }>().messageId;
+    expect(id).toBe("reschedule-ics-quarry-ai");
+    const before = await prisma.gmailMessage.findUniqueOrThrow({ where: { id } });
+    const interview = (await applicationByCompany("Quarry AI")).interviews[0];
+
+    const reprocess = await call("POST", `/messages/${id}/reprocess`);
+    expect(reprocess.statusCode).toBe(202);
+    expect(deps.queue.sent.some((job) => job.name === QUEUES.emailExtract)).toBe(true);
+
+    const worker = demoWorkerCtx(buildDemoDeps(deps.clock()));
+    await HANDLERS[QUEUES.emailExtract]?.(worker, {
+      data: { messageId: id },
+      retryCount: 0,
+      retryLimit: 4,
+    });
+    const after = await prisma.gmailMessage.findUniqueOrThrow({ where: { id } });
+    expect(after.state).toBe("extracted");
+    expect(after.extraction).toEqual(before.extraction);
+    expect(after.bodyText).toBe(before.bodyText);
+    expect(JSON.stringify(after.icsEvents)).toBe(JSON.stringify(before.icsEvents));
+
+    // Applying it again leaves the interview where the simulation put it.
+    await HANDLERS[QUEUES.emailApply]?.(worker, { data: {}, retryCount: 0, retryLimit: 3 });
+    expect((await applicationByCompany("Quarry AI")).interviews[0]?.startsAt).toBe(
+      interview?.startsAt,
+    );
+  });
+
   it("does nothing on a private instance: the route does not exist", async () => {
     const { app, deps } = await buildTestApp();
     const cookie = await signIn(app, deps);
@@ -364,11 +396,9 @@ describe("the read-only guard", () => {
     ["POST", "/import/sheet/commit", { previewId: "x" }],
     ["POST", "/leads/import/preview", { text: "hello" }],
     ["POST", "/leads/import/commit", { previewId: "x", keepRowIds: [] }],
-    ["POST", "/companies/00000000-0000-4000-8000-000000000000/merge", { intoId: "x" }],
     ["POST", "/gmail/start", {}],
     ["POST", "/gmail/sync", {}],
     ["POST", "/gmail/disconnect", {}],
-    ["POST", "/messages/offer-arbor-analytics/reprocess", {}],
   ];
 
   it.each(blocked)("%s %s → 403 demo_read_only", async (method, url, payload) => {
@@ -516,12 +546,10 @@ describe("the read-only guard", () => {
     const review = await get<{ items: { id: string; kind: string }[] }>("/review-items");
     const item = review.items.find((i) => i.kind === "ambiguous_match");
     expect(item).toBeDefined();
-    // Free text and re-reading the mailbox stay closed.
+    // Free text stays closed.
     for (const body of [
       { action: "edit_apply", edits: { summary: "hello" } },
       { action: "apply", edits: { summary: "hello" } },
-      { action: "reprocess" },
-      { action: "retry" },
     ]) {
       expect(
         (await call("POST", `/review-items/${item?.id}/resolve`, body)).statusCode,

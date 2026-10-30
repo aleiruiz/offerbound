@@ -35,14 +35,26 @@ export type DemoRuntime = {
 /** Reads the fixtures (`fixtures/emails`, `fixtures/leads`) and the seed's mailbox order. */
 export function createDemoRuntime(prisma: PrismaClient): DemoRuntime {
   const emails = loadEmailFixtures().filter((fixture) => fixture.demo);
-  const mailbox = new FakeMailbox(emails, loadSeed().mailbox.order);
-  return {
-    gmail: mailbox.factory(),
-    llm: FakeLlmProvider.fromFixtures({
-      emails,
-      leadBatches: loadLeadBatches(),
-      db: prisma,
-    }),
-    fetchLink: demoLinkFetcher,
-  };
+  const llm = FakeLlmProvider.fromFixtures({ emails, leadBatches: loadLeadBatches(), db: prisma });
+  const mailbox = new FakeMailbox(emails, loadSeed().mailbox.order, {
+    // A message the database holds arrived when its `internal_date` says. Sync leaves the epoch
+    // until triage has read the message; that is "not known yet".
+    arrivalOf: async (id) => {
+      const row = await prisma.gmailMessage.findUnique({
+        where: { id },
+        select: { internalDate: true },
+      });
+      return row === null || row.internalDate.getTime() <= 0 ? null : row.internalDate;
+    },
+    // The model answers for a delivery with what the fixture says, moved to its arrival.
+    onDeliver: (fixture) => {
+      if (fixture.llm.triage !== null) {
+        llm.register("triage", { messageId: fixture.id }, fixture.llm.triage);
+      }
+      if (fixture.llm.extraction !== null) {
+        llm.register("extract", { messageId: fixture.id }, fixture.llm.extraction);
+      }
+    },
+  });
+  return { gmail: mailbox.factory(), llm, fetchLink: demoLinkFetcher };
 }

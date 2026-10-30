@@ -131,6 +131,29 @@ describe("FakeMailbox", () => {
     );
   });
 
+  it("rebuilds in another process the delivery the first one made, from the stored arrival time", async () => {
+    const now = new Date("2026-11-02T10:00:00.000Z");
+    const first = mailbox();
+    const made = first.deliverNext(new Set(), now);
+
+    const learned: string[] = [];
+    const second = new FakeMailbox(demoFixtures, order, {
+      arrivalOf: (id) => Promise.resolve(id === made.id ? now : null),
+      onDeliver: (f) => learned.push(f.id),
+    });
+    // Before it is asked, it serves the original; asked for the stored message, the same delivery.
+    expect(JSON.stringify(await second.getFull(made.id))).toBe(
+      JSON.stringify(await first.getFull(made.id)),
+    );
+    expect(learned).toEqual([made.id]);
+    // A message the database does not know yet (placeholder date) stays the original.
+    const other = "reject-tidewater-labs";
+    expect((await second.getMetadata(other)).internalDate.toISOString()).toBe(
+      demoFixtures.find((f) => f.id === other)?.internalDate,
+    );
+    expect(learned).toEqual([made.id]);
+  });
+
   it("serves only fixtures marked demo, and refuses a walk that names anything else", () => {
     const real = fixtures.find((f) => !f.demo);
     expect(real).toBeDefined();

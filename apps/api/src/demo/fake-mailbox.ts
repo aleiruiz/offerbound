@@ -4,6 +4,17 @@ import type { GmailClient, GmailClientFactory } from "../gmail/client.js";
 import { FakeGmailClient } from "../gmail/fake-client.js";
 import { deliverFixture, weekAlignedDelta } from "./shift.js";
 
+/** What ties a mailbox to the rest of the demo. Both are optional (unit tests use neither). */
+export type MailboxHooks = {
+  /**
+   * When the message with this id arrived, if the database knows it (null: not stored, or still
+   * the placeholder date sync leaves before triage). Lets another process rebuild a delivery.
+   */
+  arrivalOf?: (id: string) => Promise<Date | null>;
+  /** Called with each delivered fixture the first time this process serves it. */
+  onDeliver?: (fixture: EmailFixture) => void;
+};
+
 /**
  * The demo's mailbox (TECHNICAL_SPEC §12): a `FakeGmailClient` over the fixtures marked
  * `demo: true`, plus a cursor that hands out the next email for *Simulate an incoming email*.
@@ -18,8 +29,13 @@ import { deliverFixture, weekAlignedDelta } from "./shift.js";
  *
  * A delivered email is dated at its arrival and carries its times moved by whole weeks, so an
  * interview it proposes lies ahead of the visitor (see `deliverFixture`). It replaces the
- * original fixture in this mailbox, in this process only; a process that never simulated serves
- * the originals, which is all its triage and extraction sweeps need.
+ * original fixture in this mailbox.
+ *
+ * Another process can serve the same delivery. When it is asked for a message it has not
+ * delivered itself (the worker re-reading a message for *Reprocess*), it looks up the arrival
+ * time the database holds (`arrivalOf`) and rebuilds the delivery: the shift is a function of
+ * the fixture and that time, so both processes serve the same dates. `onDeliver` lets the model
+ * learn the shifted verdict and extraction of every delivery, wherever it was made.
  */
 export class FakeMailbox implements GmailClient {
   private readonly originals: readonly EmailFixture[];
@@ -30,12 +46,14 @@ export class FakeMailbox implements GmailClient {
   constructor(
     fixtures: readonly EmailFixture[],
     readonly order: readonly string[],
+    private readonly hooks: MailboxHooks = {},
   ) {
     this.originals = fixtures.filter((fixture) => fixture.demo);
     this.byId = new Map(this.originals.map((fixture) => [fixture.id, fixture]));
     for (const id of order) {
-      if (!this.byId.has(id))
+      if (!this.byId.has(id)) {
         throw new Error(`The demo order names a fixture that is not there: ${id}`);
+      }
     }
     this.inner = new FakeGmailClient([...this.originals]);
   }
@@ -63,20 +81,11 @@ export class FakeMailbox implements GmailClient {
 
   /**
    * Makes the next unused email arrive at `now` and returns it as it is served from now on. The
-   * caller stores its id as `discovered` and registers its verdict and extraction with the model.
+   * caller stores its id as `discovered`.
    */
   deliverNext(used: ReadonlySet<string>, now: Date): EmailFixture {
-    const id = this.nextId(used);
-    const baseId = id.replace(/~\d+$/, "");
-    const base = this.byId.get(baseId);
-    if (!base) throw new Error("The demo order names a fixture that is not there.");
-    const delivered = deliverFixture(base, {
-      arrivesAt: now,
-      deltaMs: weekAlignedDelta(new Date(base.internalDate), now),
-      id,
-    });
-    this.delivered.set(id, delivered);
-    this.rebuild();
+    const delivered = this.place(this.nextId(used), now);
+    if (!delivered) throw new Error("The demo order names a fixture that is not there.");
     return delivered;
   }
 
@@ -84,6 +93,27 @@ export class FakeMailbox implements GmailClient {
   reset(): void {
     this.delivered = new Map();
     this.rebuild();
+  }
+
+  private place(id: string, arrivesAt: Date): EmailFixture | null {
+    const base = this.byId.get(id.replace(/~\d+$/, ""));
+    if (!base) return null;
+    const delivered = deliverFixture(base, {
+      arrivesAt,
+      deltaMs: weekAlignedDelta(new Date(base.internalDate), arrivesAt),
+      id,
+    });
+    this.delivered.set(id, delivered);
+    this.rebuild();
+    this.hooks.onDeliver?.(delivered);
+    return delivered;
+  }
+
+  /** Rebuilds a delivery another process made, from the arrival time the database holds. */
+  private async ensureDelivered(id: string): Promise<void> {
+    if (this.delivered.has(id) || !this.hooks.arrivalOf) return;
+    const arrival = await this.hooks.arrivalOf(id);
+    if (arrival !== null && !this.delivered.has(id)) this.place(id, arrival);
   }
 
   private rebuild(): void {
@@ -113,11 +143,13 @@ export class FakeMailbox implements GmailClient {
     return this.inner.listHistory(startHistoryId, pageToken);
   }
 
-  getMetadata(id: string): Promise<MessageMetadata> {
+  async getMetadata(id: string): Promise<MessageMetadata> {
+    await this.ensureDelivered(id);
     return this.inner.getMetadata(id);
   }
 
-  getFull(id: string): Promise<gmail_v1.Schema$Message> {
+  async getFull(id: string): Promise<gmail_v1.Schema$Message> {
+    await this.ensureDelivered(id);
     return this.inner.getFull(id);
   }
 }
