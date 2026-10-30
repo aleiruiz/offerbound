@@ -13,6 +13,7 @@ import { registerCompanyRoutes } from "./routes/companies.js";
 import { registerCvRoutes } from "./routes/cv.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerImportRoutes } from "./routes/import.js";
+import { registerInterviewRoutes } from "./routes/interviews.js";
 import { registerLeadRoutes } from "./routes/leads.js";
 import { registerMeRoutes } from "./routes/me.js";
 import { registerOnboardingRoutes } from "./routes/onboarding.js";
@@ -99,6 +100,7 @@ export async function buildApp(
         await registerImportRoutes(guarded, deps);
         registerLeadRoutes(guarded, deps);
         registerCompanyRoutes(guarded, deps);
+        registerInterviewRoutes(guarded, deps);
       });
     },
     { prefix: "/api/v1" },
