@@ -14,6 +14,7 @@ import { Automation } from "./Automation";
 import { Cv } from "./Cv";
 import { Data } from "./Data";
 import { Gmail } from "./Gmail";
+import { useIsDemo } from "../../lib/demo";
 import { Import } from "./Import";
 import { Search } from "./Search";
 import { Targets } from "./Targets";
@@ -50,6 +51,7 @@ const THEMES: { value: ThemePreference; label: string }[] = [
 
 export function SettingsPage() {
   const { section: key } = useParams();
+  const demo = useIsDemo();
   const section = SECTIONS.find((s) => s.key === key);
   if (!section) return <Navigate to="/settings/gmail" replace />;
 
@@ -103,7 +105,8 @@ export function SettingsPage() {
           </Box>
           <Divider />
           <Appearance />
-          <SignOut />
+          {/* The demo has no sign-in, so nothing to sign out of. */}
+          {demo ? null : <SignOut />}
         </Box>
         <Box
           sx={{

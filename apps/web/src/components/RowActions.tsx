@@ -100,6 +100,18 @@ export function RowActions({
             ? { component: "a", href: a.href, target: "_blank", rel: "noopener noreferrer" }
             : {};
         if (a.kind === "icon") {
+          if (a.disabledReason !== undefined) {
+            // A disabled button takes no pointer events, so the tooltip hangs on a wrapper.
+            return (
+              <Tooltip key={a.key} title={a.disabledReason}>
+                <Box component="span" tabIndex={0} sx={{ display: "inline-flex" }}>
+                  <IconButton aria-label={a.label} size="small" disabled>
+                    {a.icon}
+                  </IconButton>
+                </Box>
+              </Tooltip>
+            );
+          }
           return (
             <Tooltip key={a.key} title={a.label}>
               <IconButton aria-label={a.label} size="small" onClick={a.onClick} {...link}>
