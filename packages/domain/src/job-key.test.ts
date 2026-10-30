@@ -171,6 +171,16 @@ const fixRows: [name: string, input: string, expected: string | null][] = [
     "url:acme.wd5.myworkdayjobs.com/External_Careers/job/Austin/Data-Lead",
   ],
   [
+    "workday apply autofill action",
+    "https://acme.wd5.myworkdayjobs.com/External/job/Austin/Data-Lead_R-1001/apply/autofillWithResume",
+    "workday:acme:R-1001",
+  ],
+  [
+    "workday apply manual action",
+    "https://acme.wd5.myworkdayjobs.com/External/job/Austin/Data-Lead_R-1001/apply/applyManually",
+    "workday:acme:R-1001",
+  ],
+  [
     "workday needs a job segment",
     "https://acme.wd5.myworkdayjobs.com/External/Data-Lead_R-1",
     "url:acme.wd5.myworkdayjobs.com/External/Data-Lead_R-1",

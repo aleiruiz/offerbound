@@ -136,11 +136,13 @@ function atsKey(p: Parsed): string | null {
   }
   const workday = WORKDAY_HOST.exec(host);
   if (workday) {
-    // .../job/{location}/{slug}_{reqId}[/apply]: only the segments after `job` count
-    const after = segments.slice(segments.indexOf("job") + 1);
-    if (segments.includes("job")) {
-      if (after.at(-1) === "apply") after.pop();
-      const reqId = /^.+_([^_]+)$/.exec(after.at(-1) ?? "")?.[1];
+    // .../job/{location}/{slug}_{reqId}[/apply[/autofillWithResume]]: only segments after
+    // `job` count, and the location segment is skipped when a title segment follows it
+    const jobAt = segments.indexOf("job");
+    if (jobAt !== -1) {
+      const after = segments.slice(jobAt + 1);
+      const candidates = after.length > 1 ? after.slice(1) : after;
+      const reqId = candidates.map((s) => /^.+_([^_]+)$/.exec(s)?.[1]).find((r) => r !== undefined);
       if (reqId) return `workday:${workday[1]}:${reqId}`;
     }
   }
