@@ -30,6 +30,14 @@ const keyRows: [input: string, expected: string | null][] = [
     "https://www.Quarry.example/careers/123/?utm_campaign=z#apply",
     "url:quarry.example/careers/123",
   ],
+  [
+    "https://careers.quarry.example/jobs?position=881&utm_source=x",
+    "url:careers.quarry.example/jobs?position=881",
+  ],
+  [
+    "https://quarry.example/careers?posting=a1b2&pid=7",
+    "url:quarry.example/careers?pid=7&posting=a1b2",
+  ],
   ["mailto:jobs@quarry.example", null],
 ];
 

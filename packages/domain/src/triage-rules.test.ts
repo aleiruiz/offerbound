@@ -234,6 +234,13 @@ const rows: Row[] = [
     { decision: "llm", rule: "R9" },
   ],
   [
+    "R7 a bare TLD entry matches nothing",
+    { from: "news@noisy.example" },
+    { decision: "llm", rule: "R9" },
+    {},
+    { ignoreList: ["example", "com", ".com", "@org", "co.uk"] },
+  ],
+  [
     "R6 beats R7",
     { from: "rae@quarry.example" },
     { decision: "job_related", rule: "R6" },
