@@ -54,3 +54,36 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the api image
+        run: docker build -f apps/api/Dockerfile -t offerbound-api .
+      - name: Build the web image
+        run: docker build -f apps/web/Dockerfile -t offerbound-web .
+      - name: The api image carries the Prisma CLI (migrations run on start)
+        run: docker run --rm offerbound-api pnpm exec prisma --version
+      - name: Smoke-test the api image (non-root, writable /backups, offline start tools)
+        run: |
+          uid="$(docker run --rm offerbound-api id -u)"
+          test "$uid" != "0"
+          docker run --rm offerbound-api sh -c 'touch /backups/.write-test && rm /backups/.write-test'
+          # The worker uses the same image and user; the container must not need the npm registry.
+          docker run --rm --network none offerbound-api pnpm --version
+          docker run --rm --network none offerbound-api pnpm exec prisma --version
+      - name: Validate the Caddyfile
+        run: docker run --rm -v "$PWD/apps/web/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Validate compose.prod.yaml
+        env:
+          PUBLIC_BASE_URL: https://offerbound.example
+          SERVICE_PASSWORD_POSTGRES: ci-placeholder
+          OWNER_EMAIL: owner@example.com
+          GOOGLE_CLIENT_ID: client-id.example
+          GOOGLE_CLIENT_SECRET: ci-placeholder
+          TOKEN_ENCRYPTION_KEY: ci-placeholder
+          OPENAI_API_KEY: ci-placeholder
+          AI_PRICING: "{}"
+          AI_WEB_SEARCH_COST_PER_CALL_MICROS: "10000"
+        run: docker compose -f compose.prod.yaml config --quiet

@@ -22,9 +22,8 @@
     "fastify": "^5",
     "google-auth-library": "^11.3.2",
     "openai": "^6",
+    "pg-boss": "^12",
+    "pino": "^10",
     "zod": "^4"
-  },
-  "devDependencies": {
-    "pino": "^10"
   }
 }
