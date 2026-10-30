@@ -33,7 +33,12 @@ const SUBDOMAIN_ONLY_DENY: ReadonlySet<string> = new Set(["www", "app", "api", "
 
 type Parsed = { host: string; segments: string[]; params: URLSearchParams };
 
-function isTracking(name: string): boolean {
+/**
+ * True for a query parameter that only records where a click came from (`utm_*`, `gh_src`,
+ * `lever-source`, `source`, `ref`, `refId`, `trk`, `trackingId`, `src`), in any letter case. Job
+ * keys ignore these, and the link check treats them as harmless on an ATS board root.
+ */
+export function isTrackingParam(name: string): boolean {
   const n = name.toLowerCase();
   return n.startsWith("utm_") || TRACKING_PARAMS.has(n);
 }
@@ -55,7 +60,7 @@ function parse(url: string): Parsed | null {
 /** First non-tracking value of a query parameter, matched case-insensitively. */
 function param(params: URLSearchParams, name: string): string | null {
   for (const [key, value] of params) {
-    if (key.toLowerCase() === name.toLowerCase() && !isTracking(key) && value.trim() !== "") {
+    if (key.toLowerCase() === name.toLowerCase() && !isTrackingParam(key) && value.trim() !== "") {
       return value.trim();
     }
   }
@@ -185,7 +190,7 @@ function genericKey(p: Parsed): string {
   const host = p.host.replace(/^www\./, "");
   const path = p.segments.join("/");
   const ids = [...p.params]
-    .filter(([k, v]) => GENERIC_ID_PARAMS.has(k.toLowerCase()) && !isTracking(k) && v !== "")
+    .filter(([k, v]) => GENERIC_ID_PARAMS.has(k.toLowerCase()) && !isTrackingParam(k) && v !== "")
     .map(([k, v]): [string, string] => [k.toLowerCase(), v])
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   const query = ids.length === 0 ? "" : `?${ids.map(([k, v]) => `${k}=${v}`).join("&")}`;

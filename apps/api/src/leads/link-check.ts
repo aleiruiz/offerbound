@@ -1,3 +1,4 @@
+import { isTrackingParam } from "@offerbound/domain";
 import { convert } from "html-to-text";
 import type { LinkFetcher } from "./ssrf.js";
 
@@ -52,13 +53,17 @@ const BOARD_HOSTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Query parameters that carry no job: tracking and display options. A board root is recognised
- * only when every parameter is one of these, so any other name (`gh_jid`, `job-id`,
+ * Display and ad parameters that carry no job, besides the tracking ones that job keys drop
+ * (`isTrackingParam`, the one list shared with `jobKey`, TECHNICAL_SPEC §6.1). A board root is
+ * recognised only when every parameter is one of these, so any other name (`gh_jid`, `job-id`,
  * `jobPostingId`, ...) is taken to name a posting. Wrongly calling a live job "dead" discards a
  * good lead, so the check errs toward "not a root".
  */
-const HARMLESS_PARAM =
-  /^(utm_[a-z0-9_]+|ref|ref_?src|source|src|gh_src|lng|lang|locale|fbclid|gclid|trk)$/i;
+const DISPLAY_PARAM = /^(ref_?src|lng|lang|locale|fbclid|gclid)$/i;
+
+function isHarmlessParam(name: string): boolean {
+  return isTrackingParam(name) || DISPLAY_PARAM.test(name);
+}
 
 function isLinkedIn(url: URL): boolean {
   return url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
@@ -67,7 +72,7 @@ function isLinkedIn(url: URL): boolean {
 function isBoardRoot(url: URL): boolean {
   if (!BOARD_HOSTS.has(url.hostname)) return false;
   if (url.pathname.split("/").filter((segment) => segment !== "").length > 1) return false;
-  for (const name of url.searchParams.keys()) if (!HARMLESS_PARAM.test(name)) return false;
+  for (const name of url.searchParams.keys()) if (!isHarmlessParam(name)) return false;
   return true;
 }
 
