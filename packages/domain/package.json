@@ -22,7 +22,8 @@
     "test:unit": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "luxon": "^3.7.2"
+    "luxon": "^3.7.2",
+    "tldts": "^7.4.19"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.6"
