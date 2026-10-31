@@ -37,10 +37,30 @@ const ANNOTATION: Record<
   ReportRowAnnotation,
   { label: string; color: "success" | "default" | "warning" }
 > = {
-  new: { label: t("New"), color: "success" },
-  duplicate: { label: t("Already tracked"), color: "default" },
-  company_already_seen: { label: t("Suppressed: company already seen"), color: "warning" },
-  excluded_seniority: { label: t("Suppressed: seniority excluded"), color: "warning" },
+  new: {
+    get label() {
+      return t("New");
+    },
+    color: "success",
+  },
+  duplicate: {
+    get label() {
+      return t("Already tracked");
+    },
+    color: "default",
+  },
+  company_already_seen: {
+    get label() {
+      return t("Suppressed: company already seen");
+    },
+    color: "warning",
+  },
+  excluded_seniority: {
+    get label() {
+      return t("Suppressed: seniority excluded");
+    },
+    color: "warning",
+  },
 };
 
 /** Commit discards a row Offerbound already has, even when it is sent, so it can't be checked. */
@@ -325,7 +345,12 @@ export function ImportReportPage() {
                       })
                     : t("Offerbound reads the roles in it. Nothing is saved until you import.")}
                 </span>
-                <span>{`${formatCount(text.length)} of ${formatCount(MAX_REPORT_CHARS)} characters`}</span>
+                <span>
+                  {t("{count} of {max} characters", {
+                    count: formatCount(text.length),
+                    max: formatCount(MAX_REPORT_CHARS),
+                  })}
+                </span>
               </Box>
             }
             sx={{ maxWidth: 680 }}

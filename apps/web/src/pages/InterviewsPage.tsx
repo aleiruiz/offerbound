@@ -16,7 +16,7 @@ import { Key } from "../components/ShortcutDialog";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { formatLongDay, localDayKey, zoneCity } from "../lib/format";
 import { useListKeyboard } from "../lib/shortcuts";
-import { t } from "../i18n";
+import { t, tx } from "../i18n";
 
 /**
  * Interviews (DESIGN_SPEC §5.6, §6.5; AC-8.4, 8.5): Upcoming and Past tabs. Upcoming opens with the
@@ -365,8 +365,12 @@ export function InterviewsPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>{t("Enter")}</Key> opens the application,{" "}
-                <Key>?</Key> all shortcuts
+                {tx("Keys: {j} {k} move, {enter} opens the application, {help} all shortcuts", {
+                  j: <Key>j</Key>,
+                  k: <Key>k</Key>,
+                  enter: <Key>Enter</Key>,
+                  help: <Key>?</Key>,
+                })}
               </Typography>
               {query.hasNextPage ? (
                 <Button

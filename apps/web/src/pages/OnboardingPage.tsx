@@ -611,7 +611,10 @@ function BriefStep({
                   count: formatCount(brief.length),
                   max: formatCount(BRIEF_MAX_CHARS),
                 })
-              : `${formatCount(brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters`
+              : t("{count} of {max} characters", {
+                  count: formatCount(brief.length),
+                  max: formatCount(BRIEF_MAX_CHARS),
+                })
           }
         />
       )}

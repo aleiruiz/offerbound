@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { es } from "./es";
+import { esServer, esServerPatterns } from "./es-server";
 
 /**
  * The interface language. English text is the message key: `t("Add application")` shows the
@@ -74,7 +75,19 @@ function interpolate(text: string, vars?: Vars): string {
 /** The current language's text for an English message, with `{name}` placeholders filled in. */
 export function t(key: string, vars?: Vars): string {
   const dictionary = DICTIONARIES[current];
-  return interpolate(dictionary?.[key] ?? key, vars);
+  if (!dictionary) return interpolate(key, vars);
+  return interpolate(dictionary[key] ?? serverMessage(key) ?? key, vars);
+}
+
+/** Spanish for an error message from the API, when it is one the app knows. */
+function serverMessage(message: string): string | undefined {
+  if (current !== "es") return undefined;
+  const exact = esServer[message];
+  if (exact !== undefined) return exact;
+  for (const [pattern, replacement] of esServerPatterns) {
+    if (pattern.test(message)) return message.replace(pattern, replacement);
+  }
+  return undefined;
 }
 
 /**
@@ -83,6 +96,16 @@ export function t(key: string, vars?: Vars): string {
  */
 export function msg(key: string): string {
   return key;
+}
+
+/**
+ * Like `t()`, for a short word whose translation depends on where it is shown: `tc("lead tab",
+ * "New")` is "Nuevas" on the Leads tabs while `t("New")` is the "Nueva" chip on a lead. The
+ * dictionary key is `context|text`; English shows `text`.
+ */
+export function tc(context: string, text: string): string {
+  const translated = DICTIONARIES[current]?.[`${context}|${text}`];
+  return translated ?? text;
 }
 
 /** `one` when `count` is 1, otherwise `other`; `{count}` in either is the formatted count. */

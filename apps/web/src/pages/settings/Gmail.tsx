@@ -218,7 +218,10 @@ function FirstSync({ backfill, started }: { backfill: SyncStatus["backfill"]; st
         </Typography>
         <Typography variant="caption" color="text.secondary">
           {listed > 0
-            ? `${formatCount(processed)} of ${formatCount(listed)} checked`
+            ? t("{processed} of {listed} checked", {
+                processed: formatCount(processed),
+                listed: formatCount(listed),
+              })
             : t("Finding your email")}
         </Typography>
       </Box>

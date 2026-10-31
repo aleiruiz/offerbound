@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router";
 import { useSignOut } from "../../api/hooks";
+import { LanguageSelect } from "../../components/LanguageSelect";
 import { useColorMode, type ThemePreference } from "../../ColorModeProvider";
 import { AiUsage } from "./AiUsage";
 import { Automation } from "./Automation";
@@ -23,7 +24,7 @@ import { t } from "../../i18n";
 
 /**
  * Settings (DESIGN_SPEC §5.7): the section list on the left (above the section on phones) drives
- * `/settings/:section`. The *Theme* select and *Sign out* sit at the foot of the list.
+ * `/settings/:section`. The *Theme* and *Language* selects and *Sign out* sit at the foot of the list.
  */
 
 interface Section {
@@ -169,6 +170,7 @@ export function SettingsPage() {
           </Box>
           <Divider />
           <Appearance />
+          <LanguageSelect />
           {/* The demo has no sign-in, so nothing to sign out of. */}
           {demo ? null : <SignOut />}
         </Box>

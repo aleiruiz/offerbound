@@ -102,7 +102,11 @@ function Section({
               {title}
             </Typography>
             {count !== undefined && count > 0 ? (
-              <FlagChip tone="signal" label={String(count)} aria-label={`${count} items`} />
+              <FlagChip
+                tone="signal"
+                label={String(count)}
+                aria-label={tn(count, "1 item", "{count} items")}
+              />
             ) : null}
           </Box>
           {note ? (
@@ -338,7 +342,7 @@ function TargetsBody({ today }: { today: Today }) {
               disabled={log.isPending}
               onClick={() => record("outreach", 1, t("Logged 1 outreach message"))}
             >
-              +1 message
+              {t("+1 message")}
             </Button>
           }
         />
@@ -490,7 +494,7 @@ function ReviewList({ today, timezone }: { today: Today; timezone: string }) {
             to="/review"
             size="small"
             variant="outlined"
-            aria-label={`Review: ${item.proposal.description}`}
+            aria-label={t("Review: {description}", { description: item.proposal.description })}
           >
             {t("Review")}
           </Button>

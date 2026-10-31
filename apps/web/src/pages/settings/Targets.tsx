@@ -156,7 +156,7 @@ function TargetsForm({ settings }: { settings: Settings }) {
               {range ? (
                 <>
                   <Typography color="text.secondary" sx={{ pt: 1 }}>
-                    to
+                    {t("to")}
                   </Typography>
                   <IntField
                     label={t("At most")}

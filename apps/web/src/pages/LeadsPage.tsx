@@ -48,7 +48,7 @@ import { useLinkSx } from "../lib/link-sx";
 import { isFoundSince, useLeadsSince } from "../lib/last-visit";
 import { useListKeyboard } from "../lib/shortcuts";
 import { isHttpUrl } from "../lib/url";
-import { msg, t, tn, tx } from "../i18n";
+import { msg, t, tc, tn, tx } from "../i18n";
 
 /**
  * Leads (DESIGN_SPEC §5.4, §6.4, §9.3; AC-9.2, 9.6, 9.7, 10.2, 12.3, 12.4): the five lists as tabs,
@@ -60,7 +60,7 @@ const TABS: { key: LeadStatus; label: string }[] = [
   {
     key: "new",
     get label() {
-      return t("New");
+      return tc("lead tab", "New");
     },
   },
   {
@@ -72,7 +72,7 @@ const TABS: { key: LeadStatus; label: string }[] = [
   {
     key: "applied",
     get label() {
-      return t("Applied");
+      return tc("lead tab", "Applied");
     },
   },
   {
@@ -510,7 +510,7 @@ export function LeadsPage() {
   // One "now" per answer, so "at 07:04" versus "on Oct 27" stays still while the owner reads.
   const now = useMemo(() => new Date(), [query.dataUpdatedAt, runs.dataUpdatedAt]);
   const newCount = leads.filter((lead) => isFoundSince(lead.foundAt, since)).length;
-  const tabLabel = TABS.find((t) => t.key === filters.status)?.label ?? t("New");
+  const tabLabel = TABS.find((t) => t.key === filters.status)?.label ?? tc("lead tab", "New");
   const searchEnabled = settings.data?.search.enabled;
   const runTime = settings.data?.search.runTime;
 
@@ -725,7 +725,7 @@ export function LeadsPage() {
         ) : (
           <>
             <LeadList
-              label={`${tabLabel} leads`}
+              label={t("{tab} leads", { tab: tabLabel })}
               leads={leads}
               timezone={timezone}
               now={now}
@@ -756,8 +756,18 @@ export function LeadsPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>s</Key> shortlist, <Key>d</Key> dismiss,{" "}
-                <Key>a</Key> mark applied, <Key>o</Key> open posting, <Key>?</Key> all shortcuts
+                {tx(
+                  "Keys: {j} {k} move, {s} shortlist, {d} dismiss, {a} mark applied, {o} open posting, {help} all shortcuts",
+                  {
+                    j: <Key>j</Key>,
+                    k: <Key>k</Key>,
+                    s: <Key>s</Key>,
+                    d: <Key>d</Key>,
+                    a: <Key>a</Key>,
+                    o: <Key>o</Key>,
+                    help: <Key>?</Key>,
+                  },
+                )}
               </Typography>
               {query.hasNextPage ? (
                 <Button

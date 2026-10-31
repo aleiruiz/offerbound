@@ -32,7 +32,7 @@ import { formatDateTime, formatTime, localDayKey } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
 import { DemoLock, type DemoReason } from "../lib/demo";
-import { msg, t, tn } from "../i18n";
+import { msg, t, tc, tn, tx } from "../i18n";
 
 /**
  * Review (DESIGN_SPEC §5.5; AC-5.1–5.3): the decisions the automation needs. One card per item with
@@ -44,13 +44,13 @@ const TABS: { key: ReviewListState; label: string }[] = [
   {
     key: "open",
     get label() {
-      return t("Open");
+      return tc("review tab", "Open");
     },
   },
   {
     key: "resolved",
     get label() {
-      return t("Resolved");
+      return tc("review tab", "Resolved");
     },
   },
 ];
@@ -693,8 +693,12 @@ export function ReviewPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>{t("Enter")}</Key> shows the email,{" "}
-                <Key>?</Key> all shortcuts
+                {tx("Keys: {j} {k} move, {enter} shows the email, {help} all shortcuts", {
+                  j: <Key>j</Key>,
+                  k: <Key>k</Key>,
+                  enter: <Key>Enter</Key>,
+                  help: <Key>?</Key>,
+                })}
               </Typography>
               {query.hasNextPage ? (
                 <Button

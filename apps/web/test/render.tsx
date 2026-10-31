@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router";
 import type { Me } from "@offerbound/contracts";
 import { queryKeys } from "../src/api/hooks";
+import { LocaleProvider, type Locale } from "../src/i18n";
 import { createOfferboundTheme } from "../src/theme";
 import { setViewport } from "./match-media";
 
@@ -21,13 +22,22 @@ export interface RenderOptions {
    * the mode from there without asking again; without it the app is in private mode.
    */
   me?: Me;
+  /** The interface language; English by default. */
+  locale?: Locale;
 }
 
 export type ProvidersResult = RenderResult & { queryClient: QueryClient };
 
 export function renderWithProviders(
   ui: ReactElement,
-  { route = "/", mode = "light", width = 1280, reducedMotion = false, me }: RenderOptions = {},
+  {
+    route = "/",
+    mode = "light",
+    width = 1280,
+    reducedMotion = false,
+    me,
+    locale = "en",
+  }: RenderOptions = {},
 ): ProvidersResult {
   setViewport({ width, dark: mode === "dark", reducedMotion });
   const queryClient = new QueryClient({
@@ -41,7 +51,9 @@ export function renderWithProviders(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={createOfferboundTheme(mode, { touch: width < 600 })}>
         <CssBaseline />
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        <LocaleProvider initial={locale}>
+          <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        </LocaleProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   );

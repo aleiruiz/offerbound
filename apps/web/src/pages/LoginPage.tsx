@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router";
 import { GOOGLE_START_PATH } from "../api/paths";
+import { LanguageSelect } from "../components/LanguageSelect";
 import { Logo } from "../components/Logo";
 import { t } from "../i18n";
 
@@ -234,9 +235,19 @@ export function LoginPage() {
         <Box
           sx={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 3 }}
         >
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-            {window.location.host}
-          </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              {window.location.host}
+            </Typography>
+            <LanguageSelect size="small" />
+          </Box>
           <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <Typography
               id="signin-heading"

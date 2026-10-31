@@ -87,7 +87,12 @@ const LEVELS: { value: Seniority; label: string }[] = [
 ];
 
 const PRIORITIES: { value: Track["priority"]; label: string }[] = [
-  { value: 1, label: "1, highest" },
+  {
+    value: 1,
+    get label() {
+      return t("1, highest");
+    },
+  },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
 ];
@@ -258,7 +263,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
               width={104}
             />
             <Typography color="text.secondary" sx={{ pt: 1 }}>
-              to
+              {t("to")}
             </Typography>
             <IntField
               label={t("At most")}
@@ -301,9 +306,12 @@ function JobSearchForm({ settings }: { settings: Settings }) {
           />
         </DemoLock>
         <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
-          {`${formatCount(draft.brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters${
-            briefTooLong ? ". Shorten it to save." : ""
-          }`}
+          {t(
+            briefTooLong
+              ? "{count} of {max} characters. Shorten it to save."
+              : "{count} of {max} characters",
+            { count: formatCount(draft.brief.length), max: formatCount(BRIEF_MAX_CHARS) },
+          )}
         </Typography>
       </Box>
 
@@ -495,7 +503,7 @@ function RecentRuns() {
   const runs = useSearchRuns();
 
   return (
-    <SectionPaper id="runs-heading" title={t("Recent runs")} caption="Last 14 runs">
+    <SectionPaper id="runs-heading" title={t("Recent runs")} caption={t("Last 14 runs")}>
       {runs.isPending ? (
         <Skeleton variant="rounded" height={120} aria-label={t("Loading recent runs")} />
       ) : runs.isError ? (
