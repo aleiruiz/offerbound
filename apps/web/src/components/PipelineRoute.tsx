@@ -89,7 +89,17 @@ function Stop({ status, count }: { status: (typeof ROUTE_STOPS)[number]; count: 
         <Typography
           component="span"
           variant="subtitle2"
-          sx={(theme) => ({ color: theme.palette.status[status].main })}
+          sx={(theme) => ({
+            color: theme.palette.status[status].main,
+            // Five stops share a phone's width: a smaller label that may break keeps them apart.
+            [theme.breakpoints.down("sm")]: {
+              fontSize: 11,
+              lineHeight: "14px",
+              maxWidth: "100%",
+              overflowWrap: "anywhere",
+              textAlign: "center",
+            },
+          })}
         >
           {STATUS_LABEL[status]}
         </Typography>

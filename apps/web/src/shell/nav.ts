@@ -49,7 +49,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     key: "settings",
     label: msg("Settings"),
-    to: "/settings/gmail",
+    to: "/settings",
     prefix: "/settings",
     icon: SettingsOutlined,
   },

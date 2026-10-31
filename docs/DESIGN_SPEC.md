@@ -106,6 +106,7 @@ The nav footer always shows Gmail sync status with *Sync now* (AC-2.5). Analytic
 - Tables keep their columns and scroll horizontally inside their Paper; the page body never scrolls sideways.
 - Filter chip rows and toolbars wrap.
 - Dialogs become full-screen below `sm`.
+- Below `sm`, a page under a destination (an application, *Paste a report*, a Settings section) shows a back arrow in the top bar in place of the mark. Back from an application, on every width, returns to the page it was opened from (Today, Leads, Interviews, or the Applications list with its filters); its breadcrumb names that page.
 
 ## 5. Screens
 
@@ -140,7 +141,7 @@ Upcoming and Past tabs. *To schedule* first, on a `signal-tint` band, with *Pick
 
 ### 5.7 Settings — artboards *Settings: Gmail*, *Settings: job search and CV*
 
-Section list on the left (stacks above on phones). Mocked sections:
+Section list on the left. On phones the list and the section are two screens: *Settings* opens the list (`/settings`), a section replaces it, and the top bar's back arrow returns to the list. Mocked sections:
 - **Gmail**: connection chip, account, last check, *Sync now*, *Disconnect Gmail* (`stop` text button with a confirmation dialog), first-sync progress, five pipeline counts in plain words (the *Waiting for your review* count links to Review), and *What Offerbound reads* in plain language (AC-2.5, 2.8; SECURITY §3).
 - **Job search**: daily switch, run time, lead target range, search brief (`TextField multiline`, character count of 12,000), tracks table (key, name, priority), excluded levels as filter chips, *Run search now*, *Save changes*; **CV** profile summary with skills chips and *Replace CV*; **Recent runs** table (AC-10.1, 10.5, 11.3).
 
@@ -148,7 +149,7 @@ Not mocked, built with the same patterns: **Daily targets** (pairs of number fie
 
 ### 5.8 Onboarding — artboard *Onboarding*
 
-Four-step `Stepper` (this content is a sequence, so numbers are right): Start syncing Gmail, Upload your CV, Import your spreadsheet, Write your search brief. Only the first step is required; the others can be skipped, and setup finishes from the last step. The import step shows the file, a mapping preview table (status in your sheet → what it becomes → rows), skipped rows in a warning Alert, and *Import N rows* (contained) (AC-14.1–14.5, S-23). The first step explains what will be read and has *Start syncing* (contained), then shows the first-sync progress state and *Continue*; the sync keeps running while the owner does the other steps. Sheet rows already found in Gmail are skipped. Progress is kept, so after a reload or a new sign-in the page reopens on the first unfinished step.
+Four-step `Stepper` (this content is a sequence, so numbers are right): Start syncing Gmail, Upload your CV, Import your spreadsheet, Write your search brief. Only the first step is required; the others can be skipped, and setup finishes from the last step. The import step shows the file, a mapping preview table (status in your sheet → what it becomes → rows), skipped rows in a warning Alert, and *Import N rows* (contained) (AC-14.1–14.5, S-23). The first step explains what will be read and has *Start syncing* (contained), then shows the first-sync progress state and *Continue*; the sync keeps running while the owner does the other steps. Sheet rows already found in Gmail are skipped. Progress is kept, so after a reload or a new sign-in the page reopens on the first unfinished step. After setup, Today shows a *Finish setting up* card while the CV or the owner's own search brief is missing, with a link to each Settings section and *Hide*.
 
 ### 5.9 Sign in — artboard *Sign in*
 

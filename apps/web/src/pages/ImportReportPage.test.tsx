@@ -104,7 +104,17 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, "clipboard");
 });
 
-describe("Import a report", () => {
+describe("Paste a report", () => {
+  it("says the roles become leads and points to the spreadsheet import", async () => {
+    setup();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Paste a report" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Import your applications spreadsheet instead" }),
+    ).toHaveAttribute("href", "/settings/import");
+  });
+
   it("shows each row's annotation and starts the checkboxes at defaultKeep", async () => {
     const { api, user } = setup();
     const table = await readReport(user);

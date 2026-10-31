@@ -45,6 +45,7 @@ import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 import { DemoLock } from "../lib/demo";
 import { msg, t } from "../i18n";
+import { applicationOrigin } from "../shell/origin";
 
 /**
  * Application detail (DESIGN_SPEC §5.3; AC-4.2 to 4.4, AC-6.2, AC-6.3): company, status, the next
@@ -576,6 +577,8 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   const [merging, setMerging] = useState(false);
   const [editing, setEditing] = useState(false);
   const crumbSx = useLinkSx({ fontSize: "inherit" });
+  // Back leads where the owner came from: Today, Leads, Interviews or a filtered list.
+  const origin = applicationOrigin();
   const [conflict, setConflict] = useState(false);
   const menuId = useId();
   const latest = useRef(detail);
@@ -637,8 +640,8 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
         variant="caption"
         color="text.secondary"
       >
-        <Link component={RouterLink} to="/applications" underline="none" sx={crumbSx}>
-          {t("Applications")}
+        <Link component={RouterLink} to={origin.to} underline="none" sx={crumbSx}>
+          {t(origin.label)}
         </Link>
         {" / "}
         <span aria-current="page">{detail.company.name}</span>

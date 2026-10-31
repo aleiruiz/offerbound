@@ -985,7 +985,7 @@ describe("LeadsPage", () => {
 
   it("links to the report importer", async () => {
     setup();
-    expect(await screen.findByRole("link", { name: "Import a report" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Paste a report" })).toHaveAttribute(
       "href",
       "/leads/import",
     );

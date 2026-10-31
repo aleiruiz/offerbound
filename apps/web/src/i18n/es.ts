@@ -413,7 +413,6 @@ export const es: Readonly<Record<string, string>> = {
   "What happens": "Qué pasa",
   "Keep {company}, {title}": "Conservar {company}, {title}",
   "Back to Leads": "Volver a Vacantes",
-  "Import a report": "Importar un reporte",
   Report: "Reporte",
   "Paste a list of roles here": "Pega aquí una lista de puestos",
   "Over the limit by {count} characters. Shorten the report to read it.":
@@ -971,4 +970,19 @@ export const es: Readonly<Record<string, string>> = {
   "Gmail last sync failed": "Falló la última sincronización de Gmail",
   "Gmail connected, not synced yet": "Gmail conectado, aún sin sincronizar",
   "Gmail synced {when}": "Gmail sincronizado {when}",
+  "Back to {page}": "Volver a {page}",
+  "Finish setting up": "Termina la configuración",
+  Hide: "Ocultar",
+  "Leads are scored against it.": "Las vacantes se califican contra él.",
+  "Upload CV": "Subir CV",
+  "The daily search looks for the roles it describes.":
+    "La búsqueda diaria busca los puestos que describe.",
+  "Write brief": "Escribir descripción",
+  "One setup step is still open. You can do it any time in Settings.":
+    "Falta un paso de la configuración. Puedes hacerlo cuando quieras en Configuración.",
+  "{count} setup steps are still open. You can do them any time in Settings.":
+    "Faltan {count} pasos de la configuración. Puedes hacerlos cuando quieras en Configuración.",
+  "The roles you add here become leads.": "Los puestos que agregues aquí se vuelven vacantes.",
+  "Import your applications spreadsheet instead":
+    "Mejor importa tu hoja de cálculo de postulaciones",
 };

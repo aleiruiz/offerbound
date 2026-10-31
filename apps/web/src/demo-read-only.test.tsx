@@ -187,17 +187,17 @@ describe("the public demo's read-only controls", () => {
   });
 
   describe("Leads and reports", () => {
-    it("Import a report is disabled on Leads", async () => {
+    it("Paste a report is disabled on Leads", async () => {
       show(<LeadsPage />, { route: "/leads" });
-      const button = await screen.findByRole("button", { name: "Import a report" });
+      const button = await screen.findByRole("button", { name: "Paste a report" });
       expect(button).toBeDisabled();
-      expect(screen.queryByRole("link", { name: "Import a report" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Paste a report" })).not.toBeInTheDocument();
       reasonFor("import");
     });
 
-    it("Import a report stays a link for the owner", async () => {
+    it("Paste a report stays a link for the owner", async () => {
       show(<LeadsPage />, { route: "/leads", demo: false });
-      expect(await screen.findByRole("link", { name: "Import a report" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Paste a report" })).toBeInTheDocument();
     });
 
     it("the report page itself cannot be written to", () => {

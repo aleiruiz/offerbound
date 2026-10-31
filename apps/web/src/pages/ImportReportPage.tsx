@@ -28,7 +28,7 @@ import { useLinkSx } from "../lib/link-sx";
 import { msg, t, tn } from "../i18n";
 
 /**
- * Import a report (AC-9.4, AC-9.5, TECHNICAL_SPEC §7.6): paste a text report, read the preview
+ * Paste a report (AC-9.4, AC-9.5, TECHNICAL_SPEC §7.6): paste a text report, read the preview
  * annotated with what intake would do with each row, keep the rows still checked. *Copy companies
  * already seen* puts the list to paste into the chat that writes the report.
  */
@@ -314,8 +314,18 @@ export function ImportReportPage() {
           {t("Back to Leads")}
         </Link>
         <Typography variant="h4" component="h1">
-          {t("Import a report")}
+          {t("Paste a report")}
         </Typography>
+        <Typography variant="caption" color="text.secondary" component="p">
+          {t("The roles you add here become leads.")}
+        </Typography>
+        <Link
+          component={RouterLink}
+          to="/settings/import"
+          sx={{ ...linkSx, alignSelf: "flex-start" }}
+        >
+          {t("Import your applications spreadsheet instead")}
+        </Link>
       </Box>
 
       <SeenCompanies />

@@ -28,6 +28,7 @@ import {
   useTimezone,
   useToday,
 } from "../api/hooks";
+import { FinishSetupCard } from "../components/FinishSetupCard";
 import { FirstSyncCard } from "../components/FirstSyncCard";
 import { FollowUpRow } from "../components/FollowUpRow";
 import { INTERVIEW_KIND } from "../components/InterviewRow";
@@ -759,6 +760,8 @@ export function TodayPage() {
           {t("Use Sync now to try again.")}
         </Alert>
       ) : null}
+
+      <FinishSetupCard />
 
       <Section title={t("Pipeline")}>
         <Body query={today} what={t("the pipeline")} skeleton={<RouteSkeleton />}>

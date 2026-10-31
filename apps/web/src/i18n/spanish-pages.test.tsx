@@ -105,7 +105,7 @@ describe("the app in Spanish", () => {
     ["/settings/import", "Configuración"],
     ["/settings/ai-usage", "Configuración"],
     ["/settings/data", "Configuración"],
-    ["/leads/import", "Importar un reporte"],
+    ["/leads/import", "Pegar un reporte"],
   ])("%s shows no English", async (route, title) => {
     mockEverything();
     renderWithProviders(

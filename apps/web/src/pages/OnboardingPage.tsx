@@ -25,6 +25,7 @@ import {
 } from "../api/hooks";
 import { GOOGLE_START_PATH } from "../api/paths";
 import { CvProfileSummary } from "../components/CvProfileSummary";
+import { hasOwnBrief } from "../components/FinishSetupCard";
 import { DropZone } from "../components/DropZone";
 import { FilePicker } from "../components/FilePicker";
 import { Logo } from "../components/Logo";
@@ -125,11 +126,6 @@ export function OnboardingPage() {
       </Box>
     </Box>
   );
-}
-
-/** The brief step is done when the owner's own brief is on file, not the repo-shipped one. */
-function hasOwnBrief(brief: string | undefined): boolean {
-  return brief !== undefined && brief.trim() !== "" && brief !== DEFAULT_SETTINGS.search.brief;
 }
 
 /** The stepper and the steps. Starts on the first step that is neither completed nor skipped. */
