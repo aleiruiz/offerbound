@@ -29,8 +29,9 @@ export type RecheckResult = { checked: number; closed: number; expired: number }
  *
  * 1. Every New lead with a link that can be fetched is checked again once a day. A posting that
  *    is gone is dismissed with the reason `posting_closed`. A lead that was verified stays
- *    verified when a check only fails to confirm it (a timeout, a 403, a page that does not show
- *    the title), so one bad fetch never demotes it. Other verdicts replace the stored one.
+ *    verified when a fetch fails (a timeout, a 403), so one bad fetch never demotes it; a page that
+ *    answers but no longer shows the job demotes it to unverified, and the stale rule below then
+ *    retires it. Other verdicts replace the stored one.
  *    Only a change the owner can see (status or verification) moves the lead's `version`; the
  *    check time and page text are bookkeeping, so an open tab does not go stale overnight.
  * 2. A New lead that is not verified and was found more than {@link STALE_AFTER_DAYS} days ago is
@@ -77,7 +78,7 @@ export async function runLeadsRecheck(ctx: WorkerCtx): Promise<RecheckResult> {
       };
     } else {
       const verification =
-        link.verdict === "unverified" && lead.verification === "verified"
+        link.verdict === "unverified" && lead.verification === "verified" && !link.titleMissing
           ? "verified"
           : link.verdict;
       data = {

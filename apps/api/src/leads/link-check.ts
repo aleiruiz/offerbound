@@ -14,6 +14,11 @@ export type LinkCheckResult = {
   verdict: "dead" | "verified" | "unverified" | "unverifiable";
   finalUrl: string | null;
   pageExcerpt: string | null;
+  /**
+   * Set on an `unverified` page that answered 200 but did not show the job: the posting is
+   * likely gone (a careers search page), unlike a timeout or a 403, which says nothing.
+   */
+  titleMissing?: true;
 };
 
 const EXCERPT_CHARS = 8000;
@@ -269,7 +274,7 @@ export async function checkLink(
     return { verdict: "dead", finalUrl, pageExcerpt: null };
   }
   if (options.title && !mentionsTitle(text, options.title)) {
-    return { verdict: "unverified", finalUrl, pageExcerpt: null };
+    return { verdict: "unverified", finalUrl, pageExcerpt: null, titleMissing: true };
   }
   return { verdict: "verified", finalUrl, pageExcerpt: excerptOf(text) };
 }

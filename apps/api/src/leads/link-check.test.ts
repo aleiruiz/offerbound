@@ -345,7 +345,7 @@ describe("checkLink: closed postings that answer 200", () => {
     });
     expect(
       await checkLink(URL_OK, fetch, { title: "Senior Full Stack Software Development Engineer" }),
-    ).toEqual({ verdict: "unverified", finalUrl: URL_OK, pageExcerpt: null });
+    ).toEqual({ verdict: "unverified", finalUrl: URL_OK, pageExcerpt: null, titleMissing: true });
   });
 
   it("a page that mentions the title → verified, also when it is worded a little differently", async () => {

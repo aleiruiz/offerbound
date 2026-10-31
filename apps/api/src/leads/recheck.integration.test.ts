@@ -108,10 +108,17 @@ describe("leads.recheck", () => {
       version: 1,
     });
     expect(rows.get(alive.id)?.pageExcerpt).toContain("Senior Backend Engineer");
-    // A check that only fails to confirm a verified lead does not demote it.
-    for (const id of [shellVerified.id, offline.id]) {
-      expect(rows.get(id)).toMatchObject({ status: "new", verification: "verified", version: 1 });
-    }
+    // A failed fetch does not demote a verified lead; a page that no longer shows the job does.
+    expect(rows.get(offline.id)).toMatchObject({
+      status: "new",
+      verification: "verified",
+      version: 1,
+    });
+    expect(rows.get(shellVerified.id)).toMatchObject({
+      status: "new",
+      verification: "unverified",
+      version: 2,
+    });
     expect(rows.get(shellUnverified.id)).toMatchObject({
       verification: "unverified",
       verifiedAt: NOW,
