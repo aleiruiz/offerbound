@@ -309,7 +309,7 @@ async function ingestRound(
   const linked = leads.filter((lead) => lead.jobUrl !== null && jobKey(lead.jobUrl) !== null);
   const checked = await mapLimit(linked, LINK_CHECK_CONCURRENCY, async (lead) => ({
     lead,
-    link: await checkLink(lead.jobUrl as string, ctx.fetchLink),
+    link: await checkLink(lead.jobUrl as string, ctx.fetchLink, { title: lead.title }),
   }));
   const alive = checked.filter(({ link }) => link.verdict !== "dead");
   const dead = checked.length - alive.length;

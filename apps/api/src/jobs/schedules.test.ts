@@ -18,6 +18,7 @@ describe("schedulesFor", () => {
       COMMON[2],
       { name: "backup.nightly", cron: "30 3 * * *" },
       COMMON[3],
+      { name: "leads.recheck", cron: "30 4 * * *" },
     ]);
     expect(schedulesFor("demo", DEFAULT_SETTINGS)).toEqual([
       COMMON[0],
@@ -63,6 +64,7 @@ describe("registerSchedules", () => {
     await registerSchedules(demo, "demo", DEFAULT_SETTINGS, "America/Monterrey");
     expect(demo.schedules.map((s) => s.name)).toContain("demo.reset");
     expect(demo.schedules.map((s) => s.name)).not.toContain("backup.nightly");
-    expect(demo.unscheduled).toEqual(["backup.nightly"]);
+    expect(demo.schedules.map((s) => s.name)).not.toContain("leads.recheck");
+    expect(demo.unscheduled).toEqual(["backup.nightly", "leads.recheck"]);
   });
 });

@@ -96,7 +96,9 @@ function fetcher(pages: Record<string, Page> = {}) {
       status: page.status ?? 200,
       finalUrl: url,
       contentType: "text/html; charset=utf-8",
-      body: page.body ?? "<html><body><h1>Open role</h1><p>Join us.</p></body></html>",
+      body:
+        page.body ??
+        "<html><body><h1>Open role: Platform Engineer</h1><p>Join us.</p></body></html>",
     });
   };
   return { fetch, requested };

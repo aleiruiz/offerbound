@@ -204,6 +204,7 @@ describe("queue configuration (TECHNICAL_SPEC §9)", () => {
       "leads.check": [5, 2, "standard"],
       "leads.rank": [2, 3, "standard"],
       "leads.finalize": [1, 3, "singleton"],
+      "leads.recheck": [1, 1, "singleton"],
       "search.run": [1, 0, "singleton"],
       "timers.tick": [1, 1, "singleton"],
       "backup.nightly": [1, 2, "singleton"],

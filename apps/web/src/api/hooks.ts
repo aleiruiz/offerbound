@@ -480,18 +480,24 @@ export function useRefreshLeads() {
 }
 
 /** `PATCH /leads/:id`: shortlist, dismiss or put a lead back to new. Sends the lead's `version`. */
-export function useSetLeadStatus(
-  callbacks: MutationCallbacks<
-    Lead,
-    { lead: Lead; status: "shortlisted" | "dismissed" | "new" }
-  > = {},
-) {
+export type SetLeadStatus = {
+  lead: Lead;
+  status: "shortlisted" | "dismissed" | "new";
+  /** Only with `dismissed`: why, such as `posting_closed` for *No longer available*. */
+  dismissedReason?: string;
+};
+
+export function useSetLeadStatus(callbacks: MutationCallbacks<Lead, SetLeadStatus> = {}) {
   const refresh = useRefreshLeads();
   return useMutation({
-    mutationFn: ({ lead, status }: { lead: Lead; status: "shortlisted" | "dismissed" | "new" }) =>
+    mutationFn: ({ lead, status, dismissedReason }: SetLeadStatus) =>
       apiFetch(`/leads/${encodeURIComponent(lead.id)}`, {
         method: "PATCH",
-        body: { version: lead.version, status },
+        body: {
+          version: lead.version,
+          status,
+          ...(dismissedReason === undefined ? {} : { dismissedReason }),
+        },
         schema: LeadSchema,
       }),
     onSuccess: async (updated, variables) => {

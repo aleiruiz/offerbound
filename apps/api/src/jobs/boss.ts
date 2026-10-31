@@ -36,6 +36,8 @@ export function schedulesFor(mode: "private" | "demo", _settings: Settings): Sch
       ? { name: QUEUES.demoReset, cron: "0 * * * *" }
       : { name: QUEUES.backupNightly, cron: "30 3 * * *" },
     { name: QUEUES.maintenanceDaily, cron: "0 4 * * *" },
+    // The demo's postings are fictional: checking them would dismiss every one.
+    ...(mode === "private" ? [{ name: QUEUES.leadsRecheck, cron: "30 4 * * *" }] : []),
   ];
 }
 
@@ -56,4 +58,5 @@ export async function registerSchedules(
     await queue.schedule(name, cron, { tz });
   }
   await queue.unschedule(mode === "demo" ? QUEUES.backupNightly : QUEUES.demoReset);
+  if (mode === "demo") await queue.unschedule(QUEUES.leadsRecheck);
 }

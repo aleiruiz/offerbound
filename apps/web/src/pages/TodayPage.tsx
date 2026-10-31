@@ -32,7 +32,7 @@ import { FinishSetupCard } from "../components/FinishSetupCard";
 import { FirstSyncCard } from "../components/FirstSyncCard";
 import { FollowUpRow } from "../components/FollowUpRow";
 import { INTERVIEW_KIND } from "../components/InterviewRow";
-import { LeadRow } from "../components/LeadRow";
+import { LeadRow, POSTING_CLOSED } from "../components/LeadRow";
 import { PipelineRoute } from "../components/PipelineRoute";
 import { ErrorState } from "../components/States";
 import { FlagChip } from "../components/StatusChip";
@@ -534,13 +534,15 @@ function TopLeads({
     );
   }
 
-  const act = (lead: Lead, status: "shortlisted" | "dismissed") =>
+  const act = (lead: Lead, status: "shortlisted" | "dismissed", dismissedReason?: string) =>
     setStatus.mutate(
-      { lead, status },
+      { lead, status, ...(dismissedReason === undefined ? {} : { dismissedReason }) },
       {
         onSuccess: (updated) =>
           snackbar.show(
-            `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
+            dismissedReason === POSTING_CLOSED
+              ? t("Marked {company} as no longer available", { company: lead.company.name })
+              : `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
             async () => {
               await setStatus.mutateAsync({ lead: updated, status: "new" });
             },
@@ -567,6 +569,7 @@ function TopLeads({
           isNew={isFoundSince(lead.foundAt, since)}
           onShortlist={(l) => act(l, "shortlisted")}
           onDismiss={(l) => act(l, "dismissed")}
+          onMarkClosed={(l) => act(l, "dismissed", POSTING_CLOSED)}
         />
       ))}
     </Box>

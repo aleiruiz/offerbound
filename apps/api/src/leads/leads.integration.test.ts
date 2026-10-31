@@ -47,7 +47,9 @@ function fetcher(pages: Record<string, Page> = {}) {
       status: page.status ?? 200,
       finalUrl: page.finalUrl ?? url,
       contentType: "text/html; charset=utf-8",
-      body: page.body ?? "<html><body><h1>Open role</h1><p>We build things.</p></body></html>",
+      body:
+        page.body ??
+        "<html><body><h1>Open role: Backend Engineer</h1><p>We build things.</p></body></html>",
     });
   };
   return { fetch, requested };

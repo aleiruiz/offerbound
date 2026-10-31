@@ -29,6 +29,7 @@ import { runTimersTick } from "../timers/tick.js";
 import { sendPendingChecks } from "../leads/intake.js";
 import { leadJobHandlers } from "../leads/jobs.js";
 import { searchRunHandler } from "../leads/search.js";
+import { runLeadsRecheck } from "../leads/recheck.js";
 import { QUEUE_CONFIG, QUEUES, type QueueName } from "./queues.js";
 
 /** What a handler knows about the job it is running. */
@@ -303,6 +304,11 @@ const maintenanceDaily: JobHandler = async (ctx) => {
   await runMaintenance(ctx, ctx.clock());
 };
 
+/** `leads.recheck`, daily: closed postings and stale leads are dismissed. */
+const leadsRecheck: JobHandler = async (ctx) => {
+  await runLeadsRecheck(ctx);
+};
+
 /** `timers.tick`, every 15 minutes (§6.7): follow-ups, abandonment and interview completion. */
 const timersTick: JobHandler = async (ctx) => {
   await runTimersTick(ctx);
@@ -325,6 +331,7 @@ export const HANDLERS: Partial<Record<QueueName, JobHandler>> = {
   [QUEUES.leadsCheck]: leadJobHandlers.check,
   [QUEUES.leadsRank]: leadJobHandlers.rank,
   [QUEUES.leadsFinalize]: leadJobHandlers.finalize,
+  [QUEUES.leadsRecheck]: leadsRecheck,
   [QUEUES.backupNightly]: backupNightlyHandler(),
   [QUEUES.demoReset]: demoReset,
   [QUEUES.maintenanceDaily]: maintenanceDaily,
