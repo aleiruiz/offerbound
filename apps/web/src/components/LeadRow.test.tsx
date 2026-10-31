@@ -76,6 +76,33 @@ describe("LeadRow", () => {
     expect(open).toHaveAttribute("target", "_blank");
   });
 
+  it("marks an open lead as no longer available", async () => {
+    const user = userEvent.setup();
+    const onMarkClosed = vi.fn();
+    const lead = makeLead();
+    const { unmount } = renderRow(lead, { onMarkClosed });
+    await user.click(screen.getByRole("button", { name: "No longer available" }));
+    expect(onMarkClosed).toHaveBeenCalledWith(lead);
+    unmount();
+
+    renderRow(makeLead({ status: "dismissed" }), { onMarkClosed });
+    expect(screen.queryByRole("button", { name: "No longer available" })).not.toBeInTheDocument();
+  });
+
+  it("says why a closed or expired lead was dismissed, and nothing for other reasons", () => {
+    const { unmount } = renderRow(
+      makeLead({ status: "dismissed", dismissedReason: "posting_closed" }),
+    );
+    expect(screen.getByText("Posting closed")).toBeInTheDocument();
+    unmount();
+    const second = renderRow(makeLead({ status: "dismissed", dismissedReason: "expired" }));
+    expect(screen.getByText("Posting expired")).toBeInTheDocument();
+    second.unmount();
+    renderRow(makeLead({ status: "dismissed", dismissedReason: "toString" }));
+    expect(screen.queryByText("Posting closed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Posting expired")).not.toBeInTheDocument();
+  });
+
   it("offers Reconsider on a dismissed lead and a suppressed reason on a suppressed one", async () => {
     const user = userEvent.setup();
     const onReconsider = vi.fn();

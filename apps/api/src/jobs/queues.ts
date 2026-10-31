@@ -10,6 +10,7 @@ export const QUEUES = {
   leadsCheck: "leads.check",
   leadsRank: "leads.rank",
   leadsFinalize: "leads.finalize",
+  leadsRecheck: "leads.recheck",
   searchRun: "search.run",
   timersTick: "timers.tick",
   backupNightly: "backup.nightly",
@@ -115,6 +116,13 @@ export const QUEUE_CONFIG: Record<QueueName, QueueConfig> = {
     retryDelay: 60,
     concurrency: 1,
     expireInSeconds: 300,
+  },
+  [QUEUES.leadsRecheck]: {
+    policy: "singleton",
+    retryLimit: 1,
+    retryDelay: 300,
+    concurrency: 1,
+    expireInSeconds: 1800,
   },
   [QUEUES.searchRun]: {
     policy: "singleton",

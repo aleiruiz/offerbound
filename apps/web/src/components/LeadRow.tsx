@@ -1,5 +1,6 @@
 import type { Lead, LeadSource, SuppressedReason, Verification } from "@offerbound/contracts";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import EventBusyOutlined from "@mui/icons-material/EventBusyOutlined";
 import MailOutlineOutlined from "@mui/icons-material/MailOutlineOutlined";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Box from "@mui/material/Box";
@@ -71,6 +72,19 @@ const SUPPRESSED: Record<SuppressedReason, string> = {
   },
 };
 
+/** The dismissed reason of *No longer available*, and of a posting the link check found closed. */
+export const POSTING_CLOSED = "posting_closed";
+
+/** The reasons the system (or *No longer available*) gives a dismissed lead; others are not shown. */
+const DISMISSED: Record<string, string> = {
+  get posting_closed() {
+    return t("Posting closed");
+  },
+  get expired() {
+    return t("Posting expired");
+  },
+};
+
 const SOURCE: Record<LeadSource, string> = {
   get search_agent() {
     return t("Found by the search");
@@ -106,6 +120,8 @@ export interface LeadRowProps {
   onShortlist?: (lead: Lead) => void;
   onMarkApplied?: (lead: Lead) => void;
   onDismiss?: (lead: Lead) => void;
+  /** Dismisses the lead because its posting is closed. */
+  onMarkClosed?: (lead: Lead) => void;
   onReconsider?: (lead: Lead) => void;
   /** Found since the owner's previous visit: a New chip first and the signal tint on the row. */
   isNew?: boolean;
@@ -133,6 +149,7 @@ export function LeadRow({
   onShortlist,
   onMarkApplied,
   onDismiss,
+  onMarkClosed,
   onReconsider,
   isNew,
   onViewEmail,
@@ -180,6 +197,15 @@ export function LeadRow({
       label: t("Open application"),
       kind: "text",
       to: `/applications/${lead.applicationId}`,
+    });
+  }
+  if (open && onMarkClosed) {
+    actions.push({
+      key: "closed",
+      label: t("No longer available"),
+      kind: "icon",
+      icon: <EventBusyOutlined fontSize="small" />,
+      onClick: () => onMarkClosed(lead),
     });
   }
   if (open && onDismiss) {
@@ -265,6 +291,11 @@ export function LeadRow({
           ) : null}
           {lead.companySeenBefore ? (
             <FlagChip tone="signal" label={t("Company seen before")} />
+          ) : null}
+          {lead.status === "dismissed" &&
+          lead.dismissedReason &&
+          Object.hasOwn(DISMISSED, lead.dismissedReason) ? (
+            <FlagChip tone="neutral" label={DISMISSED[lead.dismissedReason]!} />
           ) : null}
           {lead.suppressedReason ? (
             <FlagChip tone="neutral" label={SUPPRESSED[lead.suppressedReason]} />

@@ -40,14 +40,17 @@ export async function runLeadCheck(
 ): Promise<void> {
   const lead = await ctx.prisma.lead.findUnique({
     where: { id: leadId },
-    select: { pipelineState: true, jobUrl: true },
+    select: { pipelineState: true, jobUrl: true, title: true },
   });
   if (lead === null || lead.pipelineState !== "checking") {
     await resendFollowUps(ctx, leadId, batchId);
     return;
   }
 
-  const result = lead.jobUrl === null ? NO_LINK : await checkLink(lead.jobUrl, ctx.fetchLink);
+  const result =
+    lead.jobUrl === null
+      ? NO_LINK
+      : await checkLink(lead.jobUrl, ctx.fetchLink, { title: lead.title });
   const now = ctx.clock();
 
   const outcome = await withIntakeLock(ctx.prisma, async (tx): Promise<Outcome | null> => {

@@ -364,7 +364,7 @@ describe("createSafeFetcher", () => {
     }
   });
 
-  it("reads at most 1 MB, and only from text/html or text/plain", async () => {
+  it("reads at most 1 MB, and only from text/html, text/plain or application/json", async () => {
     const chunk = new Uint8Array(600_000).fill(97);
     const big = fakeTransport(() => ({ chunks: [chunk, chunk, chunk] }));
     const result = await createSafeFetcher({ lookup: publicLookup, transport: big.transport })(
@@ -373,7 +373,11 @@ describe("createSafeFetcher", () => {
     expect(result.body).toHaveLength(1_048_576);
     expect(big.closed).toHaveLength(1);
 
-    for (const contentType of ["text/plain", "TEXT/HTML; charset=iso-8859-1"]) {
+    for (const contentType of [
+      "text/plain",
+      "TEXT/HTML; charset=iso-8859-1",
+      "application/json; charset=utf-8",
+    ]) {
       const t = fakeTransport(() => ({
         headers: { "content-type": contentType },
         chunks: [text("x")],
@@ -384,7 +388,7 @@ describe("createSafeFetcher", () => {
       expect(r.body, contentType).toBe("x");
       expect(r.contentType).toBe(contentType);
     }
-    for (const contentType of ["application/pdf", "image/png", "application/json", ""]) {
+    for (const contentType of ["application/pdf", "image/png", "application/xml", ""]) {
       const t = fakeTransport(() => ({
         headers: { "content-type": contentType },
         chunks: [text("x")],

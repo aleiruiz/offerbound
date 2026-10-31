@@ -15,7 +15,8 @@ import { Agent } from "undici";
  *     is resolved a second time (no DNS-rebinding window between check and connect).
  *  3. Redirects are followed by hand, and every hop goes through steps 1 and 2 again.
  *  4. One deadline covers resolution, connection, redirects and body; the body is cut at 1 MB and
- *     read only for text/html and text/plain.
+ *     read only for text/html, text/plain and application/json (an ATS posting API, such as
+ *     Workday's).
  *  5. No cookies, no credentials, a fixed user agent.
  *
  * Nothing here logs. Error messages name the host and never the path or query string.
@@ -25,6 +26,11 @@ export const USER_AGENT = "Offerbound/1.0 (+https://offerbound.northsoftmx.com)"
 const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 1_048_576;
+const READABLE_TYPES: ReadonlySet<string> = new Set([
+  "text/html",
+  "text/plain",
+  "application/json",
+]);
 const ALLOWED_PORTS: ReadonlySet<number> = new Set([80, 443]);
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
@@ -328,7 +334,7 @@ export function createSafeFetcher(opts: SafeFetcherOptions = {}): LinkFetcher {
   const transport = opts.transport ?? undiciTransport;
   const headers = {
     "user-agent": USER_AGENT,
-    accept: "text/html, text/plain;q=0.9",
+    accept: "text/html, text/plain;q=0.9, application/json;q=0.5",
     "accept-encoding": "identity",
   };
 
@@ -376,7 +382,7 @@ export function createSafeFetcher(opts: SafeFetcherOptions = {}): LinkFetcher {
         const readable =
           response.status >= 200 &&
           response.status < 300 &&
-          (mediaType(contentType) === "text/html" || mediaType(contentType) === "text/plain");
+          READABLE_TYPES.has(mediaType(contentType));
         if (!readable) return result;
         const encoding = (response.headers["content-encoding"] ?? "identity").trim().toLowerCase();
         if (encoding !== "identity") {

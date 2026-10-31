@@ -38,7 +38,7 @@ import {
   type LeadSort,
 } from "../api/hooks";
 import { FilterChip } from "../components/FilterChip";
-import { LeadRow } from "../components/LeadRow";
+import { LeadRow, POSTING_CLOSED } from "../components/LeadRow";
 import { Key } from "../components/ShortcutDialog";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
@@ -282,6 +282,7 @@ interface ListProps {
   since: number | null;
   onShortlist: (lead: Lead) => void;
   onDismiss: (lead: Lead) => void;
+  onMarkClosed: (lead: Lead) => void;
   onMarkApplied: (lead: Lead) => void;
   onReconsider: (lead: Lead) => void;
 }
@@ -296,6 +297,7 @@ function LeadList({
   since,
   onShortlist,
   onDismiss,
+  onMarkClosed,
   onMarkApplied,
   onReconsider,
   label,
@@ -338,6 +340,7 @@ function LeadList({
             rowProps={getRowProps(i)}
             onShortlist={onShortlist}
             onDismiss={onDismiss}
+            onMarkClosed={onMarkClosed}
             onMarkApplied={onMarkApplied}
             onReconsider={onReconsider}
           />
@@ -419,12 +422,14 @@ export function LeadsPage() {
 
   const restore = useSetLeadStatus();
   const setStatus = useSetLeadStatus({
-    onSuccess: (updated, { lead, status }) => {
+    onSuccess: (updated, { lead, status, dismissedReason }) => {
       settle(lead);
       // Undo goes back to where the lead was: New, or Shortlisted for a dismissed shortlisted lead.
       const before = lead.status === "shortlisted" ? "shortlisted" : "new";
       snackbar.show(
-        `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
+        dismissedReason === POSTING_CLOSED
+          ? t("Marked {company} as no longer available", { company: lead.company.name })
+          : `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
         async () => {
           await restore.mutateAsync({ lead: updated, status: before });
         },
@@ -498,6 +503,10 @@ export function LeadsPage() {
     act(lead, () => setStatus.mutate({ lead, status: "shortlisted" }));
   const onDismiss = (lead: Lead) =>
     act(lead, () => setStatus.mutate({ lead, status: "dismissed" }));
+  const onMarkClosed = (lead: Lead) =>
+    act(lead, () =>
+      setStatus.mutate({ lead, status: "dismissed", dismissedReason: POSTING_CLOSED }),
+    );
   const onMarkApplied = (lead: Lead) => act(lead, () => markApplied.mutate(lead));
   const onReconsider = (lead: Lead) =>
     act(lead, () =>
@@ -733,6 +742,7 @@ export function LeadsPage() {
               since={since}
               onShortlist={onShortlist}
               onDismiss={onDismiss}
+              onMarkClosed={onMarkClosed}
               onMarkApplied={onMarkApplied}
               onReconsider={onReconsider}
             />

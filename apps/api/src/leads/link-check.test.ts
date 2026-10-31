@@ -337,3 +337,106 @@ describe("checkLink with the safe fetcher", () => {
     expect(result.verdict).toBe("unverified");
   });
 });
+
+describe("checkLink: closed postings that answer 200", () => {
+  it("a page that does not mention the lead's title → unverified, not verified", async () => {
+    const { fetch } = stubFetcher({
+      body: html("<h1>Careers at Example</h1><p>Search open roles in every team.</p>"),
+    });
+    expect(
+      await checkLink(URL_OK, fetch, { title: "Senior Full Stack Software Development Engineer" }),
+    ).toEqual({ verdict: "unverified", finalUrl: URL_OK, pageExcerpt: null, titleMissing: true });
+  });
+
+  it("a page that mentions the title → verified, also when it is worded a little differently", async () => {
+    const { fetch } = stubFetcher({
+      body: html("<h1>Sr. Full-Stack Software Engineer (México)</h1><p>Build things.</p>"),
+    });
+    const result = await checkLink(URL_OK, fetch, {
+      title: "Senior Full Stack Software Development Engineer - Mexico",
+    });
+    expect(result.verdict).toBe("verified");
+  });
+
+  it("new closed markers, in English and Spanish → dead", async () => {
+    for (const text of [
+      "Sorry, the job you are looking for is no longer open.",
+      "This position is no longer available.",
+      "This job posting has expired",
+      "Esta vacante ya no acepta solicitudes",
+    ]) {
+      const { fetch } = stubFetcher({ body: html(`<p>${text}</p>`) });
+      expect((await checkLink(URL_OK, fetch)).verdict, text).toBe("dead");
+    }
+  });
+
+  it("a Greenhouse board reached with ?error=true → dead", async () => {
+    const { fetch } = stubFetcher({
+      finalUrl: "https://job-boards.greenhouse.io/example?error=true",
+      body: html("<h1>Current openings at Example</h1>"),
+    });
+    expect(
+      (await checkLink("https://job-boards.greenhouse.io/example/jobs/123", fetch)).verdict,
+    ).toBe("dead");
+  });
+});
+
+describe("checkLink: Workday", () => {
+  const PAGE =
+    "https://zillow.wd5.myworkdayjobs.com/en-US/Zillow_Group_External/job/Remote-Mexico/Senior-Engineer_P744123";
+  const API =
+    "https://zillow.wd5.myworkdayjobs.com/wday/cxs/zillow/Zillow_Group_External/job/Remote-Mexico/Senior-Engineer_P744123";
+
+  it("maps a job page to the posting API, and ignores other Workday pages", async () => {
+    const { workdayApiUrl } = await import("./link-check.js");
+    expect(workdayApiUrl(new URL(PAGE))).toBe(API);
+    expect(
+      workdayApiUrl(new URL("https://acme.wd1.myworkdayjobs.com/External/job/NYC/Dev_R1")),
+    ).toBe("https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External/job/NYC/Dev_R1");
+    expect(workdayApiUrl(new URL("https://acme.wd1.myworkdayjobs.com/External"))).toBeNull();
+    expect(workdayApiUrl(new URL("https://jobs.example/External/job/x"))).toBeNull();
+  });
+
+  it("a posting the API no longer has → dead, asked of the API and not the page", async () => {
+    const { fetch, requested } = stubFetcher({ status: 404, body: "" });
+    expect(await checkLink(PAGE, fetch)).toEqual({
+      verdict: "dead",
+      finalUrl: PAGE,
+      pageExcerpt: null,
+    });
+    expect(requested).toEqual([API]);
+  });
+
+  it("a posting that no longer takes applications → dead", async () => {
+    const { fetch } = stubFetcher({
+      contentType: "application/json",
+      body: JSON.stringify({ jobPostingInfo: { title: "Senior Engineer", canApply: false } }),
+    });
+    expect((await checkLink(PAGE, fetch)).verdict).toBe("dead");
+  });
+
+  it("an open posting → verified, with its description as the excerpt", async () => {
+    const { fetch } = stubFetcher({
+      contentType: "application/json",
+      body: JSON.stringify({
+        jobPostingInfo: {
+          title: "Senior Engineer",
+          canApply: true,
+          jobDescription: "<p>Build <b>things</b>.</p>",
+        },
+      }),
+    });
+    expect(await checkLink(PAGE, fetch)).toEqual({
+      verdict: "verified",
+      finalUrl: PAGE,
+      pageExcerpt: "Senior Engineer\n\nBuild things.",
+    });
+  });
+
+  it("an answer that is not a posting → unverified", async () => {
+    for (const body of ["<html>shell</html>", "{}"]) {
+      const { fetch } = stubFetcher({ body });
+      expect((await checkLink(PAGE, fetch)).verdict, body).toBe("unverified");
+    }
+  });
+});

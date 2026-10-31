@@ -481,9 +481,12 @@ Asynchronous (not used for search-agent leads, which are checked and ranked insi
 `GET` with redirects (max 5), timeout 10 s, user agent `Offerbound/1.0 (+https://offerbound.northsoftmx.com)`, body read up to 1 MB.
 - Host `linkedin.com` → `unverifiable` (no request).
 - 404 or 410 → `dead`.
-- 200 and the HTML text contains a closed marker (`no longer accepting`, `job is no longer available`, `position has been filled`, `this job has expired`, `job not found`, `ya no está disponible`, `vacante cerrada`), or the final URL is the bare board root of a known ATS (e.g. `jobs.ashbyhq.com/{org}` with no job id) → `dead`.
-- 200 otherwise → `verified`; store the first 8,000 characters of the page text as `page_excerpt` for ranking.
+- A Workday job page (`{tenant}.wdN.myworkdayjobs.com/[locale/]{site}/job/...`) is a script-only shell, so Workday's posting API on the same host is asked instead (`/wday/cxs/{tenant}/{site}/job/...`): 404 or 410, or `canApply: false` → `dead`; a posting with a title → `verified`, its description as the excerpt; anything else → `unverified`.
+- 200 and the HTML text contains a closed marker (the list in `link-check.ts`, English and Spanish: `no longer accepting`, `job is no longer available`, `job is no longer open`, `position has been filled`, `this job has expired`, `job not found`, `ya no está disponible`, `vacante cerrada`, ...), or the final URL is the bare board root of a known ATS (e.g. `jobs.ashbyhq.com/{org}` with no job id, or a Greenhouse board with `?error=`) → `dead`.
+- 200 and the page text mentions the lead's title (at least half of the title's meaningful words) → `verified`; store the first 8,000 characters of the page text as `page_excerpt` for ranking. A 200 page that does not mention the title (a careers search page, a script-only shell) → `unverified`.
 - Anything else (timeouts, 403, 5xx) → `unverified`.
+
+`leads.recheck` (daily, private mode) runs the same check again on every New lead whose last check is more than 20 hours old (at most 150 per run, oldest first). `dead` → the lead is dismissed with reason `posting_closed`. A lead that was `verified` stays so when the fetch fails (timeout, 403, 5xx), but a 200 page that no longer shows the title demotes it; other verdicts replace the stored one, and only a change to status or verification moves `version`. Shortlisted leads are left to the owner. Then a New lead that is not `verified` and whose `found_at` is more than 30 days old is dismissed with reason `expired`, unless the owner has moved it since it was created. Writes carry the version that was read. The owner can also dismiss a lead with reason `posting_closed` (*No longer available*).
 
 ### 7.3 Search agent (F10)
 
@@ -584,6 +587,7 @@ pg-boss retries with exponential backoff (base 30 s): triage and extraction 4 re
 | `backup.nightly` | 03:30 owner TZ (private) | singleton | 2 | file name per date |
 | `demo.reset` | hourly (demo) | singleton | 1 | full reseed |
 | `maintenance.daily` | 04:00 owner TZ | singleton | 1 | deletes expired sessions and import previews; deletes `llm_call` rows older than 180 days |
+| `leads.recheck` | 04:30 owner TZ (private) | singleton | 1 | writes guarded by `version`; only open leads |
 
 pg-boss cron schedules use the `tz` option with `USER_TIMEZONE`. The worker registers schedules according to `APP_MODE`. `PUT /settings` re-registers the `search.run` schedule when `search.runTime` or `search.enabled` changes. `gmail.sync` is only scheduled once the owner has pressed *Start syncing* and the connection is `active`.
 

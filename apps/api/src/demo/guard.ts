@@ -18,7 +18,15 @@ import { ApiError } from "../http/errors.js";
  * Reads always pass. Everything is answered with `403 demo_read_only`.
  */
 type Rule =
-  "allow" | "block" | { patch: readonly string[]; emptyOnly?: readonly string[] } | "resolve";
+  | "allow"
+  | "block"
+  | {
+      patch: readonly string[];
+      /** Text fields that may only be empty, or one of the fixed values listed for them. */
+      emptyOnly?: readonly string[];
+      fixedValues?: Readonly<Record<string, readonly string[]>>;
+    }
+  | "resolve";
 
 export const DEMO_RULES: Readonly<Record<string, Rule>> = {
   // Free text, files and manual records.
@@ -41,10 +49,12 @@ export const DEMO_RULES: Readonly<Record<string, Rule>> = {
   // Edits: only the fields that are not text.
   "PATCH /applications/:id": { patch: ["version", "status", "appliedAt", "workMode"] },
   "PATCH /interviews/:id": { patch: ["version", "kind", "status", "startsAt", "endsAt"] },
-  // A dismiss reason is text: `""` (no reason) passes.
+  // A dismiss reason is text: `""` (no reason) passes, and so does the fixed reason of
+  // *No longer available*.
   "PATCH /leads/:id": {
     patch: ["version", "status", "dismissedReason"],
     emptyOnly: ["dismissedReason"],
+    fixedValues: { dismissedReason: ["posting_closed"] },
   },
   "PATCH /companies/:id": { patch: ["version", "groupId"] },
 
@@ -103,7 +113,12 @@ function permitted(request: FastifyRequest, rule: Rule | undefined): boolean {
   if (body === null) return false;
   return Object.entries(body).every(([name, value]) => {
     if (!rule.patch.includes(name)) return false;
-    return !rule.emptyOnly?.includes(name) || value === "" || value === undefined;
+    return (
+      !rule.emptyOnly?.includes(name) ||
+      value === "" ||
+      value === undefined ||
+      (typeof value === "string" && (rule.fixedValues?.[name]?.includes(value) ?? false))
+    );
   });
 }
 

@@ -326,6 +326,31 @@ describe("LeadsPage", () => {
       ]);
     });
 
+    it("No longer available dismisses with the reason posting_closed, and Undo puts it back", async () => {
+      const { api, user } = setup({
+        "PATCH /api/v1/leads/l2": () => ({
+          ...KITTIWAKE,
+          status: "dismissed",
+          dismissedReason: "posting_closed",
+          version: 2,
+        }),
+      });
+      await screen.findByText("Kittiwake Systems");
+      await user.click(
+        rowOf("Kittiwake Systems").getByRole("button", { name: "No longer available" }),
+      );
+      expect(
+        await screen.findByText("Marked Kittiwake Systems as no longer available"),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+      await screen.findByText("Undone");
+      const patches = callsTo(api, "PATCH", "/api/v1/leads/l2");
+      expect(await Promise.all(patches.map((p) => p.json()))).toEqual([
+        { version: 1, status: "dismissed", dismissedReason: "posting_closed" },
+        { version: 2, status: "new" },
+      ]);
+    });
+
     it("refreshes the lists and the counts after a change", async () => {
       let store = ALL_LEADS;
       const { user } = setup(

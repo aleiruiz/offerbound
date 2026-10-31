@@ -22,6 +22,7 @@ import { FakeGmailClient, fakeGmailFactory } from "../gmail/fake-client.js";
 import { runIncrementalSync } from "../gmail/sync.js";
 import { FakeLlmProvider } from "../llm/fake-provider.js";
 import type { LinkFetcher } from "../leads/ssrf.js";
+import { fixtureJobTitles, fixtureLinkFetcher } from "../demo/runtime.js";
 
 /**
  * The day-2 exit check (TECHNICAL_SPEC §15, pipeline integration): every fixture email goes from
@@ -32,14 +33,8 @@ import type { LinkFetcher } from "../leads/ssrf.js";
 const prisma = testPrisma();
 const fixtures = loadEmailFixtures();
 
-/** Every job link in an alert is a live posting. */
-const verifiedPage: LinkFetcher = (url) =>
-  Promise.resolve({
-    status: 200,
-    finalUrl: url,
-    contentType: "text/html",
-    body: "<html><body><h1>Open role</h1><p>We are hiring. Apply now.</p></body></html>",
-  });
+/** Every job link in an alert is a live posting that names its job. */
+const verifiedPage: LinkFetcher = fixtureLinkFetcher(fixtureJobTitles(fixtures));
 
 /**
  * The mailbox's backfill listing leaves out spam and anything before the backfill start, so the

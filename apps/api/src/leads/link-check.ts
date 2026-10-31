@@ -14,6 +14,11 @@ export type LinkCheckResult = {
   verdict: "dead" | "verified" | "unverified" | "unverifiable";
   finalUrl: string | null;
   pageExcerpt: string | null;
+  /**
+   * Set on an `unverified` page that answered 200 but did not show the job: the posting is
+   * likely gone (a careers search page), unlike a timeout or a 403, which says nothing.
+   */
+  titleMissing?: true;
 };
 
 const EXCERPT_CHARS = 8000;
@@ -29,11 +34,24 @@ const MAX_HTML_CHARS = 128 * 1024;
 const CLOSED_MARKERS = [
   "no longer accepting",
   "job is no longer available",
+  "job is no longer open",
+  "job you are looking for is no longer",
+  "position is no longer available",
+  "posting is no longer available",
+  "this job is closed",
+  "this position is closed",
+  "this position has been closed",
+  "this job posting has expired",
+  "this posting has expired",
   "position has been filled",
   "this job has expired",
   "job not found",
+  "the page you are looking for doesn't exist",
   "ya no está disponible",
+  "ya no esta disponible",
+  "ya no acepta solicitudes",
   "vacante cerrada",
+  "esta vacante ha expirado",
 ] as const;
 
 /**
@@ -71,6 +89,8 @@ function isLinkedIn(url: URL): boolean {
 
 function isBoardRoot(url: URL): boolean {
   if (!BOARD_HOSTS.has(url.hostname)) return false;
+  // Greenhouse sends a closed posting to the board with `?error=true`, whatever the path.
+  if (url.hostname.includes("greenhouse.io") && url.searchParams.has("error")) return true;
   if (url.pathname.split("/").filter((segment) => segment !== "").length > 1) return false;
   for (const name of url.searchParams.keys()) if (!isHarmlessParam(name)) return false;
   return true;
@@ -109,7 +129,103 @@ function excerptOf(text: string): string | null {
   return excerpt;
 }
 
-export async function checkLink(url: string, fetch: LinkFetcher): Promise<LinkCheckResult> {
+/**
+ * Workday job pages are a script-only shell that answers 200 whether or not the posting is still
+ * open, so they are judged from Workday's own posting API on the same host
+ * (`/wday/cxs/{tenant}/{site}/job/...`), which answers 404 once the posting is gone.
+ * Returns null for a URL that is not a Workday job page.
+ */
+export function workdayApiUrl(url: URL): string | null {
+  const host = /^([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com$/.exec(url.hostname);
+  if (host === null) return null;
+  const segments = url.pathname.split("/").filter((segment) => segment !== "");
+  if (segments.length > 0 && /^[a-z]{2}-[a-z]{2}$/i.test(segments[0]!)) segments.shift();
+  const [site, kind, ...rest] = segments;
+  if (site === undefined || kind !== "job" || rest.length === 0) return null;
+  return `https://${url.hostname}/wday/cxs/${host[1]}/${site}/job/${rest.join("/")}`;
+}
+
+async function checkWorkday(apiUrl: string, finalUrl: string, fetch: LinkFetcher) {
+  let response: Awaited<ReturnType<LinkFetcher>>;
+  try {
+    response = await fetch(apiUrl);
+  } catch {
+    return { verdict: "unverified", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+  }
+  if (response.status === 404 || response.status === 410) {
+    return { verdict: "dead", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+  }
+  if (response.status !== 200) {
+    return { verdict: "unverified", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+  }
+  try {
+    const data = JSON.parse(response.body) as {
+      jobPostingInfo?: { title?: unknown; jobDescription?: unknown; canApply?: unknown };
+    };
+    const info = data.jobPostingInfo;
+    if (info === undefined || typeof info.title !== "string") {
+      return { verdict: "unverified", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+    }
+    if (info.canApply === false) {
+      return { verdict: "dead", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+    }
+    const description =
+      typeof info.jobDescription === "string" ? pageText("text/html", info.jobDescription) : "";
+    return {
+      verdict: "verified",
+      finalUrl,
+      pageExcerpt: excerptOf(`${info.title}\n\n${description}`.trim()),
+    } satisfies LinkCheckResult;
+  } catch {
+    return { verdict: "unverified", finalUrl, pageExcerpt: null } satisfies LinkCheckResult;
+  }
+}
+
+/** Words of a job title too common to show that a page is about this job. */
+const TITLE_STOPWORDS: ReadonlySet<string> = new Set([
+  "and",
+  "the",
+  "for",
+  "with",
+  "remote",
+  "remoto",
+  "hybrid",
+  "para",
+  "con",
+]);
+
+function words(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9+#]+/)
+    .filter((word) => word.length >= 2);
+}
+
+/**
+ * Whether a page mentions the job: at least half of the title's meaningful words appear in it.
+ * A careers site that sends a closed posting to its search page, or a script-only shell, answers
+ * 200 without the job on it; such a page is not proof that the posting is open.
+ */
+export function mentionsTitle(text: string, title: string): boolean {
+  const wanted = [...new Set(words(title).filter((word) => !TITLE_STOPWORDS.has(word)))];
+  if (wanted.length === 0) return true;
+  const present = new Set(words(text));
+  const found = wanted.filter((word) => present.has(word)).length;
+  return found * 2 >= wanted.length;
+}
+
+export type CheckLinkOptions = {
+  /** The lead's job title. When given, a page that does not mention it is not `verified`. */
+  title?: string | null;
+};
+
+export async function checkLink(
+  url: string,
+  fetch: LinkFetcher,
+  options: CheckLinkOptions = {},
+): Promise<LinkCheckResult> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -118,6 +234,9 @@ export async function checkLink(url: string, fetch: LinkFetcher): Promise<LinkCh
   }
   // Hosts that need a login are never fetched.
   if (isLinkedIn(parsed)) return { verdict: "unverifiable", finalUrl: null, pageExcerpt: null };
+
+  const workday = workdayApiUrl(parsed);
+  if (workday !== null) return checkWorkday(workday, url, fetch);
 
   let response: Awaited<ReturnType<LinkFetcher>>;
   try {
@@ -134,6 +253,8 @@ export async function checkLink(url: string, fetch: LinkFetcher): Promise<LinkCh
     return { verdict: "unverified", finalUrl: null, pageExcerpt: null };
   }
   if (isLinkedIn(final)) return { verdict: "unverifiable", finalUrl: null, pageExcerpt: null };
+  const workdayFinal = workdayApiUrl(final);
+  if (workdayFinal !== null) return checkWorkday(workdayFinal, response.finalUrl, fetch);
 
   const finalUrl = response.finalUrl;
   if (response.status === 404 || response.status === 410) {
@@ -151,6 +272,9 @@ export async function checkLink(url: string, fetch: LinkFetcher): Promise<LinkCh
   const haystack = normalize(text);
   if (isBoardRoot(final) || CLOSED_MARKERS.some((marker) => haystack.includes(marker))) {
     return { verdict: "dead", finalUrl, pageExcerpt: null };
+  }
+  if (options.title && !mentionsTitle(text, options.title)) {
+    return { verdict: "unverified", finalUrl, pageExcerpt: null, titleMissing: true };
   }
   return { verdict: "verified", finalUrl, pageExcerpt: excerptOf(text) };
 }
