@@ -9,29 +9,49 @@ import { isHttpUrl } from "../lib/url";
 import { RowActions } from "./RowActions";
 import { FlagChip } from "./StatusChip";
 import { DEMO_REASON, useIsDemo } from "../lib/demo";
+import { t } from "../i18n";
 
 export const INTERVIEW_KIND: Record<InterviewKind, string> = {
-  recruiter_screen: "Recruiter screen",
-  hiring_manager: "Hiring manager interview",
-  technical: "Technical interview",
-  system_design: "System design",
-  behavioral: "Behavioral interview",
-  take_home_review: "Take-home review",
-  onsite_loop: "Onsite loop",
-  other: "Interview",
+  get recruiter_screen() {
+    return t("Recruiter screen");
+  },
+  get hiring_manager() {
+    return t("Hiring manager interview");
+  },
+  get technical() {
+    return t("Technical interview");
+  },
+  get system_design() {
+    return t("System design");
+  },
+  get behavioral() {
+    return t("Behavioral interview");
+  },
+  get take_home_review() {
+    return t("Take-home review");
+  },
+  get onsite_loop() {
+    return t("Onsite loop");
+  },
+  get other() {
+    return t("Interview");
+  },
 };
 
 const DAY_MS = 86_400_000;
 
 function list(names: string[]): string {
   if (names.length <= 1) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return t("{names} and {last}", {
+    names: names.slice(0, -1).join(", "),
+    last: names[names.length - 1] as string,
+  });
 }
 
 function dayChip(startsAt: string, tz: string, now: Date): string | null {
   const day = localDayKey(startsAt, tz);
-  if (day === localDayKey(now, tz)) return "Today";
-  if (day === localDayKey(new Date(now.getTime() + DAY_MS), tz)) return "Tomorrow";
+  if (day === localDayKey(now, tz)) return t("Today");
+  if (day === localDayKey(new Date(now.getTime() + DAY_MS), tz)) return t("Tomorrow");
   return null;
 }
 
@@ -70,16 +90,19 @@ export function InterviewRow({
     ? interview.endsAt
       ? `${formatTime(interview.startsAt, timezone)}–${formatTime(interview.endsAt, timezone)}`
       : formatTime(interview.startsAt, timezone)
-    : "No time yet";
+    : t("No time yet");
   const chip =
     interview.status === "cancelled"
-      ? "Cancelled"
+      ? t("Cancelled")
       : interview.status === "completed"
-        ? "Done"
+        ? t("Done")
         : interview.startsAt
           ? dayChip(interview.startsAt, timezone, current)
           : null;
-  const people = interview.interviewers.length > 0 ? ` With ${list(interview.interviewers)}.` : "";
+  const people =
+    interview.interviewers.length > 0
+      ? ` ${t("With {names}.", { names: list(interview.interviewers) })}`
+      : "";
 
   return (
     <Box
@@ -120,7 +143,11 @@ export function InterviewRow({
           {chip ? (
             <Box component="span" sx={{ ml: 0.5 }}>
               <FlagChip
-                tone={chip === "Cancelled" || chip === "Done" ? "neutral" : "route"}
+                tone={
+                  interview.status === "cancelled" || interview.status === "completed"
+                    ? "neutral"
+                    : "route"
+                }
                 label={chip}
               />
             </Box>
@@ -143,7 +170,7 @@ export function InterviewRow({
             sx={linkSx}
           >
             <VideocamOutlined fontSize="small" />
-            Join video call
+            {t("Join video call")}
           </Link>
         ) : null}
       </Box>
@@ -153,7 +180,7 @@ export function InterviewRow({
             ? [
                 {
                   key: "pick",
-                  label: "Pick a time",
+                  label: t("Pick a time"),
                   kind: "outlined" as const,
                   href: interview.schedulingUrl,
                 },
@@ -163,16 +190,16 @@ export function InterviewRow({
             ? [
                 {
                   key: "prep",
-                  label: "Prep notes",
+                  label: t("Prep notes"),
                   kind: "outlined" as const,
                   onClick: () => onPrepNotes(interview),
-                  ...(demo ? { disabledReason: DEMO_REASON.notes } : {}),
+                  ...(demo ? { disabledReason: t(DEMO_REASON.notes) } : {}),
                 },
               ]
             : []),
           {
             key: "open",
-            label: "Open application",
+            label: t("Open application"),
             kind: "text" as const,
             to: `/applications/${application.id}`,
           },

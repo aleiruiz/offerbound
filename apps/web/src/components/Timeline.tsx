@@ -9,6 +9,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useRef, type KeyboardEvent } from "react";
 import { DEFAULT_TIMEZONE, formatDateTime } from "../lib/format";
 import { isTypingTarget } from "../lib/shortcuts";
+import { t } from "../i18n";
 
 /** What the stop's shape says about the entry (DESIGN_SPEC §6.3): never color alone. */
 export type StopKind = "auto" | "email" | "owner" | "lead";
@@ -167,7 +168,7 @@ export function Timeline({
   return (
     <Box
       component="ol"
-      aria-label="Application timeline"
+      aria-label={t("Application timeline")}
       sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexDirection: "column" }}
     >
       {sorted.map((event) => {
@@ -239,12 +240,12 @@ export function Timeline({
               </Typography>
               {event.undoneAt !== null ? (
                 <Typography variant="caption" color="text.secondary">
-                  {`Undone on ${formatDateTime(event.undoneAt, timezone)}`}
+                  {t("Undone on {date}", { date: formatDateTime(event.undoneAt, timezone) })}
                 </Typography>
               ) : null}
               {cannotUndo ? (
                 <Typography variant="caption" color="text.secondary">
-                  Can't undo: the application changed after this.
+                  {t("Can't undo: the application changed after this.")}
                 </Typography>
               ) : null}
               {canUndo || event.messageId !== null ? (
@@ -255,7 +256,7 @@ export function Timeline({
                       startIcon={<UndoOutlined />}
                       onClick={() => onUndo(event.id)}
                     >
-                      Undo
+                      {t("Undo")}
                     </Button>
                   ) : null}
                   {event.messageId !== null ? (
@@ -264,7 +265,7 @@ export function Timeline({
                       startIcon={<MailOutlineOutlined />}
                       onClick={() => onViewEmail(event.messageId as string)}
                     >
-                      View email
+                      {t("View email")}
                     </Button>
                   ) : null}
                 </Box>

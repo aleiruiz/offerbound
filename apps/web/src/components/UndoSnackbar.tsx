@@ -3,6 +3,7 @@ import Snackbar, { type SnackbarCloseReason } from "@mui/material/Snackbar";
 import SnackbarContent from "@mui/material/SnackbarContent";
 import { useEffect, useSyncExternalStore } from "react";
 import { ApiClientError } from "../api/client";
+import { msg, t } from "../i18n";
 
 const AUTO_HIDE_MS = 6000;
 
@@ -43,21 +44,21 @@ export function useUndoSnackbar(): {
   return handle;
 }
 
-const CHANGED_ELSEWHERE = "Can't undo: changes were made elsewhere. Reload to see the latest.";
-const CANNOT_UNDO = "Can't undo: this application changed after the update. Edit it directly.";
+const CHANGED_ELSEWHERE = msg("Can't undo: changes were made elsewhere. Reload to see the latest.");
+const CANNOT_UNDO = msg("Can't undo: this application changed after the update. Edit it directly.");
 
 async function runUndo(onUndo: () => Promise<void>): Promise<void> {
   set({ open: false });
   try {
     await onUndo();
-    show("Undone");
+    show(t("Undone"));
   } catch (error) {
     if (error instanceof ApiClientError && error.code === "changed_since") {
-      show(CANNOT_UNDO, undefined, "alert");
+      show(t(CANNOT_UNDO), undefined, "alert");
     } else if (error instanceof ApiClientError && error.code === "version_conflict") {
-      show(CHANGED_ELSEWHERE, undefined, "alert");
+      show(t(CHANGED_ELSEWHERE), undefined, "alert");
     } else {
-      show("Couldn't undo this change.", onUndo, "alert");
+      show(t("Couldn't undo this change."), onUndo, "alert");
     }
   }
 }
@@ -99,7 +100,7 @@ export function UndoSnackbar() {
               onClick={() => void runUndo(onUndo)}
               sx={(theme) => ({ color: theme.palette.tokens.routeOnInk })}
             >
-              Undo
+              {t("Undo")}
             </Button>
           ) : undefined
         }

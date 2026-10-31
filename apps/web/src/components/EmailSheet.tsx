@@ -12,6 +12,7 @@ import { useMessage } from "../api/hooks";
 import { DEFAULT_TIMEZONE, formatDateTime } from "../lib/format";
 import { splitLinks } from "../lib/url";
 import { ErrorState } from "./States";
+import { t } from "../i18n";
 
 /** The body as plain text; only `http(s)` URLs become links (SECURITY §10). */
 function BodyText({ text }: { text: string }) {
@@ -34,7 +35,7 @@ function sender(message: MessageDetail): string {
   const name = message.fromName?.trim();
   const email = message.fromEmail;
   if (name && email) return `${name} (${email})`;
-  return name || email || "Unknown sender";
+  return name || email || t("Unknown sender");
 }
 
 export interface EmailSheetProps {
@@ -80,15 +81,19 @@ export function EmailSheet({ messageId, onClose, timezone = DEFAULT_TIMEZONE }: 
           }}
         >
           <Typography id="email-sheet-title" variant="h6" component="h2">
-            {message ? (message.subject ?? "No subject") : "Email"}
+            {message ? (message.subject ?? t("No subject")) : t("Email")}
           </Typography>
-          <IconButton aria-label="Close" onClick={onClose} edge="end">
+          <IconButton aria-label={t("Close")} onClick={onClose} edge="end">
             <CloseOutlined fontSize="small" />
           </IconButton>
         </Box>
 
         {query.isError ? (
-          <ErrorState what="the email" error={query.error} onRetry={() => void query.refetch()} />
+          <ErrorState
+            what={t("the email")}
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
         ) : message ? (
           <>
             <Box>
@@ -102,13 +107,13 @@ export function EmailSheet({ messageId, onClose, timezone = DEFAULT_TIMEZONE }: 
             {message.bodyText ? (
               <BodyText text={message.bodyText} />
             ) : (
-              <Typography color="text.secondary">This email has no text to show.</Typography>
+              <Typography color="text.secondary">{t("This email has no text to show.")}</Typography>
             )}
           </>
         ) : (
           <Box
             aria-busy="true"
-            aria-label="Loading email"
+            aria-label={t("Loading email")}
             sx={{ display: "flex", flexDirection: "column", gap: 1 }}
           >
             <Skeleton variant="rounded" width="40%" height={16} />

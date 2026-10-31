@@ -15,26 +15,87 @@ import { ApiClientError } from "../api/client";
 import { isConflict, useResolveReviewItem } from "../api/hooks";
 import { isHttpUrl } from "../lib/url";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { msg, t } from "../i18n";
 
 const TITLE_ID = "review-edit-title";
 
 /** What each kind of email is called to the owner. */
 const CATEGORIES: { value: EmailCategory; label: string }[] = [
-  { value: "application_confirmation", label: "Application received" },
-  { value: "rejection", label: "Rejection" },
-  { value: "interview_invite", label: "Interview invitation" },
-  { value: "interview_reschedule", label: "Interview rescheduled" },
-  { value: "interview_cancellation", label: "Interview cancelled" },
-  { value: "assessment", label: "Assessment request" },
-  { value: "offer", label: "Offer" },
-  { value: "recruiter_outreach", label: "Recruiter message" },
-  { value: "job_alert", label: "Job alert" },
-  { value: "status_update_other", label: "Other update on an application" },
-  { value: "candidate_outbound", label: "Email you sent" },
-  { value: "not_job_related", label: "Not about a job" },
+  {
+    value: "application_confirmation",
+    get label() {
+      return t("Application received");
+    },
+  },
+  {
+    value: "rejection",
+    get label() {
+      return t("Rejection");
+    },
+  },
+  {
+    value: "interview_invite",
+    get label() {
+      return t("Interview invitation");
+    },
+  },
+  {
+    value: "interview_reschedule",
+    get label() {
+      return t("Interview rescheduled");
+    },
+  },
+  {
+    value: "interview_cancellation",
+    get label() {
+      return t("Interview cancelled");
+    },
+  },
+  {
+    value: "assessment",
+    get label() {
+      return t("Assessment request");
+    },
+  },
+  {
+    value: "offer",
+    get label() {
+      return t("Offer");
+    },
+  },
+  {
+    value: "recruiter_outreach",
+    get label() {
+      return t("Recruiter message");
+    },
+  },
+  {
+    value: "job_alert",
+    get label() {
+      return t("Job alert");
+    },
+  },
+  {
+    value: "status_update_other",
+    get label() {
+      return t("Other update on an application");
+    },
+  },
+  {
+    value: "candidate_outbound",
+    get label() {
+      return t("Email you sent");
+    },
+  },
+  {
+    value: "not_job_related",
+    get label() {
+      return t("Not about a job");
+    },
+  },
 ];
 
-const CHANGED_ELSEWHERE = "Changes were made elsewhere. Review has been refreshed.";
+const CHANGED_ELSEWHERE = msg("Changes were made elsewhere. Review has been refreshed.");
 
 function Form({
   item,
@@ -52,14 +113,14 @@ function Form({
 
   const resolve = useResolveReviewItem({
     onSuccess: () => {
-      snackbar.show("Applied your edits");
+      snackbar.show(t("Applied your edits"));
       onClose();
       onResolved(item.id);
     },
     onError: (error) => {
       // Changed elsewhere (a 409 with any code): the lists were fetched again, so leave the dialog.
       if (isConflict(error)) {
-        snackbar.show(CHANGED_ELSEWHERE);
+        snackbar.show(t(CHANGED_ELSEWHERE));
         onClose();
       }
     },
@@ -70,7 +131,7 @@ function Form({
 
   const submit = () => {
     if (url !== "" && !isHttpUrl(url)) {
-      setUrlError("Enter a link that starts with http:// or https://");
+      setUrlError(t("Enter a link that starts with http:// or https://"));
       return;
     }
     setUrlError(null);
@@ -86,22 +147,23 @@ function Form({
 
   return (
     <>
-      <DialogTitle id={TITLE_ID}>Edit and apply</DialogTitle>
+      <DialogTitle id={TITLE_ID}>{t("Edit and apply")}</DialogTitle>
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
         <Typography variant="body2" color="text.secondary">
-          Change what Offerbound read from the email, then apply it. Leave a field empty to keep
-          what was read.
+          {t(
+            "Change what Offerbound read from the email, then apply it. Leave a field empty to keep what was read.",
+          )}
         </Typography>
         <TextField
           select
-          label="What the email is"
+          label={t("What the email is")}
           value={category}
           onChange={(e) => setCategory(e.target.value as EmailCategory | "")}
           fullWidth
         >
-          <MenuItem value="">Keep what was read</MenuItem>
+          <MenuItem value="">{t("Keep what was read")}</MenuItem>
           {CATEGORIES.map((c) => (
             <MenuItem key={c.value} value={c.value}>
               {c.label}
@@ -109,7 +171,7 @@ function Form({
           ))}
         </TextField>
         <TextField
-          label="Job link"
+          label={t("Job link")}
           type="url"
           value={jobUrl}
           onChange={(e) => {
@@ -122,16 +184,16 @@ function Form({
         />
         {resolve.isError && !isConflict(resolve.error) ? (
           <Alert severity="error">
-            {`Couldn't save your choice. ${resolve.error instanceof ApiClientError ? resolve.error.message : "Check your connection and try again."}`}
+            {`${t("Couldn't save your choice.")} ${resolve.error instanceof ApiClientError ? t(resolve.error.message) : t("Check your connection and try again.")}`}
           </Alert>
         ) : null}
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={resolve.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button variant="contained" disabled={!edited || resolve.isPending} onClick={submit}>
-          Apply with edits
+          {t("Apply with edits")}
         </Button>
       </DialogActions>
     </>

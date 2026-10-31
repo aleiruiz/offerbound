@@ -1,4 +1,5 @@
 import { ApiClientError } from "../api/client";
+import { t } from "../i18n";
 
 /** What the CV and spreadsheet choosers accept, and the size limits (PRD: CV <= 5 MB, CSV <= 2 MB). */
 
@@ -31,16 +32,18 @@ export function cvErrorMessage(error: unknown): string {
   if (error instanceof ApiClientError) {
     switch (error.code) {
       case "cv_no_text":
-        return "We couldn't read text from that file. It may be a scan or an image; export a version with text you can select, then add it again.";
+        return t(
+          "We couldn't read text from that file. It may be a scan or an image; export a version with text you can select, then add it again.",
+        );
       case "unsupported_file":
-        return "Offerbound reads PDF and DOCX files. Choose one of those.";
+        return t("Offerbound reads PDF and DOCX files. Choose one of those.");
       case "too_large":
-        return "That file is larger than 5 MB. Choose a smaller one.";
+        return t("That file is larger than 5 MB. Choose a smaller one.");
       default:
-        return error.message;
+        return t(error.message);
     }
   }
-  return "The upload didn't go through. Check your connection and try again.";
+  return t("The upload didn't go through. Check your connection and try again.");
 }
 
 /** The page's own rejection of a CV, worded like the server's. */

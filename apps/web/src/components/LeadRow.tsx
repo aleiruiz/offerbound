@@ -14,35 +14,82 @@ import {
 import { isHttpUrl } from "../lib/url";
 import { RowActions, type RowAction } from "./RowActions";
 import { FlagChip } from "./StatusChip";
+import { t } from "../i18n";
 
 const WORK_MODE: Record<Lead["workMode"], string | null> = {
-  remote: "Remote",
-  hybrid: "Hybrid",
-  onsite: "On-site",
+  get remote() {
+    return t("Remote");
+  },
+  get hybrid() {
+    return t("Hybrid");
+  },
+  get onsite() {
+    return t("On-site");
+  },
   unknown: null,
 };
 
 const VERIFICATION: Record<Verification, { label: string; tone: "route" | "neutral" }> = {
-  verified: { label: "Verified posting", tone: "route" },
-  unverified: { label: "Unverified posting", tone: "neutral" },
-  unverifiable: { label: "LinkedIn only, not checked", tone: "neutral" },
-  pending: { label: "Checking posting", tone: "neutral" },
+  verified: {
+    get label() {
+      return t("Verified posting");
+    },
+    tone: "route",
+  },
+  unverified: {
+    get label() {
+      return t("Unverified posting");
+    },
+    tone: "neutral",
+  },
+  unverifiable: {
+    get label() {
+      return t("LinkedIn only, not checked");
+    },
+    tone: "neutral",
+  },
+  pending: {
+    get label() {
+      return t("Checking posting");
+    },
+    tone: "neutral",
+  },
 };
 
 const SUPPRESSED: Record<SuppressedReason, string> = {
-  company_already_seen: "Company already seen",
-  same_company_in_batch: "Another lead at this company ranked higher",
-  excluded_seniority: "Seniority you excluded",
-  ineligible: "Not eligible",
+  get company_already_seen() {
+    return t("Company already seen");
+  },
+  get same_company_in_batch() {
+    return t("Another lead at this company ranked higher");
+  },
+  get excluded_seniority() {
+    return t("Seniority you excluded");
+  },
+  get ineligible() {
+    return t("Not eligible");
+  },
 };
 
 const SOURCE: Record<LeadSource, string> = {
-  search_agent: "Found by the search",
-  gmail_alert: "Found in a job alert email",
-  gmail_recruiter: "From a recruiter email",
-  sheet_import: "From your spreadsheet",
-  paste_report: "From a pasted report",
-  manual: "Added by you",
+  get search_agent() {
+    return t("Found by the search");
+  },
+  get gmail_alert() {
+    return t("Found in a job alert email");
+  },
+  get gmail_recruiter() {
+    return t("From a recruiter email");
+  },
+  get sheet_import() {
+    return t("From your spreadsheet");
+  },
+  get paste_report() {
+    return t("From a pasted report");
+  },
+  get manual() {
+    return t("Added by you");
+  },
 };
 
 export interface LeadRowProps {
@@ -70,9 +117,9 @@ function sourceCaption(lead: Lead, tz: string, now: Date): string {
   const label = SOURCE[lead.source];
   const when =
     localDayKey(lead.foundAt, tz) === localDayKey(now, tz)
-      ? `at ${formatTime(lead.foundAt, tz)}`
-      : `on ${formatShortDate(lead.foundAt, tz)}`;
-  return `${label} ${when}.`;
+      ? t("{source} at {time}.", { source: label, time: formatTime(lead.foundAt, tz) })
+      : t("{source} on {date}.", { source: label, date: formatShortDate(lead.foundAt, tz) });
+  return when;
 }
 
 /** One lead (DESIGN_SPEC §6.4). Render rows inside one outlined Paper `<ul>`; dividers separate them. */
@@ -96,7 +143,7 @@ export function LeadRow({
   const verification = VERIFICATION[lead.verification];
   const open = lead.status === "new" || lead.status === "shortlisted";
   const caption = [
-    lead.gaps.length > 0 ? `Gaps: ${lead.gaps.join(", ")}.` : null,
+    lead.gaps.length > 0 ? t("Gaps: {gaps}.", { gaps: lead.gaps.join(", ") }) : null,
     sourceCaption(lead, timezone, now ?? new Date()),
   ]
     .filter(Boolean)
@@ -106,7 +153,7 @@ export function LeadRow({
   if (lead.status === "new" && onShortlist) {
     actions.push({
       key: "shortlist",
-      label: "Shortlist",
+      label: t("Shortlist"),
       kind: "outlined",
       onClick: () => onShortlist(lead),
     });
@@ -114,7 +161,7 @@ export function LeadRow({
   if (open && onMarkApplied) {
     actions.push({
       key: "applied",
-      label: "Mark applied",
+      label: t("Mark applied"),
       kind: "text",
       onClick: () => onMarkApplied(lead),
     });
@@ -122,7 +169,7 @@ export function LeadRow({
   if (!open && lead.status !== "applied" && onReconsider) {
     actions.push({
       key: "reconsider",
-      label: "Reconsider",
+      label: t("Reconsider"),
       kind: "outlined",
       onClick: () => onReconsider(lead),
     });
@@ -130,7 +177,7 @@ export function LeadRow({
   if (lead.status === "applied" && lead.applicationId) {
     actions.push({
       key: "application",
-      label: "Open application",
+      label: t("Open application"),
       kind: "text",
       to: `/applications/${lead.applicationId}`,
     });
@@ -138,7 +185,7 @@ export function LeadRow({
   if (open && onDismiss) {
     actions.push({
       key: "dismiss",
-      label: "Dismiss lead",
+      label: t("Dismiss lead"),
       kind: "icon",
       icon: <CloseOutlined fontSize="small" />,
       onClick: () => onDismiss(lead),
@@ -147,7 +194,7 @@ export function LeadRow({
   if (onViewEmail && (lead.source === "gmail_recruiter" || lead.source === "gmail_alert")) {
     actions.push({
       key: "email",
-      label: "View source email",
+      label: t("View source email"),
       kind: "icon",
       icon: <MailOutlineOutlined fontSize="small" />,
       onClick: () => onViewEmail(lead),
@@ -156,7 +203,7 @@ export function LeadRow({
   if (isHttpUrl(lead.jobUrl)) {
     actions.push({
       key: "posting",
-      label: "Open job posting",
+      label: t("Open job posting"),
       kind: "icon",
       icon: <OpenInNewOutlined fontSize="small" />,
       href: lead.jobUrl,
@@ -190,7 +237,7 @@ export function LeadRow({
           {lead.fitScore ?? "–"}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          fit
+          {t("fit")}
         </Typography>
       </Box>
 
@@ -206,7 +253,7 @@ export function LeadRow({
           </Box>
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-          {isNew ? <FlagChip tone="signal" variant="outlined" label="New" /> : null}
+          {isNew ? <FlagChip tone="signal" variant="outlined" label={t("New")} /> : null}
           {lead.track ? (
             <FlagChip tone="neutral" label={trackLabels?.[lead.track] ?? lead.track} />
           ) : null}
@@ -214,9 +261,11 @@ export function LeadRow({
           <FlagChip tone={verification.tone} label={verification.label} />
           {compensationLabel ? <FlagChip tone="neutral" label={compensationLabel} /> : null}
           {compensation && lead.compensation.isEstimate ? (
-            <FlagChip tone="signal" label="Estimate" />
+            <FlagChip tone="signal" label={t("Estimate")} />
           ) : null}
-          {lead.companySeenBefore ? <FlagChip tone="signal" label="Company seen before" /> : null}
+          {lead.companySeenBefore ? (
+            <FlagChip tone="signal" label={t("Company seen before")} />
+          ) : null}
           {lead.suppressedReason ? (
             <FlagChip tone="neutral" label={SUPPRESSED[lead.suppressedReason]} />
           ) : null}

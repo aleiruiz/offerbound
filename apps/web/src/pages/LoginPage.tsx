@@ -8,7 +8,9 @@ import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router";
 import { GOOGLE_START_PATH } from "../api/paths";
+import { LanguageSelect } from "../components/LanguageSelect";
 import { Logo } from "../components/Logo";
+import { t } from "../i18n";
 
 const DEMO_URL = "https://offerbound.northsoftmx.com";
 
@@ -25,10 +27,34 @@ const BAND = [
 ] as const;
 
 const STOPS = [
-  { left: 9, label: "Applied", mid: false },
-  { left: 25, label: "Screening", mid: true },
-  { left: 45, label: "Assessment", mid: true },
-  { left: 63, label: "Interviewing", mid: true },
+  {
+    left: 9,
+    get label() {
+      return t("Applied");
+    },
+    mid: false,
+  },
+  {
+    left: 25,
+    get label() {
+      return t("Screening");
+    },
+    mid: true,
+  },
+  {
+    left: 45,
+    get label() {
+      return t("Assessment");
+    },
+    mid: true,
+  },
+  {
+    left: 63,
+    get label() {
+      return t("Interviewing");
+    },
+    mid: true,
+  },
 ] as const;
 
 // Inline styles are allowed by the CSP (SECURITY §10), so the animation lives in a GlobalStyles block.
@@ -137,7 +163,7 @@ export function LoginPage() {
     >
       <GlobalStyles styles={loginStyles} />
 
-      <section className="ob-hero" aria-label="Offerbound">
+      <section className="ob-hero" aria-label={t("Offerbound")}>
         <div className="ob-band" aria-hidden="true">
           {BAND.map((segment) => (
             <div
@@ -162,7 +188,7 @@ export function LoginPage() {
             </span>
           ))}
           <span className="ob-stop-label ob-stop-label-offer" style={{ left: "89%" }}>
-            Offer
+            {t("Offer")}
           </span>
           <span className="ob-marker" data-testid="route-marker" aria-hidden="true" />
         </div>
@@ -186,8 +212,9 @@ export function LoginPage() {
             component="p"
             sx={{ maxWidth: 460, fontSize: 18, lineHeight: "26px", color: "#c3cbc8" }}
           >
-            Every application, interview and lead, kept current from your inbox. Next stop: the
-            offer.
+            {t(
+              "Every application, interview and lead, kept current from your inbox. Next stop: the offer.",
+            )}
           </Typography>
         </Box>
       </section>
@@ -208,22 +235,32 @@ export function LoginPage() {
         <Box
           sx={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 3 }}
         >
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-            {window.location.host}
-          </Typography>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              {window.location.host}
+            </Typography>
+            <LanguageSelect size="small" />
+          </Box>
           <Box sx={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <Typography
               id="signin-heading"
               component="h1"
               sx={{ fontSize: 40, lineHeight: "44px", fontWeight: 800, letterSpacing: "-0.02em" }}
             >
-              Welcome back
+              {t("Welcome back")}
             </Typography>
             <Typography color="text.secondary">
-              This Offerbound is private. Sign in with its owner's Google account.
+              {t("This Offerbound is private. Sign in with its owner's Google account.")}
             </Typography>
           </Box>
-          {expired && <Alert severity="error">Sign-in took too long. Try again.</Alert>}
+          {expired && <Alert severity="error">{t("Sign-in took too long. Try again.")}</Alert>}
           <Button
             component="a"
             href={GOOGLE_START_PATH}
@@ -231,7 +268,7 @@ export function LoginPage() {
             fullWidth
             sx={{ height: 48, px: 3, fontSize: 16, lineHeight: "22px", fontWeight: 700 }}
           >
-            Sign in with Google
+            {t("Sign in with Google")}
           </Button>
           <Paper sx={{ display: "flex", gap: 1.5, px: 2, py: "14px" }}>
             <LockOutlined
@@ -240,16 +277,17 @@ export function LoginPage() {
             />
             <Typography variant="body2" color="text.secondary">
               <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>
-                Read-only Gmail access.
+                {t("Read-only Gmail access.")}
               </Box>{" "}
-              Offerbound never sends, deletes or labels email. Google will say the app isn't
-              verified; that's expected for a personal app.
+              {t(
+                "Offerbound never sends, deletes or labels email. Google will say the app isn't verified; that's expected for a personal app.",
+              )}
             </Typography>
           </Paper>
           <Typography variant="body2" color="text.secondary">
-            Just looking around?{" "}
+            {t("Just looking around?")}{" "}
             <Link href={DEMO_URL} underline="none" sx={{ fontWeight: 700 }}>
-              Open the public demo
+              {t("Open the public demo")}
             </Link>
           </Typography>
         </Box>

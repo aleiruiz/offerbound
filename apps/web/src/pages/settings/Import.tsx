@@ -6,6 +6,7 @@ import { Link as RouterLink } from "react-router";
 import { SheetImport } from "../../components/SheetImport";
 import { SectionPaper } from "./shared";
 import { DemoLock, useIsDemo } from "../../lib/demo";
+import { t } from "../../i18n";
 
 /**
  * Settings, Import (DESIGN_SPEC §5.7, F14, F9.4): the onboarding spreadsheet import, reused, and an
@@ -14,7 +15,7 @@ import { DemoLock, useIsDemo } from "../../lib/demo";
 export function Import() {
   const demo = useIsDemo();
   return (
-    <SectionPaper id="import-heading" title="Import">
+    <SectionPaper id="import-heading" title={t("Import")}>
       <SheetImport
         actions={({ imported, importLabel, canImport, importing, runImport }) =>
           importLabel && !imported ? (
@@ -38,20 +39,20 @@ export function Import() {
           component="h3"
           sx={{ fontWeight: 700 }}
         >
-          Paste a report
+          {t("Paste a report")}
         </Typography>
         <Typography sx={{ maxWidth: 680 }}>
-          Have a list of roles from a chat or a newsletter? Paste it, check what Offerbound found
-          and add the roles you want as leads. You can also copy the companies you already know to
-          keep them out of the next report.
+          {t(
+            "Have a list of roles from a chat or a newsletter? Paste it, check what Offerbound found and add the roles you want as leads. You can also copy the companies you already know to keep them out of the next report.",
+          )}
         </Typography>
         {demo ? (
           <DemoLock reason="import">
-            <Button variant="outlined">Paste a report</Button>
+            <Button variant="outlined">{t("Paste a report")}</Button>
           </DemoLock>
         ) : (
           <Button variant="outlined" component={RouterLink} to="/leads/import">
-            Paste a report
+            {t("Paste a report")}
           </Button>
         )}
       </Box>

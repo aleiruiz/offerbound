@@ -6,11 +6,13 @@ import TodayOutlined from "@mui/icons-material/TodayOutlined";
 import TravelExploreOutlined from "@mui/icons-material/TravelExploreOutlined";
 // MUI icons v9 dropped the legacy WorkOutline name; WorkOutlineOutlined is the same Outlined glyph.
 import WorkOutlineOutlined from "@mui/icons-material/WorkOutlineOutlined";
+import { msg } from "../i18n";
 
 export type NavKey = "today" | "applications" | "leads" | "interviews" | "review" | "settings";
 
 export interface NavItem {
   key: NavKey;
+  /** English; shown through `t()`. */
   label: string;
   /** Where the link goes. */
   to: string;
@@ -21,26 +23,32 @@ export interface NavItem {
 
 // DESIGN_SPEC §3 (destinations) and §2.3 (icons).
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "today", label: "Today", to: "/today", prefix: "/today", icon: TodayOutlined },
+  { key: "today", label: msg("Today"), to: "/today", prefix: "/today", icon: TodayOutlined },
   {
     key: "applications",
-    label: "Applications",
+    label: msg("Applications"),
     to: "/applications",
     prefix: "/applications",
     icon: WorkOutlineOutlined,
   },
-  { key: "leads", label: "Leads", to: "/leads", prefix: "/leads", icon: TravelExploreOutlined },
+  {
+    key: "leads",
+    label: msg("Leads"),
+    to: "/leads",
+    prefix: "/leads",
+    icon: TravelExploreOutlined,
+  },
   {
     key: "interviews",
-    label: "Interviews",
+    label: msg("Interviews"),
     to: "/interviews",
     prefix: "/interviews",
     icon: EventOutlined,
   },
-  { key: "review", label: "Review", to: "/review", prefix: "/review", icon: RuleOutlined },
+  { key: "review", label: msg("Review"), to: "/review", prefix: "/review", icon: RuleOutlined },
   {
     key: "settings",
-    label: "Settings",
+    label: msg("Settings"),
     to: "/settings/gmail",
     prefix: "/settings",
     icon: SettingsOutlined,

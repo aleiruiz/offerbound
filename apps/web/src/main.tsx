@@ -10,6 +10,7 @@ import { BrowserRouter } from "react-router";
 import { App } from "./App";
 import { ColorModeProvider } from "./ColorModeProvider";
 import { createQueryClient } from "./api/query-client";
+import { LocaleProvider } from "./i18n";
 
 const queryClient = createQueryClient();
 const container = document.getElementById("root");
@@ -19,9 +20,11 @@ createRoot(container).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ColorModeProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <LocaleProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </LocaleProvider>
       </ColorModeProvider>
     </QueryClientProvider>
   </StrictMode>,

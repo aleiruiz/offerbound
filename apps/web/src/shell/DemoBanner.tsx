@@ -5,6 +5,7 @@ import { ApiClientError } from "../api/client";
 import { useSimulateEmail } from "../api/hooks";
 import { useUndoSnackbar } from "../components/UndoSnackbar";
 import { useIsDemo } from "../lib/demo";
+import { t } from "../i18n";
 
 /**
  * The public demo's dark banner (DESIGN_SPEC §5.10, AC-16.3, AC-16.4): what the data is, when it
@@ -21,12 +22,12 @@ export function DemoBanner() {
   const snackbar = useUndoSnackbar();
   const simulate = useSimulateEmail({
     onSuccess: () =>
-      snackbar.show("Simulated an email. The change is on the application's timeline."),
+      snackbar.show(t("Simulated an email. The change is on the application's timeline.")),
     onError: (error) =>
       snackbar.alert(
         error instanceof ApiClientError && error.status === 429
-          ? "Too many requests. Wait a minute and try again."
-          : "Couldn't simulate an email. Try again.",
+          ? t("Too many requests. Wait a minute and try again.")
+          : t("Couldn't simulate an email. Try again."),
       ),
   });
   if (!demo) return null;
@@ -34,7 +35,7 @@ export function DemoBanner() {
   return (
     <Box
       component="section"
-      aria-label="Demo"
+      aria-label={t("Demo")}
       sx={{
         display: "flex",
         flexWrap: "wrap",
@@ -48,9 +49,9 @@ export function DemoBanner() {
     >
       <Typography variant="body2" component="p" sx={{ flex: "1 1 320px", color: "inherit" }}>
         <Box component="span" sx={{ fontWeight: 700 }}>
-          Demo with made-up data.
+          {t("Demo with made-up data.")}
         </Box>{" "}
-        Everything resets every hour. Writing notes and importing files are turned off.
+        {t("Everything resets every hour. Writing notes and importing files are turned off.")}
       </Typography>
       <Button
         variant="outlined"
@@ -64,7 +65,7 @@ export function DemoBanner() {
           "&.Mui-disabled": { color: ON_INK, borderColor: ON_INK, opacity: 0.6 },
         }}
       >
-        {simulate.isPending ? "Simulating" : "Simulate an incoming email"}
+        {simulate.isPending ? t("Simulating") : t("Simulate an incoming email")}
       </Button>
     </Box>
   );

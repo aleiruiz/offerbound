@@ -10,6 +10,7 @@ import {
   useSettingsSave,
   wholeNumberError,
 } from "./shared";
+import { t } from "../../i18n";
 
 /**
  * Settings, Timers (F7, AC-7.4): the days without a reply after which an application is due for a
@@ -25,7 +26,9 @@ interface Draft {
 function rangeError(value: number | null, min: number, max: number): string | undefined {
   return (
     wholeNumberError(value) ??
-    ((value ?? 0) < min || (value ?? 0) > max ? `Use a number from ${min} to ${max}` : undefined)
+    ((value ?? 0) < min || (value ?? 0) > max
+      ? t("Use a number from {min} to {max}", { min, max })
+      : undefined)
   );
 }
 
@@ -36,7 +39,7 @@ function validate(draft: Draft): Record<string, string> {
   if (followUp) errors["timers.followUpDays"] = followUp;
   if (abandon) errors["timers.abandonDays"] = abandon;
   else if (!followUp && (draft.abandonDays ?? 0) <= (draft.followUpDays ?? 0)) {
-    errors["timers.abandonDays"] = "Must be greater than the follow-up days";
+    errors["timers.abandonDays"] = t("Must be greater than the follow-up days");
   }
   return errors;
 }
@@ -63,10 +66,10 @@ function TimersForm({ settings }: { settings: Settings }) {
   };
 
   return (
-    <SectionPaper id="timers-heading" title="Timers">
+    <SectionPaper id="timers-heading" title={t("Timers")}>
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
         <IntField
-          label="Follow-up days"
+          label={t("Follow-up days")}
           min={1}
           max={60}
           value={draft.followUpDays}
@@ -75,7 +78,7 @@ function TimersForm({ settings }: { settings: Settings }) {
           width={160}
         />
         <IntField
-          label="Abandon days"
+          label={t("Abandon days")}
           min={2}
           max={90}
           value={draft.abandonDays}
@@ -85,9 +88,9 @@ function TimersForm({ settings }: { settings: Settings }) {
         />
       </Box>
       <Typography variant="caption" color="text.secondary" component="p">
-        An application with no reply from the company shows as follow-up due after the first number
-        of days, and becomes Abandoned after the second. A follow-up you send does not restart the
-        count. Abandon days must be greater than follow-up days.
+        {t(
+          "An application with no reply from the company shows as follow-up due after the first number of days, and becomes Abandoned after the second. A follow-up you send does not restart the count. Abandon days must be greater than follow-up days.",
+        )}
       </Typography>
       <SaveBar save={save} onSave={submit} />
     </SectionPaper>

@@ -1,4 +1,5 @@
 import type { Lead } from "@offerbound/contracts";
+import { intlLocale, msg, t, tn } from "../i18n";
 
 /**
  * Display formats from DESIGN_SPEC §10: dates written out, a 24-hour clock in the owner's time
@@ -11,10 +12,10 @@ export const DEFAULT_TIMEZONE = "America/Monterrey";
 const dateFormats = new Map<string, Intl.DateTimeFormat>();
 
 function formatter(tz: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  const key = `${tz}|${JSON.stringify(options)}`;
+  const key = `${intlLocale()}|${tz}|${JSON.stringify(options)}`;
   let f = dateFormats.get(key);
   if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: tz, ...options });
+    f = new Intl.DateTimeFormat(intlLocale(), { timeZone: tz, ...options });
     dateFormats.set(key, f);
   }
   return f;
@@ -111,13 +112,24 @@ export function localMidnightIso(day: string, tz: string): string | null {
   return localTimeIso(day, "00:00", tz);
 }
 
-const relative = new Intl.RelativeTimeFormat("en-US", { numeric: "always" });
+const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
+
+function relativeFormat(): Intl.RelativeTimeFormat {
+  const tag = intlLocale();
+  let f = relativeFormats.get(tag);
+  if (!f) {
+    f = new Intl.RelativeTimeFormat(tag, { numeric: "always" });
+    relativeFormats.set(tag, f);
+  }
+  return f;
+}
 
 /** "2 days ago", "in 3 days", "just now". The absolute date belongs in a tooltip or caption. */
 export function formatRelative(d: Date | string, now: Date): string {
   const seconds = Math.round((toDate(d).getTime() - now.getTime()) / 1000);
   const abs = Math.abs(seconds);
-  if (abs < 45) return "just now";
+  if (abs < 45) return t("just now");
+  const relative = relativeFormat();
   const sign = seconds < 0 ? -1 : 1;
   const minutes = Math.round(abs / 60);
   if (minutes < 60) return relative.format(sign * minutes, "minute");
@@ -129,6 +141,14 @@ export function formatRelative(d: Date | string, now: Date): string {
   if (days < 365) return relative.format(sign * Math.round(days / 30), "month");
   return relative.format(sign * Math.round(days / 365), "year");
 }
+
+const PERIOD_LABEL: Record<string, string> = {
+  hour: msg("hour"),
+  day: msg("day"),
+  week: msg("week"),
+  month: msg("month"),
+  year: msg("year"),
+};
 
 const CURRENCY_SYMBOL: Record<string, string> = {
   USD: "US$",
@@ -152,7 +172,7 @@ export function formatCompensation(c: Lead["compensation"]): string | null {
   if (min === null && max === null) return null;
   const code = c.currency;
   const symbol = code === null ? "" : (CURRENCY_SYMBOL[code] ?? `${code} `);
-  const period = c.period === null ? "" : ` / ${c.period}`;
+  const period = c.period === null ? "" : ` / ${t(PERIOD_LABEL[c.period] ?? c.period)}`;
   const lo = min === null ? null : amount(min);
   const hi = max === null ? null : amount(max);
 
@@ -166,9 +186,9 @@ export function formatCompensation(c: Lead["compensation"]): string | null {
       body = `${symbol}${lo.text}${lo.thousands ? "k" : ""}–${hi.text}${hi.thousands ? "k" : ""}`;
     }
   } else if (lo) {
-    body = `From ${symbol}${lo.text}${lo.thousands ? "k" : ""}`;
+    body = t("From {amount}", { amount: `${symbol}${lo.text}${lo.thousands ? "k" : ""}` });
   } else if (hi) {
-    body = `Up to ${symbol}${hi.text}${hi.thousands ? "k" : ""}`;
+    body = t("Up to {amount}", { amount: `${symbol}${hi.text}${hi.thousands ? "k" : ""}` });
   } else {
     return null;
   }
@@ -189,21 +209,19 @@ export function zoneCity(tz: string): string {
   return name.replace(/_/g, " ");
 }
 
-const countFormat = new Intl.NumberFormat("en-US");
-
 /** "2,148": a count with thousands separators. */
 export function formatCount(n: number): string {
-  return countFormat.format(n);
+  return new Intl.NumberFormat(intlLocale()).format(n);
 }
 
 /** "1 row", "2,148 rows". */
 export function rowsLabel(n: number): string {
-  return n === 1 ? "1 row" : `${countFormat.format(n)} rows`;
+  return tn(n, "1 row", "{count} rows");
 }
 
-/** "1 application", "3 applications". */
+/** "1 application", "3 applications": `one` and `many` are English words, shown through `t()`. */
 export function plural(n: number, one: string, many: string): string {
-  return `${countFormat.format(n)} ${n === 1 ? one : many}`;
+  return `${formatCount(n)} ${t(n === 1 ? one : many)}`;
 }
 
 /** "US$0.61" from millionths of a dollar; "<US$0.01" for a cost that rounds away to nothing. */

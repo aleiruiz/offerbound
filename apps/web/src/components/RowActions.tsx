@@ -10,6 +10,7 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useId, useState, type ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
+import { t } from "../i18n";
 
 export interface RowAction {
   key: string;
@@ -29,13 +30,7 @@ export interface RowAction {
  * The actions at the end of a row. From 600px they are buttons; below 600px they move into a `⋯`
  * menu with 44px items (DESIGN_SPEC §9.4).
  */
-export function RowActions({
-  actions,
-  label = "More actions",
-}: {
-  actions: RowAction[];
-  label?: string;
-}) {
+export function RowActions({ actions, label }: { actions: RowAction[]; label?: string }) {
   const theme = useTheme();
   const phone = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -46,7 +41,7 @@ export function RowActions({
     return (
       <>
         <IconButton
-          aria-label={label}
+          aria-label={label ?? t("More actions")}
           aria-haspopup="menu"
           aria-controls={anchor ? menuId : undefined}
           aria-expanded={anchor ? true : undefined}

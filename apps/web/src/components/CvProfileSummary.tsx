@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import type { CvProfile } from "@offerbound/contracts";
+import { t, tn } from "../i18n";
 
 /**
  * The read-only summary of the CV profile (AC-11.3): headline, a line of facts, core skills and
@@ -17,7 +18,7 @@ export function CvProfileSummary({
 }) {
   const facts = [
     profile.yearsExperience !== null
-      ? `${profile.yearsExperience} ${profile.yearsExperience === 1 ? "year" : "years"} of experience`
+      ? tn(profile.yearsExperience, "1 year of experience", "{count} years of experience")
       : null,
     profile.location,
     profile.languages.length > 0 ? profile.languages.join(", ") : null,
@@ -35,7 +36,7 @@ export function CvProfileSummary({
         ) : null}
       </Box>
       {profile.coreSkills.length > 0 ? (
-        <Box component="ul" aria-label="Core skills" sx={chipList}>
+        <Box component="ul" aria-label={t("Core skills")} sx={chipList}>
           {profile.coreSkills.map((skill) => (
             <li key={skill}>
               <Chip
@@ -55,7 +56,7 @@ export function CvProfileSummary({
         </Box>
       ) : null}
       {showSecondary && profile.secondarySkills.length > 0 ? (
-        <Box component="ul" aria-label="Secondary skills" sx={chipList}>
+        <Box component="ul" aria-label={t("Secondary skills")} sx={chipList}>
           {profile.secondarySkills.map((skill) => (
             <li key={skill}>
               <Chip size="small" label={skill} />
@@ -64,7 +65,7 @@ export function CvProfileSummary({
         </Box>
       ) : null}
       {profile.recentRoles.length > 0 ? (
-        <Box component="ul" aria-label="Recent roles" sx={{ listStyle: "none", m: 0, p: 0 }}>
+        <Box component="ul" aria-label={t("Recent roles")} sx={{ listStyle: "none", m: 0, p: 0 }}>
           {profile.recentRoles.map((role, index) => (
             <Typography
               key={`${role.title}-${role.company}-${index}`}

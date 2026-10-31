@@ -27,14 +27,23 @@ import {
   type CoreErrors,
 } from "./ApplicationFields";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { t } from "../i18n";
 
 const TITLE_ID = "edit-application-title";
 
 const WORK_MODE_LABEL: Record<WorkMode, string> = {
-  remote: "Remote",
-  hybrid: "Hybrid",
-  onsite: "On-site",
-  unknown: "Not set",
+  get remote() {
+    return t("Remote");
+  },
+  get hybrid() {
+    return t("Hybrid");
+  },
+  get onsite() {
+    return t("On-site");
+  },
+  get unknown() {
+    return t("Not set");
+  },
 };
 
 type Errors = CoreErrors & Partial<Record<"appliedAt" | "country" | "locationText", string>>;
@@ -76,11 +85,11 @@ function changes(
   const patch: Omit<ApplicationPatch, "version"> = {};
   const errors: Errors = {};
   if (now.company.trim() !== before.company) {
-    if (now.company.trim() === "") errors.companyName = REQUIRED_COMPANY;
+    if (now.company.trim() === "") errors.companyName = t(REQUIRED_COMPANY);
     else patch.companyName = now.company.trim();
   }
   if (now.role.trim() !== before.role) {
-    if (now.role.trim() === "") errors.title = REQUIRED_ROLE;
+    if (now.role.trim() === "") errors.title = t(REQUIRED_ROLE);
     else patch.title = now.role.trim();
   }
   if (now.jobUrl.trim() !== before.jobUrl) {
@@ -100,7 +109,7 @@ function changes(
   }
   if (now.appliedDay !== before.appliedDay) {
     const appliedAt = now.appliedDay === "" ? null : localMidnightIso(now.appliedDay, timezone);
-    if (now.appliedDay !== "" && appliedAt === null) errors.appliedAt = "Enter a valid date";
+    if (now.appliedDay !== "" && appliedAt === null) errors.appliedAt = t("Enter a valid date");
     else patch.appliedAt = appliedAt;
   }
   return { patch, errors };
@@ -118,7 +127,7 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
 
   const update = useUpdateApplication({
     onSuccess: () => {
-      snackbar.show("Saved changes");
+      snackbar.show(t("Saved changes"));
       onClose();
     },
     onError: (error) => {
@@ -140,7 +149,7 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
     if (Object.keys(found).length > 0 || Object.keys(patch).length === 0) return;
     const parsed = ApplicationPatchSchema.safeParse({ ...patch, version: detail.version });
     if (!parsed.success) {
-      setErrors({ companyName: "Check the details and try again" });
+      setErrors({ companyName: t("Check the details and try again") });
       return;
     }
     setConflict(false);
@@ -149,21 +158,22 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
 
   return (
     <Box component="form" noValidate onSubmit={submit} sx={{ display: "contents" }}>
-      <DialogTitle id={TITLE_ID}>Edit details</DialogTitle>
+      <DialogTitle id={TITLE_ID}>{t("Edit details")}</DialogTitle>
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
         {conflict ? (
           <Alert severity="info">
-            Changes were made elsewhere. The latest version is shown behind this window; check your
-            changes and save again.
+            {t(
+              "Changes were made elsewhere. The latest version is shown behind this window; check your changes and save again.",
+            )}
           </Alert>
         ) : null}
         {update.isError &&
         !isApiError(update.error, "version_conflict") &&
         !isApiError(update.error, "validation_failed") ? (
           <Alert severity="error">
-            {`Couldn't save the changes. ${update.error instanceof ApiClientError ? update.error.message : "Check your connection and try again."}`}
+            {`${t("Couldn't save the changes.")} ${update.error instanceof ApiClientError ? t(update.error.message) : t("Check your connection and try again.")}`}
           </Alert>
         ) : null}
         <CoreFields
@@ -179,7 +189,7 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
           autoFocus
         />
         <TextField
-          label="Location"
+          label={t("Location")}
           value={values.locationText}
           onChange={(e) => set({ locationText: e.target.value })}
           fullWidth
@@ -187,7 +197,7 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
             select
-            label="Work mode"
+            label={t("Work mode")}
             value={values.workMode}
             onChange={(e) => set({ workMode: WorkModeSchema.parse(e.target.value) })}
             sx={{ flex: "1 1 180px" }}
@@ -199,26 +209,26 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
             ))}
           </TextField>
           <TextField
-            label="Country"
+            label={t("Country")}
             value={values.country}
             onChange={(e) => set({ country: e.target.value })}
             sx={{ flex: "1 1 180px" }}
           />
         </Box>
         <TextField
-          label="Compensation"
+          label={t("Compensation")}
           value={values.compensationText}
           onChange={(e) => set({ compensationText: e.target.value })}
           fullWidth
         />
         <TextField
-          label="Sponsorship"
+          label={t("Sponsorship")}
           value={values.sponsorshipText}
           onChange={(e) => set({ sponsorshipText: e.target.value })}
           fullWidth
         />
         <TextField
-          label="Applied date"
+          label={t("Applied date")}
           type="date"
           value={values.appliedDay}
           onChange={(e) => set({ appliedDay: e.target.value })}
@@ -229,10 +239,10 @@ function Form({ detail, onClose }: { detail: ApplicationDetail; onClose: () => v
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={update.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" variant="contained" disabled={!dirty || update.isPending}>
-          Save changes
+          {t("Save changes")}
         </Button>
       </DialogActions>
     </Box>

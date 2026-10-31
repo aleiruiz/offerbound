@@ -6,6 +6,7 @@ import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 import { ApiClientError } from "../api/client";
+import { t } from "../i18n";
 
 /**
  * The empty, loading and error states of DESIGN_SPEC §7. Copy: say what happened and what to do,
@@ -70,8 +71,8 @@ export function ListSkeleton({ label, rows = 5 }: { label: string; rows?: number
 }
 
 function reasonOf(error: unknown): string {
-  if (error instanceof ApiClientError) return error.message;
-  return "Offerbound couldn't reach the server. Check your connection.";
+  if (error instanceof ApiClientError) return t(error.message);
+  return t("Offerbound couldn't reach the server. Check your connection.");
 }
 
 /** An inline error where the data would be, with *Try again* when there is something to retry. */
@@ -80,7 +81,7 @@ export function ErrorState({
   error,
   onRetry,
 }: {
-  /** What failed to load, as a noun phrase: "leads", "the email". */
+  /** What failed to load, as a translated noun phrase: `t("leads")`, `t("the email")`. */
   what: string;
   error?: unknown;
   onRetry?: () => void;
@@ -91,13 +92,13 @@ export function ErrorState({
       action={
         onRetry ? (
           <Button color="error" variant="outlined" size="small" onClick={onRetry}>
-            Try again
+            {t("Try again")}
           </Button>
         ) : undefined
       }
     >
       <Box component="span" sx={{ fontWeight: 700, color: "error.main" }}>
-        {`Couldn't load ${what}.`}
+        {t("Couldn't load {what}.", { what })}
       </Box>{" "}
       {reasonOf(error)}
     </Alert>

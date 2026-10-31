@@ -48,6 +48,7 @@ import { useLinkSx } from "../lib/link-sx";
 import { isFoundSince, useLeadsSince } from "../lib/last-visit";
 import { useListKeyboard } from "../lib/shortcuts";
 import { isHttpUrl } from "../lib/url";
+import { msg, t, tc, tn, tx } from "../i18n";
 
 /**
  * Leads (DESIGN_SPEC §5.4, §6.4, §9.3; AC-9.2, 9.6, 9.7, 10.2, 12.3, 12.4): the five lists as tabs,
@@ -56,41 +57,106 @@ import { isHttpUrl } from "../lib/url";
  */
 
 const TABS: { key: LeadStatus; label: string }[] = [
-  { key: "new", label: "New" },
-  { key: "shortlisted", label: "Shortlisted" },
-  { key: "applied", label: "Applied" },
-  { key: "dismissed", label: "Dismissed" },
-  { key: "suppressed", label: "Suppressed" },
+  {
+    key: "new",
+    get label() {
+      return tc("lead tab", "New");
+    },
+  },
+  {
+    key: "shortlisted",
+    get label() {
+      return t("Shortlisted");
+    },
+  },
+  {
+    key: "applied",
+    get label() {
+      return tc("lead tab", "Applied");
+    },
+  },
+  {
+    key: "dismissed",
+    get label() {
+      return t("Dismissed");
+    },
+  },
+  {
+    key: "suppressed",
+    get label() {
+      return t("Suppressed");
+    },
+  },
 ];
 const DEFAULT_TAB: LeadStatus = "new";
 
 const SORTS: { value: LeadSort; label: string }[] = [
-  { value: "track_fit", label: "Track, then fit" },
-  { value: "newest", label: "Newest first" },
+  {
+    value: "track_fit",
+    get label() {
+      return t("Track, then fit");
+    },
+  },
+  {
+    value: "newest",
+    get label() {
+      return t("Newest first");
+    },
+  },
 ];
 const DEFAULT_SORT: LeadSort = "track_fit";
 
 const SEARCH_ROUNDS = 3;
-const SEARCH_RUNNING = "A search is already running";
-const CHANGED_ELSEWHERE = "Changes were made elsewhere. Leads have been refreshed.";
+
+const FAILED = {
+  get shortlist() {
+    return t("Couldn't shortlist {company}. Try again.");
+  },
+  get dismiss() {
+    return t("Couldn't dismiss {company}. Try again.");
+  },
+  get reconsider() {
+    return t("Couldn't reconsider {company}. Try again.");
+  },
+};
+const SEARCH_RUNNING = msg("A search is already running");
+const CHANGED_ELSEWHERE = msg("Changes were made elsewhere. Leads have been refreshed.");
 
 /** Each list's own empty state (DESIGN_SPEC §7: empty states name the next action). */
 const EMPTY: Record<Exclude<LeadStatus, "new">, { title: string; body: string }> = {
   shortlisted: {
-    title: "No shortlisted leads",
-    body: "Shortlist a lead from New to keep it here while you decide.",
+    get title() {
+      return t("No shortlisted leads");
+    },
+    get body() {
+      return t("Shortlist a lead from New to keep it here while you decide.");
+    },
   },
   applied: {
-    title: "No applied leads",
-    body: "Leads you mark as applied are listed here, with a link to their application.",
+    get title() {
+      return t("No applied leads");
+    },
+    get body() {
+      return t("Leads you mark as applied are listed here, with a link to their application.");
+    },
   },
   dismissed: {
-    title: "No dismissed leads",
-    body: "Dismissed leads are kept here, and you can reconsider any of them.",
+    get title() {
+      return t("No dismissed leads");
+    },
+    get body() {
+      return t("Dismissed leads are kept here, and you can reconsider any of them.");
+    },
   },
   suppressed: {
-    title: "No suppressed leads",
-    body: "Leads Offerbound set aside, for example from companies you already know, are listed here with the reason.",
+    get title() {
+      return t("No suppressed leads");
+    },
+    get body() {
+      return t(
+        "Leads Offerbound set aside, for example from companies you already know, are listed here with the reason.",
+      );
+    },
   },
 };
 
@@ -116,8 +182,6 @@ function countLabel(count: LeadCount | undefined): string | null {
   if (!count) return null;
   return count.atLeast ? `${LEADS_COUNT_LIMIT}+` : String(count.count);
 }
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // ---------------------------------------------------------------------------------------------
 // Search: caption and progress
@@ -147,26 +211,34 @@ function SearchCaption({
   if (!last) {
     return (
       <Typography variant="caption" color="text.secondary" component="p">
-        No search has run yet.
+        {t("No search has run yet.")}
       </Typography>
     );
   }
   if (last.status === "failed") {
     return (
       <Typography variant="caption" color="text.secondary" component="p">
-        {"The last search failed. Its error is listed under "}
-        <SearchSettingsLink>Recent runs</SearchSettingsLink>
-        {" in Settings."}
+        {tx("The last search failed. Its error is listed under {runs} in Settings.", {
+          runs: <SearchSettingsLink>{t("Recent runs")}</SearchSettingsLink>,
+        })}
       </Typography>
     );
   }
   const when =
     localDayKey(last.startedAt, timezone) === localDayKey(now, timezone)
-      ? `at ${formatTime(last.startedAt, timezone)}`
-      : `on ${formatShortDate(last.startedAt, timezone)} at ${formatTime(last.startedAt, timezone)}`;
+      ? t("at {time}", { time: formatTime(last.startedAt, timezone) })
+      : t("on {date} at {time}", {
+          date: formatShortDate(last.startedAt, timezone),
+          time: formatTime(last.startedAt, timezone),
+        });
   return (
     <Typography variant="caption" color="text.secondary" component="p">
-      {`The last search ran ${when}: ${last.accepted} new, ${last.suppressed} suppressed, ${plural(last.dead, "closed posting", "closed postings")} dropped.`}
+      {t("The last search ran {when}: {accepted} new, {suppressed} suppressed, {dead} dropped.", {
+        when,
+        accepted: last.accepted,
+        suppressed: last.suppressed,
+        dead: tn(last.dead, "1 closed posting", "{count} closed postings"),
+      })}
     </Typography>
   );
 }
@@ -178,14 +250,21 @@ function SearchProgress({ run }: { run: SearchRun }) {
     <Paper
       variant="outlined"
       role="status"
-      aria-label="Search progress"
+      aria-label={t("Search progress")}
       aria-live="polite"
       sx={{ p: 2.25, display: "flex", flexDirection: "column", gap: 1.25 }}
     >
-      <Typography sx={{ fontWeight: 600 }}>Searching for new leads</Typography>
+      <Typography sx={{ fontWeight: 600 }}>{t("Searching for new leads")}</Typography>
       <LinearProgress aria-hidden="true" sx={{ height: 6, borderRadius: "3px" }} />
       <Typography variant="caption" color="text.secondary" component="p">
-        {`Round ${round} of ${SEARCH_ROUNDS}. ${plural(run.accepted, "new lead", "new leads")} so far. You can keep working; they appear in Leads when it finishes.`}
+        {t(
+          "Round {round} of {rounds}. {leads} so far. You can keep working; they appear in Leads when it finishes.",
+          {
+            round,
+            rounds: SEARCH_ROUNDS,
+            leads: tn(run.accepted, "1 new lead", "{count} new leads"),
+          },
+        )}
       </Typography>
     </Paper>
   );
@@ -305,12 +384,12 @@ export function LeadsPage() {
   const latestRun = runs.data?.[0];
   const running = latestRun?.status === "running" ? latestRun : undefined;
   const runSearch = useRunSearch({
-    onSuccess: () => snackbar.show("Search started"),
+    onSuccess: () => snackbar.show(t("Search started")),
     onError: (error) =>
       snackbar.show(
         isApiError(error, "already_running")
-          ? SEARCH_RUNNING
-          : "Couldn't start the search. Try again.",
+          ? t(SEARCH_RUNNING)
+          : t("Couldn't start the search. Try again."),
       ),
   });
   // When the run being shown ends, the leads it found are fetched.
@@ -335,7 +414,8 @@ export function LeadsPage() {
   const settle = (lead: Lead) => {
     busy.current.delete(lead.id);
   };
-  const failed = (verb: string, lead: Lead) => `Couldn't ${verb} ${lead.company.name}. Try again.`;
+  const failed = (verb: "shortlist" | "dismiss" | "reconsider", lead: Lead) =>
+    t(FAILED[verb], { company: lead.company.name });
 
   const restore = useSetLeadStatus();
   const setStatus = useSetLeadStatus({
@@ -344,7 +424,7 @@ export function LeadsPage() {
       // Undo goes back to where the lead was: New, or Shortlisted for a dismissed shortlisted lead.
       const before = lead.status === "shortlisted" ? "shortlisted" : "new";
       snackbar.show(
-        `${status === "shortlisted" ? "Shortlisted" : "Dismissed"} ${lead.company.name}`,
+        `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
         async () => {
           await restore.mutateAsync({ lead: updated, status: before });
         },
@@ -354,7 +434,7 @@ export function LeadsPage() {
       settle(lead);
       snackbar.show(
         isApiError(error, "version_conflict")
-          ? CHANGED_ELSEWHERE
+          ? t(CHANGED_ELSEWHERE)
           : failed(status === "shortlisted" ? "shortlist" : "dismiss", lead),
       );
     },
@@ -362,23 +442,23 @@ export function LeadsPage() {
   const reconsiderDismissed = useSetLeadStatus({
     onSuccess: (_updated, { lead }) => {
       settle(lead);
-      snackbar.show(`Reconsidered ${lead.company.name}`);
+      snackbar.show(t("Reconsidered {company}", { company: lead.company.name }));
     },
     onError: (error, { lead }) => {
       settle(lead);
       snackbar.show(
-        isApiError(error, "version_conflict") ? CHANGED_ELSEWHERE : failed("reconsider", lead),
+        isApiError(error, "version_conflict") ? t(CHANGED_ELSEWHERE) : failed("reconsider", lead),
       );
     },
   });
   const reconsiderSuppressed = useReconsiderLead({
     onSuccess: (_updated, lead) => {
       settle(lead);
-      snackbar.show(`Reconsidered ${lead.company.name}`);
+      snackbar.show(t("Reconsidered {company}", { company: lead.company.name }));
     },
     onError: (error, lead) => {
       settle(lead);
-      snackbar.show(isConflict(error) ? CHANGED_ELSEWHERE : failed("reconsider", lead));
+      snackbar.show(isConflict(error) ? t(CHANGED_ELSEWHERE) : failed("reconsider", lead));
     },
   });
   const undo = useUndoEvent();
@@ -390,7 +470,7 @@ export function LeadsPage() {
         (event) => event.type === "lead_converted" && event.undoable && event.undoneAt === null,
       );
       snackbar.show(
-        "Marked as applied",
+        t("Marked as applied"),
         converted
           ? async () => {
               await undo.mutateAsync(converted.id);
@@ -403,8 +483,8 @@ export function LeadsPage() {
       // Mark applied sends no version; a 409 means the lead was converted or changed elsewhere.
       snackbar.show(
         isConflict(error)
-          ? CHANGED_ELSEWHERE
-          : `Couldn't mark ${lead.company.name} as applied. Try again.`,
+          ? t(CHANGED_ELSEWHERE)
+          : t("Couldn't mark {company} as applied. Try again.", { company: lead.company.name }),
       );
     },
   });
@@ -430,7 +510,7 @@ export function LeadsPage() {
   // One "now" per answer, so "at 07:04" versus "on Oct 27" stays still while the owner reads.
   const now = useMemo(() => new Date(), [query.dataUpdatedAt, runs.dataUpdatedAt]);
   const newCount = leads.filter((lead) => isFoundSince(lead.foundAt, since)).length;
-  const tabLabel = TABS.find((t) => t.key === filters.status)?.label ?? "New";
+  const tabLabel = TABS.find((t) => t.key === filters.status)?.label ?? tc("lead tab", "New");
   const searchEnabled = settings.data?.search.enabled;
   const runTime = settings.data?.search.runTime;
 
@@ -441,7 +521,7 @@ export function LeadsPage() {
       disabled={runSearch.isPending || running !== undefined}
       onClick={() => runSearch.mutate()}
     >
-      Run search now
+      {t("Run search now")}
     </Button>
   );
 
@@ -449,20 +529,20 @@ export function LeadsPage() {
     <EmptyState
       title={
         searchEnabled === undefined
-          ? "No new leads"
+          ? t("No new leads")
           : searchEnabled
-            ? `No new leads. The next search runs at ${runTime}.`
-            : "No new leads. The daily search is off."
+            ? t("No new leads. The next search runs at {time}.", { time: runTime ?? "" })
+            : t("No new leads. The daily search is off.")
       }
       body={
         searchEnabled === false ? (
           <>
-            {"Run a search now, or turn the daily search on in "}
-            <SearchSettingsLink>Settings</SearchSettingsLink>
-            {"."}
+            {tx("Run a search now, or turn the daily search on in {settings}.", {
+              settings: <SearchSettingsLink>{t("Settings")}</SearchSettingsLink>,
+            })}
           </>
         ) : (
-          "You can also run a search now."
+          t("You can also run a search now.")
         )
       }
       actions={
@@ -471,7 +551,7 @@ export function LeadsPage() {
           disabled={runSearch.isPending || running !== undefined}
           onClick={() => runSearch.mutate()}
         >
-          Run search now
+          {t("Run search now")}
         </Button>
       }
     />
@@ -491,23 +571,23 @@ export function LeadsPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="h4" component="h1">
-            Leads
+            {t("Leads")}
           </Typography>
           <SearchCaption runs={runs.data} timezone={timezone} now={now} />
           {newCount > 0 ? (
             <Typography variant="caption" color="text.secondary" component="p">
-              {`${newCount} new in this list since your last visit`}
+              {t("{count} new in this list since your last visit", { count: newCount })}
             </Typography>
           ) : null}
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
           {demo ? (
             <DemoLock reason="import">
-              <Button variant="outlined">Import a report</Button>
+              <Button variant="outlined">{t("Import a report")}</Button>
             </DemoLock>
           ) : (
             <Button variant="outlined" component={RouterLink} to="/leads/import">
-              Import a report
+              {t("Import a report")}
             </Button>
           )}
           {runSearchButton}
@@ -518,7 +598,7 @@ export function LeadsPage() {
 
       <Tabs
         value={filters.status}
-        aria-label="Lead lists"
+        aria-label={t("Lead lists")}
         variant="scrollable"
         scrollButtons={false}
         onChange={(_event, value: LeadStatus) =>
@@ -574,11 +654,11 @@ export function LeadsPage() {
       >
         <Box
           role="group"
-          aria-label="Filter by track"
+          aria-label={t("Filter by track")}
           sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
         >
           <FilterChip
-            label="All tracks"
+            label={t("All tracks")}
             pressed={!trackKnown}
             onToggle={() => change((next) => next.delete("track"))}
           />
@@ -598,7 +678,7 @@ export function LeadsPage() {
         </Box>
         <TextField
           select
-          label="Sort"
+          label={t("Sort")}
           value={filters.sort}
           onChange={(e) =>
             change((next) => {
@@ -623,17 +703,17 @@ export function LeadsPage() {
         sx={{ display: "flex", flexDirection: "column", gap: 2 }}
       >
         {query.isError ? (
-          <ErrorState what="leads" error={query.error} onRetry={() => void query.refetch()} />
+          <ErrorState what={t("leads")} error={query.error} onRetry={() => void query.refetch()} />
         ) : query.isPending ? (
-          <ListSkeleton label="Loading leads" />
+          <ListSkeleton label={t("Loading leads")} />
         ) : leads.length === 0 ? (
           filters.track !== null ? (
             <EmptyState
-              title="No leads in this track"
-              body="Show every track to see the rest of this list."
+              title={t("No leads in this track")}
+              body={t("Show every track to see the rest of this list.")}
               actions={
                 <Button variant="outlined" onClick={() => change((next) => next.delete("track"))}>
-                  Show every track
+                  {t("Show every track")}
                 </Button>
               }
             />
@@ -645,7 +725,7 @@ export function LeadsPage() {
         ) : (
           <>
             <LeadList
-              label={`${tabLabel} leads`}
+              label={t("{tab} leads", { tab: tabLabel })}
               leads={leads}
               timezone={timezone}
               now={now}
@@ -676,8 +756,18 @@ export function LeadsPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>s</Key> shortlist, <Key>d</Key> dismiss,{" "}
-                <Key>a</Key> mark applied, <Key>o</Key> open posting, <Key>?</Key> all shortcuts
+                {tx(
+                  "Keys: {j} {k} move, {s} shortlist, {d} dismiss, {a} mark applied, {o} open posting, {help} all shortcuts",
+                  {
+                    j: <Key>j</Key>,
+                    k: <Key>k</Key>,
+                    s: <Key>s</Key>,
+                    d: <Key>d</Key>,
+                    a: <Key>a</Key>,
+                    o: <Key>o</Key>,
+                    help: <Key>?</Key>,
+                  },
+                )}
               </Typography>
               {query.hasNextPage ? (
                 <Button
@@ -685,7 +775,7 @@ export function LeadsPage() {
                   disabled={query.isFetchingNextPage}
                   onClick={() => void query.fetchNextPage()}
                 >
-                  Show more
+                  {t("Show more")}
                 </Button>
               ) : null}
             </Box>

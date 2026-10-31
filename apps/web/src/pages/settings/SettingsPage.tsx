@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { Navigate, NavLink, useNavigate, useParams } from "react-router";
 import { useSignOut } from "../../api/hooks";
+import { LanguageSelect } from "../../components/LanguageSelect";
 import { useColorMode, type ThemePreference } from "../../ColorModeProvider";
 import { AiUsage } from "./AiUsage";
 import { Automation } from "./Automation";
@@ -19,10 +20,11 @@ import { Import } from "./Import";
 import { Search } from "./Search";
 import { Targets } from "./Targets";
 import { Timers } from "./Timers";
+import { t } from "../../i18n";
 
 /**
  * Settings (DESIGN_SPEC §5.7): the section list on the left (above the section on phones) drives
- * `/settings/:section`. The *Theme* select and *Sign out* sit at the foot of the list.
+ * `/settings/:section`. The *Theme* and *Language* selects and *Sign out* sit at the foot of the list.
  */
 
 interface Section {
@@ -32,21 +34,84 @@ interface Section {
 }
 
 const SECTIONS: readonly Section[] = [
-  { key: "gmail", label: "Gmail", element: <Gmail /> },
-  { key: "search", label: "Job search", element: <Search /> },
+  {
+    key: "gmail",
+    get label() {
+      return t("Gmail");
+    },
+    element: <Gmail />,
+  },
+  {
+    key: "search",
+    get label() {
+      return t("Job search");
+    },
+    element: <Search />,
+  },
   { key: "cv", label: "CV", element: <Cv /> },
-  { key: "targets", label: "Daily targets", element: <Targets /> },
-  { key: "timers", label: "Timers", element: <Timers /> },
-  { key: "automation", label: "Automation", element: <Automation /> },
-  { key: "import", label: "Import", element: <Import /> },
-  { key: "ai-usage", label: "AI usage", element: <AiUsage /> },
-  { key: "data", label: "Data", element: <Data /> },
+  {
+    key: "targets",
+    get label() {
+      return t("Daily targets");
+    },
+    element: <Targets />,
+  },
+  {
+    key: "timers",
+    get label() {
+      return t("Timers");
+    },
+    element: <Timers />,
+  },
+  {
+    key: "automation",
+    get label() {
+      return t("Automation");
+    },
+    element: <Automation />,
+  },
+  {
+    key: "import",
+    get label() {
+      return t("Import");
+    },
+    element: <Import />,
+  },
+  {
+    key: "ai-usage",
+    get label() {
+      return t("AI usage");
+    },
+    element: <AiUsage />,
+  },
+  {
+    key: "data",
+    get label() {
+      return t("Data");
+    },
+    element: <Data />,
+  },
 ];
 
 const THEMES: { value: ThemePreference; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+  {
+    value: "system",
+    get label() {
+      return t("System");
+    },
+  },
+  {
+    value: "light",
+    get label() {
+      return t("Light");
+    },
+  },
+  {
+    value: "dark",
+    get label() {
+      return t("Dark");
+    },
+  },
 ];
 
 export function SettingsPage() {
@@ -58,7 +123,7 @@ export function SettingsPage() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <Typography variant="h4" component="h1">
-        Settings
+        {t("Settings")}
       </Typography>
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 3 }}>
         <Box
@@ -72,7 +137,7 @@ export function SettingsPage() {
         >
           <Box
             component="nav"
-            aria-label="Settings sections"
+            aria-label={t("Settings sections")}
             sx={{ display: "flex", flexDirection: "column", gap: "2px" }}
           >
             {SECTIONS.map((s) => (
@@ -105,6 +170,7 @@ export function SettingsPage() {
           </Box>
           <Divider />
           <Appearance />
+          <LanguageSelect />
           {/* The demo has no sign-in, so nothing to sign out of. */}
           {demo ? null : <SignOut />}
         </Box>
@@ -129,7 +195,7 @@ function Appearance() {
   return (
     <TextField
       select
-      label="Theme"
+      label={t("Theme")}
       value={preference}
       onChange={(event) => setPreference(event.target.value as ThemePreference)}
       slotProps={{ select: { native: true } }}
@@ -162,11 +228,11 @@ function SignOut() {
           })
         }
       >
-        Sign out
+        {t("Sign out")}
       </Button>
       {signOut.isError ? (
         <Alert severity="error" role="alert">
-          Couldn't sign out. Try again.
+          {t("Couldn't sign out. Try again.")}
         </Alert>
       ) : null}
     </Box>

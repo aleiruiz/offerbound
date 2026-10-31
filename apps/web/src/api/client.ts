@@ -1,5 +1,6 @@
 import type { ZodType } from "zod";
 import { ApiErrorBodySchema } from "@offerbound/contracts";
+import { t } from "../i18n";
 
 const BASE_PATH = "/api/v1";
 
@@ -151,7 +152,7 @@ export async function apiFetchWithStatus<T = unknown>(
     throw new ApiClientError({
       status: res.status,
       code: "unexpected_response",
-      message: "The server answered with data this version of Offerbound does not understand.",
+      message: t("The server answered with data this version of Offerbound does not understand."),
       body: json,
     });
   }
