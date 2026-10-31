@@ -45,6 +45,7 @@ import {
   readOnboardingProgress,
   writeOnboardingProgress,
 } from "../lib/onboardingProgress";
+import { msg, t } from "../i18n";
 
 /**
  * Onboarding (DESIGN_SPEC §5.8, TECHNICAL_SPEC §11): start syncing Gmail, upload the CV, import the
@@ -56,10 +57,10 @@ import {
  */
 
 const STEPS = [
-  "Start syncing Gmail",
-  "Upload your CV",
-  "Import your spreadsheet",
-  "Write your search brief",
+  msg("Start syncing Gmail"),
+  msg("Upload your CV"),
+  msg("Import your spreadsheet"),
+  msg("Write your search brief"),
 ] as const;
 const LAST_STEP = STEPS.length - 1;
 /**
@@ -109,16 +110,18 @@ export function OnboardingPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-            Set up Offerbound
+            {t("Set up Offerbound")}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Four steps. Only the first one is required; you can come back to the others in Settings.
+            {t(
+              "Four steps. Only the first one is required; you can come back to the others in Settings.",
+            )}
           </Typography>
         </Box>
         {initial.current ? (
           <Steps serverDone={initial.current.serverDone} />
         ) : (
-          <Skeleton variant="rounded" height={240} aria-label="Loading your setup" />
+          <Skeleton variant="rounded" height={240} aria-label={t("Loading your setup")} />
         )}
       </Box>
     </Box>
@@ -192,7 +195,11 @@ function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
 
   return (
     <>
-      <Stepper activeStep={active} aria-label="Setup steps" sx={{ flexWrap: "wrap", rowGap: 1.5 }}>
+      <Stepper
+        activeStep={active}
+        aria-label={t("Setup steps")}
+        sx={{ flexWrap: "wrap", rowGap: 1.5 }}
+      >
         {STEPS.map((label, index) => (
           <Step
             key={label}
@@ -202,22 +209,22 @@ function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
             <StepLabel
               optional={
                 skipped.has(index) ? (
-                  <Typography variant="caption">Skipped</Typography>
+                  <Typography variant="caption">{t("Skipped")}</Typography>
                 ) : isOptional(index) && !completed.has(index) ? (
-                  <Typography variant="caption">Optional</Typography>
+                  <Typography variant="caption">{t("Optional")}</Typography>
                 ) : undefined
               }
             >
-              {label}
+              {t(label)}
             </StepLabel>
           </Step>
         ))}
       </Stepper>
 
-      <StepSection id="gmail" title={STEPS[0]} active={active === 0} visited={visited.has(0)}>
+      <StepSection id="gmail" title={t(STEPS[0])} active={active === 0} visited={visited.has(0)}>
         <GmailStep onContinue={() => advance(0, "done")} />
       </StepSection>
-      <StepSection id="cv" title={STEPS[1]} active={active === 1} visited={visited.has(1)}>
+      <StepSection id="cv" title={t(STEPS[1])} active={active === 1} visited={visited.has(1)}>
         <CvStep
           onBack={() => back(1)}
           onContinue={() => advance(1, "done")}
@@ -226,7 +233,7 @@ function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
       </StepSection>
       <StepSection
         id="import"
-        title={STEPS[2]}
+        title={t(STEPS[2])}
         active={active === 2}
         visited={visited.has(2)}
         optional
@@ -237,7 +244,7 @@ function Steps({ serverDone }: { serverDone: ReadonlySet<number> }) {
           onSkip={() => advance(2, "skipped")}
         />
       </StepSection>
-      <StepSection id="brief" title={STEPS[3]} active={active === 3} visited={visited.has(3)}>
+      <StepSection id="brief" title={t(STEPS[3])} active={active === 3} visited={visited.has(3)}>
         <BriefStep
           active={active === 3}
           finish={complete}
@@ -305,7 +312,7 @@ function StepSection({
         >
           {title}
         </Typography>
-        {optional ? <FlagChip tone="neutral" label="Optional" size="small" /> : null}
+        {optional ? <FlagChip tone="neutral" label={t("Optional")} size="small" /> : null}
       </Box>
       {children}
     </Paper>
@@ -331,9 +338,9 @@ function StepFooter({
         pt: 0.5,
       }}
     >
-      <Box>{onBack ? <Button onClick={onBack}>Back</Button> : null}</Box>
+      <Box>{onBack ? <Button onClick={onBack}>{t("Back")}</Button> : null}</Box>
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-        {onSkip ? <Button onClick={onSkip}>Skip this step</Button> : null}
+        {onSkip ? <Button onClick={onSkip}>{t("Skip this step")}</Button> : null}
         {children}
       </Box>
     </Box>
@@ -341,7 +348,7 @@ function StepFooter({
 }
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof ApiClientError ? error.message : fallback;
+  return error instanceof ApiClientError ? t(error.message) : fallback;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -400,13 +407,14 @@ function CvStep({
   return (
     <>
       <Typography sx={{ maxWidth: 680 }}>
-        Add your CV as a PDF or DOCX, up to 5 MB. Offerbound reads its text to rank leads against
-        your skills. The file itself isn't kept, only the text and the profile built from it.
+        {t(
+          "Add your CV as a PDF or DOCX, up to 5 MB. Offerbound reads its text to rank leads against your skills. The file itself isn't kept, only the text and the profile built from it.",
+        )}
       </Typography>
-      <DropZone ref={zone} label="CV drop zone" onFile={choose} disabled={upload.isPending}>
+      <DropZone ref={zone} label={t("CV drop zone")} onFile={choose} disabled={upload.isPending}>
         {upload.isPending ? null : (
           <FilePicker
-            label={saved ? "Replace CV" : "Choose CV file"}
+            label={saved ? t("Replace CV") : t("Choose CV file")}
             accept={CV_ACCEPT}
             onFile={choose}
           />
@@ -425,11 +433,12 @@ function CvStep({
                   {fileName}
                 </Typography>
               ) : null}
-              <LinearProgress aria-label="Reading your CV" />
+              <LinearProgress aria-label={t("Reading your CV")} />
               <Typography variant="body2" color="text.secondary">
                 {/* The file name is on the line above; repeating it would not wrap on a phone. */}
-                Reading your CV and building your profile. This usually takes under a minute; keep
-                this page open.
+                {t(
+                  "Reading your CV and building your profile. This usually takes under a minute; keep this page open.",
+                )}
               </Typography>
             </Box>
           ) : null}
@@ -448,14 +457,14 @@ function CvStep({
       {profileFailed ? (
         <Alert severity="warning" role="alert">
           <Box component="span" sx={{ fontWeight: 700 }}>
-            Your CV was saved, but its profile isn't ready.
+            {t("Your CV was saved, but its profile isn't ready.")}
           </Box>{" "}
-          You can continue and build the profile again later in Settings.
+          {t("You can continue and build the profile again later in Settings.")}
         </Alert>
       ) : null}
       {profile ? (
         <Box
-          aria-label="Your CV profile"
+          aria-label={t("Your CV profile")}
           role="region"
           sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}
         >
@@ -465,7 +474,7 @@ function CvStep({
       <StepFooter onBack={onBack} onSkip={saved ? undefined : onSkip}>
         {saved ? (
           <Button variant="contained" onClick={onContinue}>
-            Continue
+            {t("Continue")}
           </Button>
         ) : null}
       </StepFooter>
@@ -491,16 +500,19 @@ function ImportStep({
     <SheetImport
       intro={
         <Typography sx={{ maxWidth: 680, fontWeight: 600 }}>
-          If you don't track your applications in a spreadsheet, skip this step. Gmail sync builds
-          your list from your emails.
+          {t(
+            "If you don't track your applications in a spreadsheet, skip this step. Gmail sync builds your list from your emails.",
+          )}
         </Typography>
       }
-      note="Your notes are kept as they are. Rows already found in Gmail are skipped, so nothing is duplicated."
+      note={t(
+        "Your notes are kept as they are. Rows already found in Gmail are skipped, so nothing is duplicated.",
+      )}
       actions={({ imported, importLabel, canImport, importing, runImport }) => (
         <StepFooter onBack={onBack} onSkip={imported ? undefined : onSkip}>
           {imported ? (
             <Button variant="contained" onClick={onContinue}>
-              Continue
+              {t("Continue")}
             </Button>
           ) : importLabel ? (
             <Button variant="contained" disabled={!canImport || importing} onClick={runImport}>
@@ -516,8 +528,9 @@ function ImportStep({
 // ---------------------------------------------------------------------------------------------
 // Step 4: search brief (AC-10.1)
 
-const BRIEF_PLACEHOLDER =
-  "For example: senior full-stack roles, remote from Mexico or with relocation support. At least US$8k per month. No agencies, no on-site only.";
+const BRIEF_PLACEHOLDER = msg(
+  "For example: senior full-stack roles, remote from Mexico or with relocation support. At least US$8k per month. No agencies, no on-site only.",
+);
 
 function BriefStep({
   active,
@@ -565,53 +578,59 @@ function BriefStep({
   return (
     <>
       <Typography sx={{ maxWidth: 680 }}>
-        Describe the roles you want: titles, locations, work modes, pay floors and anything to
-        avoid. Offerbound uses it for the daily search and to rank leads. You can change it any time
-        in Settings.
+        {t(
+          "Describe the roles you want: titles, locations, work modes, pay floors and anything to avoid. Offerbound uses it for the daily search and to rank leads. You can change it any time in Settings.",
+        )}
       </Typography>
 
       {settings.isPending && active ? (
-        <Skeleton variant="rounded" height={160} aria-label="Loading your search brief" />
+        <Skeleton variant="rounded" height={160} aria-label={t("Loading your search brief")} />
       ) : settings.isError ? (
         <ErrorState
-          what="your settings"
+          what={t("your settings")}
           error={settings.error}
           onRetry={() => void settings.refetch()}
         />
       ) : (
         <TextField
-          label="Search brief"
+          label={t("Search brief")}
           multiline
           minRows={6}
           fullWidth
           value={brief}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder={BRIEF_PLACEHOLDER}
+          placeholder={t(BRIEF_PLACEHOLDER)}
           error={tooLong}
           helperText={
             tooLong
-              ? `${formatCount(brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters. Shorten it to save.`
-              : `${formatCount(brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters`
+              ? t("{count} of {max} characters. Shorten it to save.", {
+                  count: formatCount(brief.length),
+                  max: formatCount(BRIEF_MAX_CHARS),
+                })
+              : t("{count} of {max} characters", {
+                  count: formatCount(brief.length),
+                  max: formatCount(BRIEF_MAX_CHARS),
+                })
           }
         />
       )}
 
       {save.isError ? (
         <Alert severity="error" role="alert">
-          {`Couldn't save your brief. ${errorMessage(save.error, "Check your connection and try again.")}`}
+          {`${t("Couldn't save your brief.")} ${errorMessage(save.error, t("Check your connection and try again."))}`}
         </Alert>
       ) : null}
 
       {finish.isError ? (
         <Alert severity="error" role="alert">
-          {`Couldn't finish setup. ${errorMessage(finish.error, "Check your connection and try again.")}`}
+          {`${t("Couldn't finish setup.")} ${errorMessage(finish.error, t("Check your connection and try again."))}`}
         </Alert>
       ) : null}
 
       <StepFooter onBack={onBack} onSkip={saved ? undefined : onSkip}>
         {unchanged ? (
           <Button variant="contained" disabled={finish.isPending} onClick={onContinue}>
-            Continue
+            {t("Continue")}
           </Button>
         ) : (
           <Button
@@ -621,7 +640,7 @@ function BriefStep({
             }
             onClick={submit}
           >
-            Save and continue
+            {t("Save and continue")}
           </Button>
         )}
       </StepFooter>
@@ -648,28 +667,35 @@ function GmailStep({ onContinue }: { onContinue: () => void }) {
     <>
       <Typography sx={{ maxWidth: 680 }}>
         {started
-          ? "Offerbound is reading your Gmail with read-only access. It never sends, deletes or labels email."
-          : "Offerbound reads your Gmail with read-only access. It never sends, deletes or labels email. Nothing is read until you press the button."}
+          ? t(
+              "Offerbound is reading your Gmail with read-only access. It never sends, deletes or labels email.",
+            )
+          : t(
+              "Offerbound reads your Gmail with read-only access. It never sends, deletes or labels email. Nothing is read until you press the button.",
+            )}
       </Typography>
 
       {!started ? (
         <>
           <Box
             component="ul"
-            aria-label="What Offerbound reads"
+            aria-label={t("What Offerbound reads")}
             sx={{ m: 0, pl: 2.5, maxWidth: 680 }}
           >
             <Typography component="li" variant="body2">
-              Emails from job sites, hiring systems like Ashby or Greenhouse, and companies you've
-              applied to are read in full and sent to OpenAI to update your records.
+              {t(
+                "Emails from job sites, hiring systems like Ashby or Greenhouse, and companies you've applied to are read in full and sent to OpenAI to update your records.",
+              )}
             </Typography>
             <Typography component="li" variant="body2">
-              For any other email, only the sender, subject and the short preview Gmail shows are
-              sent to OpenAI, to decide whether it's about your job search.
+              {t(
+                "For any other email, only the sender, subject and the short preview Gmail shows are sent to OpenAI, to decide whether it's about your job search.",
+              )}
             </Typography>
             <Typography component="li" variant="body2">
-              Promotions and forum emails that don't come from a job source are skipped without
-              being sent anywhere.
+              {t(
+                "Promotions and forum emails that don't come from a job source are skipped without being sent anywhere.",
+              )}
             </Typography>
           </Box>
           {needsAccess || notConnected ? (
@@ -678,16 +704,20 @@ function GmailStep({ onContinue }: { onContinue: () => void }) {
               role="alert"
               action={
                 <Button component="a" href={GOOGLE_START_PATH} color="warning" size="small">
-                  Connect Gmail
+                  {t("Connect Gmail")}
                 </Button>
               }
             >
-              Offerbound doesn't have access to your Gmail yet. Connect it, then start syncing.
+              {t(
+                t(
+                  "Offerbound doesn't have access to your Gmail yet. Connect it, then start syncing.",
+                ),
+              )}
             </Alert>
           ) : null}
           {start.isError && !notConnected ? (
             <Alert severity="error" role="alert">
-              {`Couldn't start syncing. ${errorMessage(start.error, "Check your connection and try again.")}`}
+              {`${t("Couldn't start syncing.")} ${errorMessage(start.error, t("Check your connection and try again."))}`}
             </Alert>
           ) : null}
         </>
@@ -702,7 +732,7 @@ function GmailStep({ onContinue }: { onContinue: () => void }) {
       <StepFooter>
         {started ? (
           <Button variant="contained" onClick={onContinue}>
-            Continue
+            {t("Continue")}
           </Button>
         ) : (
           <Button
@@ -710,7 +740,7 @@ function GmailStep({ onContinue }: { onContinue: () => void }) {
             disabled={start.isPending || needsAccess || notConnected}
             onClick={() => start.mutate()}
           >
-            Start syncing
+            {t("Start syncing")}
           </Button>
         )}
       </StepFooter>
@@ -745,8 +775,9 @@ function FirstSync({
     >
       {state === "failed" ? (
         <Alert severity="error" role="alert">
-          The first sync stopped before it finished. Continue setup, then use Sync now on Today to
-          try again.
+          {t(
+            "The first sync stopped before it finished. Continue setup, then use Sync now on Today to try again.",
+          )}
         </Alert>
       ) : (
         <>
@@ -755,25 +786,29 @@ function FirstSync({
               <CheckCircleOutlined color="primary" fontSize="small" aria-hidden />
             ) : null}
             <Typography sx={{ fontWeight: 700 }}>
-              {state === "done" ? "First sync finished" : "First sync in progress"}
+              {state === "done" ? t("First sync finished") : t("First sync in progress")}
             </Typography>
           </Box>
           {listed > 0 || state === "done" ? (
             <LinearProgress
               variant="determinate"
               value={state === "done" ? 100 : percent}
-              aria-label="First sync"
+              aria-label={t("First sync")}
               sx={{ height: 6, borderRadius: 3 }}
             />
           ) : (
-            <LinearProgress aria-label="First sync" sx={{ height: 6, borderRadius: 3 }} />
+            <LinearProgress aria-label={t("First sync")} sx={{ height: 6, borderRadius: 3 }} />
           )}
           <Typography variant="body2" color="text.secondary">
             {listed > 0
-              ? `${formatCount(processed)} of ${formatCount(listed)} checked. `
-              : "Finding your email. "}
-            Applications update as emails are read; follow-up timers start when this finishes. You
-            can leave this page; the sync keeps running.
+              ? t("{processed} of {listed} checked.", {
+                  processed: formatCount(processed),
+                  listed: formatCount(listed),
+                })
+              : t("Finding your email.")}{" "}
+            {t(
+              "Applications update as emails are read; follow-up timers start when this finishes. You can leave this page; the sync keeps running.",
+            )}
           </Typography>
         </>
       )}

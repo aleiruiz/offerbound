@@ -10,6 +10,7 @@ import {
   useSettingsSave,
   wholeNumberError,
 } from "./shared";
+import { t } from "../../i18n";
 
 /**
  * Settings, Daily targets (DESIGN_SPEC §5.7, F13): a pair of number fields for each target that
@@ -19,25 +20,55 @@ import {
 type TargetKey = keyof DailyTargets;
 
 const TARGETS: { key: TargetKey; label: string; range: boolean; hint: string }[] = [
-  { key: "leads", label: "New leads", range: true, hint: "New leads to look through each day." },
+  {
+    key: "leads",
+    get label() {
+      return t("New leads");
+    },
+    range: true,
+    get hint() {
+      return t("New leads to look through each day.");
+    },
+  },
   {
     key: "applications",
-    label: "Applications",
+    get label() {
+      return t("Applications");
+    },
     range: true,
-    hint: "Applications to send each day.",
+    get hint() {
+      return t("Applications to send each day.");
+    },
   },
   {
     key: "outreach",
-    label: "Outreach messages",
+    get label() {
+      return t("Outreach messages");
+    },
     range: false,
-    hint: "Messages to recruiters or people at companies each day.",
+    get hint() {
+      return t("Messages to recruiters or people at companies each day.");
+    },
   },
-  { key: "followUps", label: "Follow-ups", range: true, hint: "Follow-up messages each day." },
+  {
+    key: "followUps",
+    get label() {
+      return t("Follow-ups");
+    },
+    range: true,
+    get hint() {
+      return t("Follow-up messages each day.");
+    },
+  },
   {
     key: "prepMinutes",
-    label: "Prep minutes",
+    get label() {
+      return t("Prep minutes");
+    },
     range: false,
-    hint: "Minutes of interview preparation each day.",
+    get hint() {
+      return t("Minutes of interview preparation each day.");
+    },
   },
 ];
 
@@ -58,13 +89,13 @@ function validate(draft: Draft): Record<string, string> {
   for (const { key, range } of TARGETS) {
     const { min, max } = draft[key];
     const base = `dailyTargets.${key}`;
-    const minError = wholeNumberError(min) ?? ((min ?? 0) < 0 ? "Use 0 or more" : undefined);
+    const minError = wholeNumberError(min) ?? ((min ?? 0) < 0 ? t("Use 0 or more") : undefined);
     if (minError) errors[`${base}.min`] = minError;
     if (!range) continue;
     const maxError = wholeNumberError(max);
     if (maxError) errors[`${base}.max`] = maxError;
     else if (!minError && (max ?? 0) < (min ?? 0)) {
-      errors[`${base}.max`] = "Must be at least the minimum";
+      errors[`${base}.max`] = t("Must be at least the minimum");
     }
   }
   return errors;
@@ -102,8 +133,8 @@ function TargetsForm({ settings }: { settings: Settings }) {
   return (
     <SectionPaper
       id="targets-heading"
-      title="Daily targets"
-      caption="Shown as meters on Today. They guide you; nothing is blocked when you miss one."
+      title={t("Daily targets")}
+      caption={t("Shown as meters on Today. They guide you; nothing is blocked when you miss one.")}
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
         {TARGETS.map(({ key, label, range, hint }) => (
@@ -116,7 +147,7 @@ function TargetsForm({ settings }: { settings: Settings }) {
             </Typography>
             <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1 }}>
               <IntField
-                label="At least"
+                label={t("At least")}
                 min={0}
                 value={draft[key].min}
                 onChange={(value) => set(key, "min", value)}
@@ -125,10 +156,10 @@ function TargetsForm({ settings }: { settings: Settings }) {
               {range ? (
                 <>
                   <Typography color="text.secondary" sx={{ pt: 1 }}>
-                    to
+                    {t("to")}
                   </Typography>
                   <IntField
-                    label="At most"
+                    label={t("At most")}
                     min={0}
                     value={draft[key].max}
                     onChange={(value) => set(key, "max", value)}

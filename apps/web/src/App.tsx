@@ -15,6 +15,7 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { TodayPage } from "./pages/TodayPage";
 import { AppShell } from "./shell/AppShell";
 import { RequireSession } from "./shell/RequireSession";
+import { t } from "./i18n";
 
 export function App() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export function App() {
 
   // The demo refuses free text with a 403; whatever the control reported, the visitor is told why.
   useEffect(() => {
-    setDemoReadOnlyHandler(() => snackbar.alert(DEMO_READ_ONLY_MESSAGE));
+    setDemoReadOnlyHandler(() => snackbar.alert(t(DEMO_READ_ONLY_MESSAGE)));
     return () => setDemoReadOnlyHandler(null);
   }, [snackbar]);
 

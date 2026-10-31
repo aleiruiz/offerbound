@@ -12,6 +12,7 @@ import { ApiClientError } from "../../api/client";
 import { useSaveSettings, useSettings } from "../../api/hooks";
 import { ErrorState } from "../../components/States";
 import { DemoLock } from "../../lib/demo";
+import { msg, t } from "../../i18n";
 
 /** Pieces shared by the Settings sections: the paper, the loading gate, saving and number fields. */
 
@@ -72,7 +73,7 @@ export function SettingsGate({ children }: { children: (settings: Settings) => R
   if (settings.isError) {
     return (
       <ErrorState
-        what="your settings"
+        what={t("your settings")}
         error={settings.error}
         onRetry={() => void settings.refetch()}
       />
@@ -127,16 +128,16 @@ export function SaveBar({
     <>
       {save.failure ? (
         <Alert severity="error" role="alert">
-          {`Couldn't save your settings. ${
+          {`${t("Couldn't save your settings.")} ${
             save.failure instanceof ApiClientError
-              ? save.failure.message
-              : "Check your connection and try again."
+              ? t(save.failure.message)
+              : t("Check your connection and try again.")
           }`}
         </Alert>
       ) : null}
       {save.invalid ? (
         <Alert severity="error" role="alert">
-          Some values need fixing. The messages are under the fields.
+          {t("Some values need fixing. The messages are under the fields.")}
           {save.fields["_"] ? ` ${save.fields["_"]}` : ""}
         </Alert>
       ) : null}
@@ -159,12 +160,12 @@ export function SaveBar({
           color="text.secondary"
           sx={{ mr: "auto" }}
         >
-          {save.saved ? "Changes saved" : ""}
+          {save.saved ? t("Changes saved") : ""}
         </Typography>
         {leading}
         <DemoLock reason="settings">
           <Button variant="contained" disabled={disabled || save.pending} onClick={onSave}>
-            Save changes
+            {t("Save changes")}
           </Button>
         </DemoLock>
       </Box>
@@ -210,11 +211,11 @@ export function IntField({
   );
 }
 
-export const NOT_A_NUMBER = "Enter a whole number";
+export const NOT_A_NUMBER = msg("Enter a whole number");
 
 /** The message for a number that is missing or not whole, or undefined when it is a whole number. */
 export function wholeNumberError(value: number | null): string | undefined {
-  return value === null || !Number.isInteger(value) ? NOT_A_NUMBER : undefined;
+  return value === null || !Number.isInteger(value) ? t(NOT_A_NUMBER) : undefined;
 }
 
 export type Tone = "route" | "signal" | "stop" | "neutral";

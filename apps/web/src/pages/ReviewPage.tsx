@@ -32,6 +32,7 @@ import { formatDateTime, formatTime, localDayKey } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
 import { DemoLock, type DemoReason } from "../lib/demo";
+import { msg, t, tc, tn, tx } from "../i18n";
 
 /**
  * Review (DESIGN_SPEC §5.5; AC-5.1–5.3): the decisions the automation needs. One card per item with
@@ -40,44 +41,96 @@ import { DemoLock, type DemoReason } from "../lib/demo";
  */
 
 const TABS: { key: ReviewListState; label: string }[] = [
-  { key: "open", label: "Open" },
-  { key: "resolved", label: "Resolved" },
+  {
+    key: "open",
+    get label() {
+      return tc("review tab", "Open");
+    },
+  },
+  {
+    key: "resolved",
+    get label() {
+      return tc("review tab", "Resolved");
+    },
+  },
 ];
 const DEFAULT_TAB: ReviewListState = "open";
 
 const KIND_LABEL: Record<ReviewKind, string> = {
-  low_confidence: "Not sure",
-  ambiguous_match: "Which application?",
-  unexpected_transition: "Unexpected change",
-  possible_duplicate_company: "Same company?",
-  extraction_failed: "Couldn't read",
-  undone_change: "Undone change",
+  get low_confidence() {
+    return t("Not sure");
+  },
+  get ambiguous_match() {
+    return t("Which application?");
+  },
+  get unexpected_transition() {
+    return t("Unexpected change");
+  },
+  get possible_duplicate_company() {
+    return t("Same company?");
+  },
+  get extraction_failed() {
+    return t("Couldn't read");
+  },
+  get undone_change() {
+    return t("Undone change");
+  },
 };
 
 const STATE_LABEL: Record<Exclude<ReviewItem["state"], "open">, string> = {
-  resolved: "Resolved",
-  dismissed: "Dismissed",
+  get resolved() {
+    return t("Resolved");
+  },
+  get dismissed() {
+    return t("Dismissed");
+  },
 };
 
 /** The repeated verb of DESIGN_SPEC §10, one line per action. */
 const DONE: Record<ReviewAction, string> = {
-  apply: "Applied the change",
-  edit_apply: "Applied your edits",
-  dismiss: "Dismissed",
-  attach: "Attached the email",
-  create_new: "Created a new application",
-  reopen: "Reopened the application",
-  timeline_only: "Added to the timeline",
-  merge: "Merged the companies",
-  same_group: "Marked as the same group",
-  keep_separate: "Kept the companies separate",
-  retry: "Reading the email again",
-  reprocess: "Reprocessing the email",
-  ignore: "Ignored",
+  get apply() {
+    return t("Applied the change");
+  },
+  get edit_apply() {
+    return t("Applied your edits");
+  },
+  get dismiss() {
+    return t("Dismissed");
+  },
+  get attach() {
+    return t("Attached the email");
+  },
+  get create_new() {
+    return t("Created a new application");
+  },
+  get reopen() {
+    return t("Reopened the application");
+  },
+  get timeline_only() {
+    return t("Added to the timeline");
+  },
+  get merge() {
+    return t("Merged the companies");
+  },
+  get same_group() {
+    return t("Marked as the same group");
+  },
+  get keep_separate() {
+    return t("Kept the companies separate");
+  },
+  get retry() {
+    return t("Reading the email again");
+  },
+  get reprocess() {
+    return t("Reprocessing the email");
+  },
+  get ignore() {
+    return t("Ignored");
+  },
 };
 
-const CHANGED_ELSEWHERE = "Changes were made elsewhere. Review has been refreshed.";
-const NOT_SAVED = "Couldn't save your choice. Try again.";
+const CHANGED_ELSEWHERE = msg("Changes were made elsewhere. Review has been refreshed.");
+const NOT_SAVED = msg("Couldn't save your choice. Try again.");
 
 function readTab(params: URLSearchParams): ReviewListState {
   return TABS.find((t) => t.key === params.get("tab"))?.key ?? DEFAULT_TAB;
@@ -100,7 +153,9 @@ function EmailSummary({ item, onShow }: { item: ReviewItem; onShow: () => void }
   const { message } = item;
   if (!message) return null;
   const from = message.fromEmail ?? message.fromName;
-  const caption = [from ? `From ${from}.` : null, message.summary].filter(Boolean).join(" ");
+  const caption = [from ? t("From {sender}.", { sender: from }) : null, message.summary]
+    .filter(Boolean)
+    .join(" ");
   return (
     <Box
       sx={(theme) => ({
@@ -114,14 +169,14 @@ function EmailSummary({ item, onShow }: { item: ReviewItem; onShow: () => void }
         alignItems: "flex-start",
       })}
     >
-      <Typography sx={{ fontWeight: 600 }}>{message.subject ?? "No subject"}</Typography>
+      <Typography sx={{ fontWeight: 600 }}>{message.subject ?? t("No subject")}</Typography>
       {caption ? (
         <Typography variant="caption" color="text.secondary" component="p">
           {caption}
         </Typography>
       ) : null}
       <Link component="button" type="button" onClick={onShow} sx={linkSx}>
-        Show the email
+        {t("Show the email")}
       </Link>
     </Box>
   );
@@ -139,8 +194,11 @@ function ConfidenceMeter({
   const value = Math.min(100, Math.max(0, percent(confidence)));
   const caption =
     threshold === undefined
-      ? `Confidence ${value}%.`
-      : `Confidence ${value}%. Changes apply on their own at ${percent(threshold)}% or more.`;
+      ? t("Confidence {value}%.", { value })
+      : t("Confidence {value}%. Changes apply on their own at {threshold}% or more.", {
+          value,
+          threshold: percent(threshold),
+        });
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, maxWidth: 360 }}>
       <Typography id={captionId} variant="caption" color="text.secondary" component="p">
@@ -148,7 +206,7 @@ function ConfidenceMeter({
       </Typography>
       <Box
         role="meter"
-        aria-label="Confidence"
+        aria-label={t("Confidence")}
         aria-describedby={captionId}
         aria-valuenow={value}
         aria-valuemin={0}
@@ -173,14 +231,14 @@ function Candidates({
   if (candidates.length === 0) {
     return (
       <Typography variant="body2" color="text.secondary">
-        No application matched this email. You can create a new one from it.
+        {t("No application matched this email. You can create a new one from it.")}
       </Typography>
     );
   }
   return (
     <FormControl component="fieldset" sx={{ gap: 1 }}>
       <FormLabel component="legend" sx={{ fontSize: 13, fontWeight: 600 }}>
-        Attach it to
+        {t("Attach it to")}
       </FormLabel>
       <RadioGroup value={value} onChange={(e) => onChange(e.target.value)} sx={{ gap: 1 }}>
         {candidates.map((c) => (
@@ -253,45 +311,45 @@ function ReviewCard({
     switch (item.kind) {
       case "low_confidence":
         return [
-          { key: "apply", label: "Apply change", onClick: act("apply") },
-          { key: "edit", label: "Edit and apply", onClick: () => onEdit(item), lock: "edit" },
-          { key: "dismiss", label: "Dismiss", onClick: act("dismiss") },
+          { key: "apply", label: t("Apply change"), onClick: act("apply") },
+          { key: "edit", label: t("Edit and apply"), onClick: () => onEdit(item), lock: "edit" },
+          { key: "dismiss", label: t("Dismiss"), onClick: act("dismiss") },
         ];
       case "ambiguous_match":
         return [
           {
             key: "attach",
-            label: "Attach email",
+            label: t("Attach email"),
             disabled: chosen === "",
             onClick: () => onResolve(item, { action: "attach", applicationId: chosen }),
           },
-          { key: "create_new", label: "Create new application", onClick: act("create_new") },
-          { key: "dismiss", label: "Dismiss", onClick: act("dismiss") },
+          { key: "create_new", label: t("Create new application"), onClick: act("create_new") },
+          { key: "dismiss", label: t("Dismiss"), onClick: act("dismiss") },
         ];
       case "unexpected_transition":
         return [
-          { key: "reopen", label: "Reopen application", onClick: act("reopen") },
-          { key: "timeline_only", label: "Add to timeline only", onClick: act("timeline_only") },
+          { key: "reopen", label: t("Reopen application"), onClick: act("reopen") },
+          { key: "timeline_only", label: t("Add to timeline only"), onClick: act("timeline_only") },
         ];
       case "possible_duplicate_company":
         return [
-          { key: "merge", label: "Merge companies", onClick: act("merge") },
+          { key: "merge", label: t("Merge companies"), onClick: act("merge") },
           {
             key: "same_group",
-            label: "Same group, different companies",
+            label: t("Same group, different companies"),
             onClick: act("same_group"),
           },
-          { key: "keep_separate", label: "Keep separate", onClick: act("keep_separate") },
+          { key: "keep_separate", label: t("Keep separate"), onClick: act("keep_separate") },
         ];
       case "extraction_failed":
         return [
-          { key: "retry", label: "Retry", onClick: act("retry") },
-          { key: "dismiss", label: "Dismiss", onClick: act("dismiss") },
+          { key: "retry", label: t("Retry"), onClick: act("retry") },
+          { key: "dismiss", label: t("Dismiss"), onClick: act("dismiss") },
         ];
       case "undone_change":
         return [
-          { key: "reprocess", label: "Reprocess", onClick: act("reprocess") },
-          { key: "ignore", label: "Ignore", onClick: act("ignore") },
+          { key: "reprocess", label: t("Reprocess"), onClick: act("reprocess") },
+          { key: "ignore", label: t("Ignore"), onClick: act("ignore") },
         ];
     }
   })();
@@ -357,7 +415,7 @@ function ReviewCard({
       {operations.length > 0 ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-            Proposed change
+            {t("Proposed change")}
           </Typography>
           <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
             {operations.map((op, i) => (
@@ -374,7 +432,11 @@ function ReviewCard({
       ) : null}
 
       {open ? (
-        <Box role="group" aria-label="Actions" sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+        <Box
+          role="group"
+          aria-label={t("Actions")}
+          sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
+        >
           {actions.map((a, i) => {
             const button = (
               <Button
@@ -442,7 +504,7 @@ export function ReviewPage() {
     },
     onError: (error, { item }) => {
       settle(item.id);
-      snackbar.show(isConflict(error) ? CHANGED_ELSEWHERE : NOT_SAVED);
+      snackbar.show(isConflict(error) ? t(CHANGED_ELSEWHERE) : NOT_SAVED);
     },
   });
   const onResolve: CardProps["onResolve"] = (item, choice) => {
@@ -492,12 +554,16 @@ export function ReviewPage() {
 
   const caption =
     tab === "resolved"
-      ? "Decisions you have already made."
+      ? t("Decisions you have already made.")
       : openCount === undefined
-        ? "Nothing changes until you choose."
+        ? t("Nothing changes until you choose.")
         : openCount === 0
-          ? "Nothing needs a decision right now."
-          : `${openCount} ${openCount === 1 ? "email needs" : "emails need"} a decision. Nothing changes until you choose.`;
+          ? t("Nothing needs a decision right now.")
+          : tn(
+              openCount,
+              "1 email needs a decision. Nothing changes until you choose.",
+              "{count} emails need a decision. Nothing changes until you choose.",
+            );
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -509,7 +575,7 @@ export function ReviewPage() {
           tabIndex={-1}
           sx={{ outline: "none" }}
         >
-          Review
+          {t("Review")}
         </Typography>
         <Typography variant="caption" color="text.secondary" component="p">
           {caption}
@@ -518,7 +584,7 @@ export function ReviewPage() {
 
       <Tabs
         value={tab}
-        aria-label="Review lists"
+        aria-label={t("Review lists")}
         onChange={(_event, value: ReviewListState) => selectTab(value)}
         sx={{ borderBottom: 1, borderColor: "divider", minHeight: 44 }}
       >
@@ -565,23 +631,30 @@ export function ReviewPage() {
       >
         {query.isError ? (
           <ErrorState
-            what="review items"
+            what={t("review items")}
             error={query.error}
             onRetry={() => void query.refetch()}
           />
         ) : query.isPending ? (
-          <ListSkeleton label="Loading review items" rows={3} />
+          <ListSkeleton label={t("Loading review items")} rows={3} />
         ) : items.length === 0 ? (
           tab === "open" ? (
-            <EmptyState title="Nothing to review. Changes Offerbound is sure about are applied on their own." />
+            <EmptyState
+              title={t(
+                t("Nothing to review. Changes Offerbound is sure about are applied on their own."),
+              )}
+            />
           ) : (
-            <EmptyState title="Nothing resolved yet." body="Items you decide on are listed here." />
+            <EmptyState
+              title={t("Nothing resolved yet.")}
+              body={t("Items you decide on are listed here.")}
+            />
           )
         ) : (
           <>
             <Box
               component="ul"
-              aria-label={tab === "open" ? "Open review items" : "Resolved review items"}
+              aria-label={tab === "open" ? t("Open review items") : t("Resolved review items")}
               sx={{ m: 0, p: 0, display: "flex", flexDirection: "column", gap: 2 }}
             >
               {items.map((item, i) => (
@@ -620,8 +693,12 @@ export function ReviewPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>Enter</Key> shows the email, <Key>?</Key>{" "}
-                all shortcuts
+                {tx("Keys: {j} {k} move, {enter} shows the email, {help} all shortcuts", {
+                  j: <Key>j</Key>,
+                  k: <Key>k</Key>,
+                  enter: <Key>Enter</Key>,
+                  help: <Key>?</Key>,
+                })}
               </Typography>
               {query.hasNextPage ? (
                 <Button
@@ -629,7 +706,7 @@ export function ReviewPage() {
                   disabled={query.isFetchingNextPage}
                   onClick={() => void query.fetchNextPage()}
                 >
-                  Show more
+                  {t("Show more")}
                 </Button>
               ) : null}
             </Box>

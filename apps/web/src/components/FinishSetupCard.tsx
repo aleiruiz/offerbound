@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS } from "@offerbound/contracts";
 import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { useCv, useSettings } from "../api/hooks";
+import { t, tn } from "../i18n";
 import { useIsDemo } from "../lib/demo";
 
 /**
@@ -60,19 +61,19 @@ export function FinishSetupCard() {
   if (!cv.data) {
     missing.push({
       key: "cv",
-      title: "Upload your CV",
-      why: "Leads are scored against it.",
+      title: t("Upload your CV"),
+      why: t("Leads are scored against it."),
       to: "/settings/cv",
-      action: "Upload CV",
+      action: t("Upload CV"),
     });
   }
   if (!hasOwnBrief(settings.data.search.brief)) {
     missing.push({
       key: "brief",
-      title: "Write your search brief",
-      why: "The daily search looks for the roles it describes.",
+      title: t("Write your search brief"),
+      why: t("The daily search looks for the roles it describes."),
       to: "/settings/search",
-      action: "Write brief",
+      action: t("Write brief"),
     });
   }
   if (missing.length === 0) return null;
@@ -88,7 +89,7 @@ export function FinishSetupCard() {
         sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 2 }}
       >
         <Typography id="finish-setup-title" variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-          Finish setting up
+          {t("Finish setting up")}
         </Typography>
         <Button
           size="small"
@@ -97,12 +98,15 @@ export function FinishSetupCard() {
             setHidden(true);
           }}
         >
-          Hide
+          {t("Hide")}
         </Button>
       </Box>
       <Typography variant="body2" color="text.secondary">
-        {missing.length === 1 ? "One setup step is" : `${missing.length} setup steps are`} still
-        open. You can do them any time in Settings.
+        {tn(
+          missing.length,
+          "One setup step is still open. You can do it any time in Settings.",
+          "{count} setup steps are still open. You can do them any time in Settings.",
+        )}
       </Typography>
       {missing.map((step) => (
         <Box

@@ -18,16 +18,18 @@ import { isConflict, useUpdateInterview } from "../api/hooks";
 import { DEFAULT_TIMEZONE, formatDate, formatTime } from "../lib/format";
 import { INTERVIEW_KIND } from "./InterviewRow";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { msg, t } from "../i18n";
 
 const TITLE_ID = "prep-notes-title";
 
-const CHANGED_ELSEWHERE =
-  "Changes were made elsewhere. The interview has been refreshed. Check your notes and save again.";
+const CHANGED_ELSEWHERE = msg(
+  "Changes were made elsewhere. The interview has been refreshed. Check your notes and save again.",
+);
 
 function whenOf(interview: InterviewWithApplication, timezone: string): string {
   return interview.startsAt
     ? `${formatDate(interview.startsAt, timezone)}, ${formatTime(interview.startsAt, timezone)}`
-    : "No time yet";
+    : t("No time yet");
 }
 
 function Form({
@@ -53,7 +55,7 @@ function Form({
 
   const update = useUpdateInterview({
     onSuccess: () => {
-      snackbar.show("Saved prep notes");
+      snackbar.show(t("Saved prep notes"));
       onClose();
     },
     onError: (error) => setConflict(isConflict(error)),
@@ -84,24 +86,24 @@ function Form({
       >
         <Box>
           <Typography id={TITLE_ID} variant="h6" component="h2">
-            Prep notes
+            {t("Prep notes")}
           </Typography>
           <Typography variant="caption" color="text.secondary" component="p">
             {`${application.company.name}, ${application.title}. ${INTERVIEW_KIND[interview.kind]}, ${whenOf(interview, timezone)}.`}
           </Typography>
         </Box>
-        <IconButton aria-label="Close" onClick={onRequestClose} edge="end">
+        <IconButton aria-label={t("Close")} onClick={onRequestClose} edge="end">
           <CloseOutlined fontSize="small" />
         </IconButton>
       </Box>
 
-      {conflict ? <Alert severity="warning">{CHANGED_ELSEWHERE}</Alert> : null}
+      {conflict ? <Alert severity="warning">{t(CHANGED_ELSEWHERE)}</Alert> : null}
       {update.isError && !conflict ? (
-        <Alert severity="error">Couldn't save your notes. Try again.</Alert>
+        <Alert severity="error">{t("Couldn't save your notes. Try again.")}</Alert>
       ) : null}
 
       <TextField
-        label="Prep notes"
+        label={t("Prep notes")}
         value={text}
         onChange={(e) => setText(e.target.value)}
         multiline
@@ -112,10 +114,10 @@ function Form({
 
       <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
         <Button onClick={onRequestClose} disabled={update.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" variant="contained" disabled={unchanged || update.isPending}>
-          Save notes
+          {t("Save notes")}
         </Button>
       </Box>
     </Box>
@@ -174,12 +176,12 @@ export function PrepNotesSheet({
         ) : null}
       </Drawer>
       <Dialog open={asking} onClose={() => setAsking(false)} aria-labelledby="discard-notes-title">
-        <DialogTitle id="discard-notes-title">Discard changes?</DialogTitle>
+        <DialogTitle id="discard-notes-title">{t("Discard changes?")}</DialogTitle>
         <DialogContent>
-          <Typography>Your changes to these prep notes haven't been saved.</Typography>
+          <Typography>{t("Your changes to these prep notes haven't been saved.")}</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setAsking(false)}>Keep editing</Button>
+          <Button onClick={() => setAsking(false)}>{t("Keep editing")}</Button>
           <Button
             color="error"
             onClick={() => {
@@ -187,7 +189,7 @@ export function PrepNotesSheet({
               onClose();
             }}
           >
-            Discard
+            {t("Discard")}
           </Button>
         </DialogActions>
       </Dialog>

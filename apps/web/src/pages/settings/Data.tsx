@@ -6,9 +6,9 @@ import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import { ApiClientError } from "../../api/client";
 import { usePurgeEmailContent } from "../../api/hooks";
-import { formatCount } from "../../lib/format";
 import { SectionPaper } from "./shared";
 import { DemoLock } from "../../lib/demo";
+import { t, tn } from "../../i18n";
 
 /**
  * Settings, Data (AC-15.2): *Delete stored email content* behind a typed confirmation. The button
@@ -18,8 +18,12 @@ import { DemoLock } from "../../lib/demo";
 const CONFIRM_WORD = "DELETE";
 
 function resultText(count: number): string {
-  if (count === 0) return "There was no stored email content to delete.";
-  return `Deleted the stored content of ${formatCount(count)} ${count === 1 ? "email" : "emails"}.`;
+  if (count === 0) return t("There was no stored email content to delete.");
+  return tn(
+    count,
+    "Deleted the stored content of 1 email.",
+    "Deleted the stored content of {count} emails.",
+  );
 }
 
 export function Data() {
@@ -34,11 +38,11 @@ export function Data() {
   };
 
   return (
-    <SectionPaper id="data-heading" title="Data">
+    <SectionPaper id="data-heading" title={t("Data")}>
       <Typography>
-        Offerbound keeps the text of the emails it reads, so you can check where a change came from.
-        Your applications, leads, interviews and their timelines are separate records and stay as
-        they are.
+        {t(
+          "Offerbound keeps the text of the emails it reads, so you can check where a change came from. Your applications, leads, interviews and their timelines are separate records and stay as they are.",
+        )}
       </Typography>
 
       <Box
@@ -50,16 +54,18 @@ export function Data() {
         sx={{ display: "flex", flexDirection: "column", gap: 1.5, maxWidth: 560 }}
       >
         <Typography variant="subtitle2" component="h3">
-          Delete stored email content
+          {t("Delete stored email content")}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          This clears the subject, sender, recipients, preview and body of every stored email.
-          Timeline entries stay, but the email behind them no longer shows its text. Email that
-          Offerbound reads later is stored as usual. This can't be undone.
+          {t(
+            t(
+              "This clears the subject, sender, recipients, preview and body of every stored email. Timeline entries stay, but the email behind them no longer shows its text. Email that Offerbound reads later is stored as usual. This can't be undone.",
+            ),
+          )}
         </Typography>
         <DemoLock reason="delete" block>
           <TextField
-            label="Type DELETE to confirm"
+            label={t("Type DELETE to confirm")}
             value={typed}
             onChange={(event) => {
               setTyped(event.target.value);
@@ -79,16 +85,16 @@ export function Data() {
               variant="contained"
               disabled={!confirmed || purge.isPending}
             >
-              Delete stored email content
+              {t("Delete stored email content")}
             </Button>
           </DemoLock>
         </Box>
         {purge.isError ? (
           <Alert severity="error" role="alert">
-            {`Couldn't delete the stored email content. ${
+            {`${t("Couldn't delete the stored email content.")} ${
               purge.error instanceof ApiClientError
-                ? purge.error.message
-                : "Check your connection and try again."
+                ? t(purge.error.message)
+                : t("Check your connection and try again.")
             }`}
           </Alert>
         ) : null}

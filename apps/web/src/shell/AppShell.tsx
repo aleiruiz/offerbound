@@ -41,6 +41,7 @@ import { DemoBanner } from "./DemoBanner";
 import { parentOf, useTrackOrigin } from "./origin";
 import { ReconnectBanner } from "./ReconnectBanner";
 import { SyncStatus } from "./SyncStatus";
+import { t } from "../i18n";
 
 const DRAWER_WIDTH = 240;
 const RAIL_WIDTH = 72;
@@ -97,14 +98,16 @@ function NavCount({ navKey, count }: { navKey: NavKey; count: number }) {
       variant="caption"
       sx={{ color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
     >
-      {navKey === "leads" ? `${count} new` : count}
+      {navKey === "leads" ? t("{count} new", { count }) : count}
     </Typography>
   );
 }
 
 /** The rail and the bottom navigation badge only Review (DESIGN_SPEC §4). */
 function reviewLabel(label: string, key: NavKey, count: number): string {
-  return key === "review" && count > 0 ? `${label}, ${count} open` : label;
+  return key === "review" && count > 0
+    ? t("{label}, {count} open", { label: t(label), count })
+    : t(label);
 }
 
 function IconWithBadge({
@@ -153,7 +156,7 @@ function DrawerNav({
     >
       <Box
         component="nav"
-        aria-label="Main"
+        aria-label={t("Main")}
         sx={{ display: "flex", flexDirection: "column", gap: 3.5, px: 1.5, py: 3, flexGrow: 1 }}
       >
         <Box sx={{ px: 1.5, display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -188,7 +191,7 @@ function DrawerNav({
                   <Icon sx={{ fontSize: 20 }} />
                 </ListItemIcon>
                 <ListItemText
-                  primary={item.label}
+                  primary={t(item.label)}
                   slotProps={{ primary: { sx: { fontWeight: selected ? 700 : 600 } } }}
                 />
                 <NavCount navKey={item.key} count={countFor(item.key, counts)} />
@@ -215,7 +218,7 @@ function DrawerNav({
               <KeyboardOutlined sx={{ fontSize: 20 }} />
             </ListItemIcon>
             <ListItemText
-              primary="Keyboard shortcuts"
+              primary={t("Keyboard shortcuts")}
               slotProps={{ primary: { variant: "body2" } }}
             />
           </ListItemButton>
@@ -249,7 +252,7 @@ function RailNav({
     >
       <Box
         component="nav"
-        aria-label="Main"
+        aria-label={t("Main")}
         sx={{ display: "flex", flexDirection: "column", flexGrow: 1, px: 1, py: 3 }}
       >
         <Box sx={{ display: "flex", justifyContent: "center", pb: 2 }}>
@@ -261,7 +264,7 @@ function RailNav({
             const Icon = item.icon;
             const count = countFor(item.key, counts);
             return (
-              <Tooltip key={item.key} title={item.label} placement="right">
+              <Tooltip key={item.key} title={t(item.label)} placement="right">
                 <ListItemButton
                   component={Link}
                   to={item.to}
@@ -301,9 +304,9 @@ function RailNav({
           }}
         >
           <SyncStatus layout="rail" />
-          <Tooltip title="Keyboard shortcuts" placement="right">
+          <Tooltip title={t("Keyboard shortcuts")} placement="right">
             <ListItemButton
-              aria-label="Keyboard shortcuts"
+              aria-label={t("Keyboard shortcuts")}
               onClick={() => setShortcutDialogOpen(true)}
               sx={{ height: 44, borderRadius: 1, justifyContent: "center", px: 0 }}
             >
@@ -337,7 +340,7 @@ function BottomNav({
   return (
     <Paper
       component="nav"
-      aria-label="Main"
+      aria-label={t("Main")}
       sx={{
         position: "fixed",
         left: 0,
@@ -361,7 +364,7 @@ function BottomNav({
               component={Link}
               to={item.to}
               value={item.key}
-              label={item.label}
+              label={t(item.label)}
               aria-label={reviewLabel(item.label, item.key, count)}
               aria-current={item.key === active?.key ? "page" : undefined}
               icon={
@@ -376,7 +379,7 @@ function BottomNav({
         <BottomNavigationAction
           ref={moreRef}
           value="more"
-          label="More"
+          label={t("More")}
           icon={<MoreHorizOutlined sx={{ fontSize: 20 }} />}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
@@ -403,7 +406,7 @@ function BottomNav({
               sx={{ minHeight: 44, gap: 1.5 }}
             >
               <Icon sx={{ fontSize: 20 }} />
-              {item.label}
+              {t(item.label)}
             </MenuItem>
           );
         })}
@@ -415,7 +418,7 @@ function BottomNav({
           sx={{ minHeight: 44, gap: 1.5 }}
         >
           <KeyboardOutlined sx={{ fontSize: 20 }} />
-          Keyboard shortcuts
+          {t("Keyboard shortcuts")}
         </MenuItem>
       </Menu>
     </Paper>
@@ -450,12 +453,12 @@ export function AppShell() {
           >
             <Toolbar sx={{ minHeight: 56 }}>
               {parent ? (
-                <Tooltip title={`Back to ${parent.label}`}>
+                <Tooltip title={t("Back to {page}", { page: t(parent.label) })}>
                   <IconButton
                     component={Link}
                     to={parent.to}
                     edge="start"
-                    aria-label={`Back to ${parent.label}`}
+                    aria-label={t("Back to {page}", { page: t(parent.label) })}
                     sx={{ mr: 1, width: 44, height: 44 }}
                   >
                     <ArrowBackOutlined sx={{ fontSize: 20 }} />
@@ -465,7 +468,7 @@ export function AppShell() {
                 <Logo variant="mark" height={28} style={{ marginRight: 12 }} />
               )}
               <Typography component="span" variant="h6" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
-                {active?.label ?? "Offerbound"}
+                {active ? t(active.label) : "Offerbound"}
               </Typography>
               <SyncStatus layout="bar" />
             </Toolbar>

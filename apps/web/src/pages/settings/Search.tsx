@@ -40,6 +40,7 @@ import {
   type Tone,
 } from "./shared";
 import { DemoLock } from "../../lib/demo";
+import { t } from "../../i18n";
 
 /**
  * Settings, Job search (DESIGN_SPEC §5.7, AC-10.1, AC-10.5): the daily search, its brief, tracks and
@@ -47,16 +48,51 @@ import { DemoLock } from "../../lib/demo";
  */
 
 const LEVELS: { value: Seniority; label: string }[] = [
-  { value: "junior", label: "Junior" },
-  { value: "mid", label: "Mid" },
-  { value: "senior", label: "Senior" },
-  { value: "staff_plus", label: "Staff and above" },
-  { value: "lead", label: "Hands-on lead" },
-  { value: "manager", label: "Managers who don't code" },
+  {
+    value: "junior",
+    get label() {
+      return t("Junior");
+    },
+  },
+  {
+    value: "mid",
+    get label() {
+      return t("Mid");
+    },
+  },
+  {
+    value: "senior",
+    get label() {
+      return t("Senior");
+    },
+  },
+  {
+    value: "staff_plus",
+    get label() {
+      return t("Staff and above");
+    },
+  },
+  {
+    value: "lead",
+    get label() {
+      return t("Hands-on lead");
+    },
+  },
+  {
+    value: "manager",
+    get label() {
+      return t("Managers who don't code");
+    },
+  },
 ];
 
 const PRIORITIES: { value: Track["priority"]; label: string }[] = [
-  { value: 1, label: "1, highest" },
+  {
+    value: 1,
+    get label() {
+      return t("1, highest");
+    },
+  },
   { value: 2, label: "2" },
   { value: 3, label: "3" },
 ];
@@ -101,24 +137,26 @@ function toDraft(search: SearchSettings): Draft {
 function validate(draft: Draft): Record<string, string> {
   const errors: Record<string, string> = {};
   if (draft.brief.length > BRIEF_MAX_CHARS) {
-    errors["search.brief"] = `Keep the brief to ${formatCount(BRIEF_MAX_CHARS)} characters`;
+    errors["search.brief"] = t("Keep the brief to {max} characters", {
+      max: formatCount(BRIEF_MAX_CHARS),
+    });
   }
-  if (!RUN_TIME.test(draft.runTime)) errors["search.runTime"] = "Use HH:mm, for example 07:00";
+  if (!RUN_TIME.test(draft.runTime)) errors["search.runTime"] = t("Use HH:mm, for example 07:00");
   const minError = wholeNumberError(draft.min);
   const maxError = wholeNumberError(draft.max);
   if (minError) errors["search.leadTarget.min"] = minError;
-  else if ((draft.min ?? 0) < 0) errors["search.leadTarget.min"] = "Use 0 or more";
+  else if ((draft.min ?? 0) < 0) errors["search.leadTarget.min"] = t("Use 0 or more");
   if (maxError) errors["search.leadTarget.max"] = maxError;
   else if (!minError && (draft.max ?? 0) < (draft.min ?? 0)) {
-    errors["search.leadTarget.max"] = "Must be at least the minimum";
+    errors["search.leadTarget.max"] = t("Must be at least the minimum");
   }
   const seen = new Set<string>();
   draft.tracks.forEach((track, index) => {
     const key = track.key.trim();
-    if (key === "") errors[`search.tracks.${index}.key`] = "Enter a key";
-    else if (seen.has(key)) errors[`search.tracks.${index}.key`] = "Track keys must be unique";
+    if (key === "") errors[`search.tracks.${index}.key`] = t("Enter a key");
+    else if (seen.has(key)) errors[`search.tracks.${index}.key`] = t("Track keys must be unique");
     seen.add(key);
-    if (track.label.trim() === "") errors[`search.tracks.${index}.label`] = "Enter a name";
+    if (track.label.trim() === "") errors[`search.tracks.${index}.label`] = t("Enter a name");
   });
   return errors;
 }
@@ -133,14 +171,14 @@ function JobSearchForm({ settings }: { settings: Settings }) {
     onSuccess: () =>
       setRunNote({
         tone: "info",
-        text: "Search started. New leads appear in Leads when it finishes.",
+        text: t("Search started. New leads appear in Leads when it finishes."),
       }),
     onError: (error) =>
       setRunNote({
         tone: "error",
         text: isApiError(error, "already_running")
-          ? "A search is already running."
-          : `Couldn't start the search. ${error instanceof ApiClientError ? error.message : "Try again."}`,
+          ? t("A search is already running.")
+          : `${t("Couldn't start the search.")} ${error instanceof ApiClientError ? t(error.message) : t("Try again.")}`,
       }),
   });
 
@@ -190,8 +228,8 @@ function JobSearchForm({ settings }: { settings: Settings }) {
   return (
     <SectionPaper
       id="job-search-heading"
-      title="Job search"
-      caption="Runs with OpenAI web search and your CV. Results go to Leads."
+      title={t("Job search")}
+      caption={t("Runs with OpenAI web search and your CV. Results go to Leads.")}
     >
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "16px 28px" }}>
         <FormControlLabel
@@ -199,11 +237,11 @@ function JobSearchForm({ settings }: { settings: Settings }) {
           control={
             <Switch checked={draft.enabled} onChange={(_, enabled) => update({ enabled })} />
           }
-          label="Run every day"
+          label={t("Run every day")}
         />
         <TextField
           type="time"
-          label="At"
+          label={t("At")}
           value={draft.runTime}
           onChange={(event) => update({ runTime: event.target.value })}
           error={Boolean(message("search.runTime"))}
@@ -213,11 +251,11 @@ function JobSearchForm({ settings }: { settings: Settings }) {
         />
         <Box component="fieldset" sx={fieldset}>
           <Typography component="legend" variant="subtitle2" sx={{ mb: 1 }}>
-            New leads per day
+            {t("New leads per day")}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
             <IntField
-              label="At least"
+              label={t("At least")}
               value={draft.min}
               min={0}
               onChange={(min) => update({ min })}
@@ -225,10 +263,10 @@ function JobSearchForm({ settings }: { settings: Settings }) {
               width={104}
             />
             <Typography color="text.secondary" sx={{ pt: 1 }}>
-              to
+              {t("to")}
             </Typography>
             <IntField
-              label="At most"
+              label={t("At most")}
               value={draft.max}
               min={0}
               onChange={(max) => update({ max })}
@@ -239,16 +277,20 @@ function JobSearchForm({ settings }: { settings: Settings }) {
         </Box>
       </Box>
       <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: -1.5 }}>
-        {`${zoneCity(timezone)} time. The search stops early rather than padding the list to reach the target.`}
+        {t(
+          "{city} time. The search stops early rather than padding the list to reach the target.",
+          { city: zoneCity(timezone) },
+        )}
       </Typography>
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
         <Typography component="label" htmlFor="search-brief" variant="subtitle2">
-          Search brief
+          {t("Search brief")}
         </Typography>
         <Typography variant="caption" color="text.secondary" component="p">
-          Describe the roles, places, pay and exclusions you want. Your duplicate rules don't need
-          to be here: Offerbound never shows a company you've already seen.
+          {t(
+            "Describe the roles, places, pay and exclusions you want. Your duplicate rules don't need to be here: Offerbound never shows a company you've already seen.",
+          )}
         </Typography>
         <DemoLock reason="text" block>
           <TextField
@@ -260,37 +302,40 @@ function JobSearchForm({ settings }: { settings: Settings }) {
             onChange={(event) => update({ brief: event.target.value })}
             error={Boolean(message("search.brief")) || briefTooLong}
             helperText={message("search.brief") || undefined}
-            slotProps={{ htmlInput: { "aria-label": "Search brief" } }}
+            slotProps={{ htmlInput: { "aria-label": t("Search brief") } }}
           />
         </DemoLock>
         <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
-          {`${formatCount(draft.brief.length)} of ${formatCount(BRIEF_MAX_CHARS)} characters${
-            briefTooLong ? ". Shorten it to save." : ""
-          }`}
+          {t(
+            briefTooLong
+              ? "{count} of {max} characters. Shorten it to save."
+              : "{count} of {max} characters",
+            { count: formatCount(draft.brief.length), max: formatCount(BRIEF_MAX_CHARS) },
+          )}
         </Typography>
       </Box>
 
       <Box component="fieldset" sx={{ ...fieldset, gap: 1.25 }}>
         <Typography component="legend" variant="subtitle2">
-          Tracks
+          {t("Tracks")}
         </Typography>
         <Typography variant="caption" color="text.secondary" component="p">
-          Each lead is put on one track. Leads are sorted by track priority, then fit.
+          {t("Each lead is put on one track. Leads are sorted by track priority, then fit.")}
         </Typography>
         <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
           <Table sx={{ minWidth: 520 }}>
             <TableHead>
               <TableRow>
                 <TableCell scope="col" sx={{ width: 96 }}>
-                  Key
+                  {t("Key")}
                 </TableCell>
-                <TableCell scope="col">Name</TableCell>
+                <TableCell scope="col">{t("Name")}</TableCell>
                 <TableCell scope="col" sx={{ width: 150 }}>
-                  Priority
+                  {t("Priority")}
                 </TableCell>
                 <TableCell scope="col" sx={{ width: 64 }}>
                   <Box component="span" sx={visuallyHidden}>
-                    Remove
+                    {t("Remove")}
                   </Box>
                 </TableCell>
               </TableRow>
@@ -304,7 +349,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
                       onChange={(event) => setTrack(index, { key: event.target.value })}
                       error={Boolean(message(`search.tracks.${index}.key`))}
                       helperText={message(`search.tracks.${index}.key`)}
-                      slotProps={{ htmlInput: { "aria-label": "Track key" } }}
+                      slotProps={{ htmlInput: { "aria-label": t("Track key") } }}
                       sx={{ width: 80 }}
                     />
                   </TableCell>
@@ -315,7 +360,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
                       onChange={(event) => setTrack(index, { label: event.target.value })}
                       error={Boolean(message(`search.tracks.${index}.label`))}
                       helperText={message(`search.tracks.${index}.label`)}
-                      slotProps={{ htmlInput: { "aria-label": "Track name" } }}
+                      slotProps={{ htmlInput: { "aria-label": t("Track name") } }}
                     />
                   </TableCell>
                   <TableCell sx={{ verticalAlign: "top" }}>
@@ -329,7 +374,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
                       }
                       slotProps={{
                         select: { native: true },
-                        htmlInput: { "aria-label": "Track priority" },
+                        htmlInput: { "aria-label": t("Track priority") },
                       }}
                       sx={{ width: 132 }}
                     >
@@ -342,7 +387,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
                   </TableCell>
                   <TableCell sx={{ verticalAlign: "top" }}>
                     <IconButton
-                      aria-label={`Remove track ${track.key || index + 1}`}
+                      aria-label={t("Remove track {name}", { name: track.key || index + 1 })}
                       onClick={() => update({ tracks: draft.tracks.filter((_, i) => i !== index) })}
                     >
                       <CloseOutlined fontSize="small" />
@@ -354,13 +399,13 @@ function JobSearchForm({ settings }: { settings: Settings }) {
           </Table>
         </TableContainer>
         <Box>
-          <Button onClick={addTrack}>Add track</Button>
+          <Button onClick={addTrack}>{t("Add track")}</Button>
         </Box>
       </Box>
 
       <Box component="fieldset" sx={{ ...fieldset, gap: 1.25 }}>
         <Typography component="legend" variant="subtitle2">
-          Never show these levels
+          {t("Never show these levels")}
         </Typography>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
           {LEVELS.map((level) => {
@@ -397,7 +442,7 @@ function JobSearchForm({ settings }: { settings: Settings }) {
               run.mutate();
             }}
           >
-            Run search now
+            {t("Run search now")}
           </Button>
         }
       />
@@ -427,10 +472,30 @@ const visuallyHidden = {
 // Recent runs (AC-10.5)
 
 const RUN_RESULT: Record<SearchRun["status"], { label: string; tone: Tone }> = {
-  succeeded: { label: "Done", tone: "route" },
-  partial: { label: "Below target", tone: "signal" },
-  failed: { label: "Failed", tone: "stop" },
-  running: { label: "Running", tone: "neutral" },
+  succeeded: {
+    get label() {
+      return t("Done");
+    },
+    tone: "route",
+  },
+  partial: {
+    get label() {
+      return t("Below target");
+    },
+    tone: "signal",
+  },
+  failed: {
+    get label() {
+      return t("Failed");
+    },
+    tone: "stop",
+  },
+  running: {
+    get label() {
+      return t("Running");
+    },
+    tone: "neutral",
+  },
 };
 
 function RecentRuns() {
@@ -438,37 +503,41 @@ function RecentRuns() {
   const runs = useSearchRuns();
 
   return (
-    <SectionPaper id="runs-heading" title="Recent runs" caption="Last 14 runs">
+    <SectionPaper id="runs-heading" title={t("Recent runs")} caption={t("Last 14 runs")}>
       {runs.isPending ? (
-        <Skeleton variant="rounded" height={120} aria-label="Loading recent runs" />
+        <Skeleton variant="rounded" height={120} aria-label={t("Loading recent runs")} />
       ) : runs.isError ? (
-        <ErrorState what="the recent runs" error={runs.error} onRetry={() => void runs.refetch()} />
+        <ErrorState
+          what={t("the recent runs")}
+          error={runs.error}
+          onRetry={() => void runs.refetch()}
+        />
       ) : runs.data.length === 0 ? (
-        <Typography color="text.secondary">No search has run yet.</Typography>
+        <Typography color="text.secondary">{t("No search has run yet.")}</Typography>
       ) : (
         <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
           <Table sx={{ minWidth: 720 }}>
             <TableHead>
               <TableRow>
-                <TableCell scope="col">Started</TableCell>
-                <TableCell scope="col">Result</TableCell>
+                <TableCell scope="col">{t("Started")}</TableCell>
+                <TableCell scope="col">{t("Result")}</TableCell>
                 <TableCell scope="col" align="right">
-                  New leads
+                  {t("New leads")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Suppressed
+                  {t("Suppressed")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Duplicates
+                  {t("Duplicates")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Closed postings
+                  {t("Closed postings")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Web searches
+                  {t("Web searches")}
                 </TableCell>
                 <TableCell scope="col" align="right">
-                  Cost
+                  {t("Cost")}
                 </TableCell>
               </TableRow>
             </TableHead>
@@ -487,7 +556,7 @@ function RecentRuns() {
                         component="span"
                         sx={{ display: "block" }}
                       >
-                        {run.trigger === "manual" ? "Run by you" : "Scheduled"}
+                        {run.trigger === "manual" ? t("Run by you") : t("Scheduled")}
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ verticalAlign: "top" }}>
@@ -509,7 +578,7 @@ function RecentRuns() {
                     <TableCell align="right">{formatCount(run.dead)}</TableCell>
                     <TableCell align="right">{formatCount(run.webSearchCalls)}</TableCell>
                     <TableCell align="right">
-                      {run.costMicros === null ? "Unknown" : formatUsd(run.costMicros)}
+                      {run.costMicros === null ? t("Unknown") : formatUsd(run.costMicros)}
                     </TableCell>
                   </TableRow>
                 );

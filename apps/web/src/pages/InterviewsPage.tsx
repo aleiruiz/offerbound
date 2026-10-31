@@ -16,6 +16,7 @@ import { Key } from "../components/ShortcutDialog";
 import { EmptyState, ErrorState, ListSkeleton } from "../components/States";
 import { formatLongDay, localDayKey, zoneCity } from "../lib/format";
 import { useListKeyboard } from "../lib/shortcuts";
+import { t, tx } from "../i18n";
 
 /**
  * Interviews (DESIGN_SPEC §5.6, §6.5; AC-8.4, 8.5): Upcoming and Past tabs. Upcoming opens with the
@@ -24,8 +25,18 @@ import { useListKeyboard } from "../lib/shortcuts";
  */
 
 const TABS: { key: InterviewRange; label: string }[] = [
-  { key: "upcoming", label: "Upcoming" },
-  { key: "past", label: "Past" },
+  {
+    key: "upcoming",
+    get label() {
+      return t("Upcoming");
+    },
+  },
+  {
+    key: "past",
+    get label() {
+      return t("Past");
+    },
+  },
 ];
 const DEFAULT_TAB: InterviewRange = "upcoming";
 
@@ -63,7 +74,7 @@ function groupByDay(
     const key = interview.startsAt ? localDayKey(interview.startsAt, timezone) : "none";
     let group = groups.at(-1);
     if (group?.key !== key) {
-      group = { key, label: formatLongDay(key) ?? "No date", items: [] };
+      group = { key, label: formatLongDay(key) ?? t("No date"), items: [] };
       groups.push(group);
     }
     group.items.push(interview);
@@ -109,10 +120,10 @@ function ToScheduleBand({
           component="h2"
           sx={{ fontSize: 14, lineHeight: "20px", fontWeight: 700, color: "warning.main" }}
         >
-          To schedule
+          {t("To schedule")}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          You haven't picked a time yet
+          {t("You haven't picked a time yet")}
         </Typography>
       </Box>
       <Box component="ul" aria-labelledby={headingId} sx={{ m: 0, p: 0 }}>
@@ -214,7 +225,7 @@ export function InterviewsPage() {
   const addButton = (
     <DemoLock reason="add">
       <Button variant="outlined" onClick={() => setAdding(true)}>
-        Add interview
+        {t("Add interview")}
       </Button>
     </DemoLock>
   );
@@ -233,10 +244,13 @@ export function InterviewsPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="h4" component="h1">
-            Interviews
+            {t("Interviews")}
           </Typography>
           <Typography variant="caption" color="text.secondary" component="p">
-            {`Times are in ${zoneCity(timezone)} time. Interviews come from invitation emails and calendar invites.`}
+            {t(
+              "Times are in {city} time. Interviews come from invitation emails and calendar invites.",
+              { city: zoneCity(timezone) },
+            )}
           </Typography>
         </Box>
         {addButton}
@@ -244,7 +258,7 @@ export function InterviewsPage() {
 
       <Tabs
         value={tab}
-        aria-label="Interview lists"
+        aria-label={t("Interview lists")}
         onChange={(_event, value: InterviewRange) => selectTab(value)}
         sx={{ borderBottom: 1, borderColor: "divider", minHeight: 44 }}
       >
@@ -290,20 +304,28 @@ export function InterviewsPage() {
         sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}
       >
         {query.isError ? (
-          <ErrorState what="interviews" error={query.error} onRetry={() => void query.refetch()} />
+          <ErrorState
+            what={t("interviews")}
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
         ) : query.isPending ? (
-          <ListSkeleton label="Loading interviews" rows={3} />
+          <ListSkeleton label={t("Loading interviews")} rows={3} />
         ) : items.length === 0 ? (
           tab === "upcoming" ? (
             <EmptyState
-              title="No interviews coming up."
-              body="Interviews from invitation emails and calendar invites are listed here. You can also add one yourself."
+              title={t("No interviews coming up.")}
+              body={t(
+                t(
+                  "Interviews from invitation emails and calendar invites are listed here. You can also add one yourself.",
+                ),
+              )}
               actions={addButton}
             />
           ) : (
             <EmptyState
-              title="No past interviews yet."
-              body="Interviews that have happened or were cancelled are listed here."
+              title={t("No past interviews yet.")}
+              body={t("Interviews that have happened or were cancelled are listed here.")}
             />
           )
         ) : (
@@ -315,7 +337,7 @@ export function InterviewsPage() {
               <Paper
                 component="section"
                 variant="outlined"
-                aria-label={tab === "upcoming" ? "Scheduled interviews" : "Past interviews"}
+                aria-label={tab === "upcoming" ? t("Scheduled interviews") : t("Past interviews")}
                 sx={{ overflow: "hidden" }}
               >
                 {groups.map((g) => (
@@ -343,8 +365,12 @@ export function InterviewsPage() {
                   gap: 0.75,
                 }}
               >
-                Keys: <Key>j</Key> <Key>k</Key> move, <Key>Enter</Key> opens the application,{" "}
-                <Key>?</Key> all shortcuts
+                {tx("Keys: {j} {k} move, {enter} opens the application, {help} all shortcuts", {
+                  j: <Key>j</Key>,
+                  k: <Key>k</Key>,
+                  enter: <Key>Enter</Key>,
+                  help: <Key>?</Key>,
+                })}
               </Typography>
               {query.hasNextPage ? (
                 <Button
@@ -352,7 +378,7 @@ export function InterviewsPage() {
                   disabled={query.isFetchingNextPage}
                   onClick={() => void query.fetchNextPage()}
                 >
-                  Show more
+                  {t("Show more")}
                 </Button>
               ) : null}
             </Box>

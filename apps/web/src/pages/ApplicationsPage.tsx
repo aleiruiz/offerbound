@@ -36,6 +36,7 @@ import { FlagChip, STATUS_LABEL, StatusChip } from "../components/StatusChip";
 import { formatDate, formatRelative, formatShortDate, formatTime } from "../lib/format";
 import { useLinkSx } from "../lib/link-sx";
 import { useListKeyboard } from "../lib/shortcuts";
+import { t, tn } from "../i18n";
 
 /**
  * Applications (DESIGN_SPEC §5.2; AC-6.1, AC-6.3): search, sort, *Follow-up due only*, status chips
@@ -44,9 +45,24 @@ import { useListKeyboard } from "../lib/shortcuts";
  */
 
 const SORTS: { value: ApplicationSort; label: string }[] = [
-  { value: "last_activity", label: "Last activity" },
-  { value: "applied", label: "Applied date" },
-  { value: "status", label: "Status" },
+  {
+    value: "last_activity",
+    get label() {
+      return t("Last activity");
+    },
+  },
+  {
+    value: "applied",
+    get label() {
+      return t("Applied date");
+    },
+  },
+  {
+    value: "status",
+    get label() {
+      return t("Status");
+    },
+  },
 ];
 const DEFAULT_SORT: ApplicationSort = "last_activity";
 const SEARCH_DEBOUNCE_MS = 300;
@@ -179,7 +195,7 @@ function ApplicationRow({
       <TableCell>
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
           <StatusChip status={application.status} />
-          {application.followUpDue ? <FlagChip tone="signal" label="Follow-up due" /> : null}
+          {application.followUpDue ? <FlagChip tone="signal" label={t("Follow-up due")} /> : null}
         </Box>
       </TableCell>
       <TableCell>
@@ -189,7 +205,7 @@ function ApplicationRow({
           </Stacked>
         ) : (
           <Typography variant="caption" color="text.secondary">
-            No reply yet
+            {t("No reply yet")}
           </Typography>
         )}
       </TableCell>
@@ -198,11 +214,11 @@ function ApplicationRow({
           `${formatDate(nextInterviewAt, timezone)}, ${formatTime(nextInterviewAt, timezone)}`
         ) : (
           <Typography variant="caption" color="text.secondary">
-            None
+            {t("None")}
           </Typography>
         )}
       </TableCell>
-      <TableCell>{appliedAt ? formatShortDate(appliedAt, timezone) : "Not set"}</TableCell>
+      <TableCell>{appliedAt ? formatShortDate(appliedAt, timezone) : t("Not set")}</TableCell>
     </TableRow>
   );
 }
@@ -221,16 +237,16 @@ function ApplicationsTable({
     onOpen: (application) => void navigate(`/applications/${encodeURIComponent(application.id)}`),
   });
   return (
-    <Paper component="section" variant="outlined" aria-label="Applications">
+    <Paper component="section" variant="outlined" aria-label={t("Applications")}>
       <TableContainer sx={{ overflowX: "auto" }}>
         <Table sx={{ minWidth: 880 }}>
           <TableHead>
             <TableRow>
-              <TableCell scope="col">Company and role</TableCell>
-              <TableCell scope="col">Status</TableCell>
-              <TableCell scope="col">Last reply from company</TableCell>
-              <TableCell scope="col">Next interview</TableCell>
-              <TableCell scope="col">Applied</TableCell>
+              <TableCell scope="col">{t("Company and role")}</TableCell>
+              <TableCell scope="col">{t("Status")}</TableCell>
+              <TableCell scope="col">{t("Last reply from company")}</TableCell>
+              <TableCell scope="col">{t("Next interview")}</TableCell>
+              <TableCell scope="col">{t("Applied")}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -312,8 +328,8 @@ export function ApplicationsPage() {
 
   const caption =
     total === undefined
-      ? "Updated from Gmail every 5 minutes."
-      : `${total === 1 ? "1 application" : `${total} applications`}${open === undefined ? "" : `, ${open} still open`}. Updated from Gmail every 5 minutes.`;
+      ? t("Updated from Gmail every 5 minutes.")
+      : `${tn(total, "1 application", "{count} applications")}${open === undefined ? "" : t(", {count} still open", { count: open })}. ${t("Updated from Gmail every 5 minutes.")}`;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
@@ -329,7 +345,7 @@ export function ApplicationsPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="h4" component="h1">
-            Applications
+            {t("Applications")}
           </Typography>
           <Typography variant="caption" color="text.secondary" component="p">
             {caption}
@@ -337,23 +353,23 @@ export function ApplicationsPage() {
         </Box>
         <DemoLock reason="add">
           <Button variant="outlined" onClick={() => setAdding(true)}>
-            Add application
+            {t("Add application")}
           </Button>
         </DemoLock>
       </Box>
 
       <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5 }}>
         <TextField
-          label="Search"
+          label={t("Search")}
           type="search"
-          placeholder="Company or role"
+          placeholder={t("Company or role")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           sx={{ flex: "1 1 280px", maxWidth: 360 }}
         />
         <TextField
           select
-          label="Sort by"
+          label={t("Sort by")}
           value={filters.sort}
           onChange={(e) =>
             change((next) => {
@@ -370,7 +386,7 @@ export function ApplicationsPage() {
           ))}
         </TextField>
         <FormControlLabel
-          label="Follow-up due only"
+          label={t("Follow-up due only")}
           control={
             <Switch
               checked={filters.followUpDue}
@@ -387,11 +403,11 @@ export function ApplicationsPage() {
 
       <Box
         role="group"
-        aria-label="Filter by status"
+        aria-label={t("Filter by status")}
         sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}
       >
         <StatusFilterChip
-          label="All"
+          label={t("All")}
           count={total}
           pressed={filters.status.length === 0}
           onToggle={() => change((next) => next.delete("status"))}
@@ -409,31 +425,39 @@ export function ApplicationsPage() {
       </Box>
 
       {query.isError ? (
-        <ErrorState what="applications" error={query.error} onRetry={() => void query.refetch()} />
+        <ErrorState
+          what={t("applications")}
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       ) : query.isPending ? (
-        <ListSkeleton label="Loading applications" />
+        <ListSkeleton label={t("Loading applications")} />
       ) : applications.length === 0 ? (
         active ? (
           <EmptyState
-            title="No applications match these filters"
-            body="Change the search or the status, or clear the filters."
+            title={t("No applications match these filters")}
+            body={t("Change the search or the status, or clear the filters.")}
             actions={
               <Button variant="outlined" onClick={clearFilters}>
-                Clear filters
+                {t("Clear filters")}
               </Button>
             }
           />
         ) : (
           <EmptyState
-            title="No applications yet"
-            body="Import your spreadsheet, or let Offerbound read your Gmail, and your applications show up here."
+            title={t("No applications yet")}
+            body={t(
+              t(
+                "Import your spreadsheet, or let Offerbound read your Gmail, and your applications show up here.",
+              ),
+            )}
             actions={
               <>
                 <Button component={RouterLink} to="/settings/import" variant="outlined">
-                  Import spreadsheet
+                  {t("Import spreadsheet")}
                 </Button>
                 <Button component={RouterLink} to="/settings/gmail" variant="outlined">
-                  Start syncing Gmail
+                  {t("Start syncing Gmail")}
                 </Button>
               </>
             }
@@ -453,8 +477,8 @@ export function ApplicationsPage() {
           >
             <Typography variant="caption" color="text.secondary" component="p">
               {!active && total !== undefined && total >= applications.length
-                ? `Showing ${applications.length} of ${total}`
-                : `Showing ${applications.length}`}
+                ? t("Showing {shown} of {total}", { shown: applications.length, total })
+                : t("Showing {shown}", { shown: applications.length })}
             </Typography>
             {query.hasNextPage ? (
               <Button
@@ -462,7 +486,7 @@ export function ApplicationsPage() {
                 disabled={query.isFetchingNextPage}
                 onClick={() => void query.fetchNextPage()}
               >
-                Show more
+                {t("Show more")}
               </Button>
             ) : null}
           </Box>

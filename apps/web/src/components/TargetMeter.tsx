@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
+import { t } from "../i18n";
 
 export interface TargetMeterProps {
   label: string;
@@ -23,7 +24,7 @@ export function TargetMeter({ label, value, min, max, unit, caption, actions }: 
   // The bar's scale is the top of the range, and never less than the value shown.
   const scale = Math.max(max ?? min, min, value);
   const percent = scale > 0 ? Math.min(100, (value / scale) * 100) : 100;
-  const footer = caption ?? (value >= min ? "Target met" : null);
+  const footer = caption ?? (value >= min ? t("Target met") : null);
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
       <Typography variant="subtitle2" component="span">
@@ -34,7 +35,7 @@ export function TargetMeter({ label, value, min, max, unit, caption, actions }: 
           {value}
         </Typography>{" "}
         <Typography variant="caption" color="text.secondary" component="span">
-          {`of ${range}${unit ? ` ${unit}` : ""}`}
+          {t("of {range}", { range: `${range}${unit ? ` ${unit}` : ""}` })}
         </Typography>
       </Box>
       <LinearProgress

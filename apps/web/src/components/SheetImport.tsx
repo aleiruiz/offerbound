@@ -17,10 +17,11 @@ import { useState, type ReactNode } from "react";
 import { ApiClientError } from "../api/client";
 import { useCommitSheetImport, usePreviewSheetImport } from "../api/hooks";
 import { CSV_ACCEPT, CSV_MAX_BYTES, rejectFile } from "../lib/files";
-import { formatCount, plural, rowsLabel } from "../lib/format";
+import { formatCount, rowsLabel } from "../lib/format";
 import { DropZone } from "./DropZone";
 import { FilePicker } from "./FilePicker";
 import { DemoLock, useIsDemo } from "../lib/demo";
+import { t, tn } from "../i18n";
 
 /**
  * The spreadsheet import (DESIGN_SPEC §5.8 and §5.7, AC-14.1-14.5): choose the CSV, read the
@@ -29,25 +30,50 @@ import { DemoLock, useIsDemo } from "../lib/demo";
  */
 
 const SHEET_STATUS_LABEL: Record<SheetStatus, string> = {
-  to_research: "To research",
-  cancelled: "Cancelled",
-  applied: "Applied",
-  interview: "Interview",
-  rejected: "Rejected",
+  get to_research() {
+    return t("To research");
+  },
+  get cancelled() {
+    return t("Cancelled");
+  },
+  get applied() {
+    return t("Applied");
+  },
+  get interview() {
+    return t("Interview");
+  },
+  get rejected() {
+    return t("Rejected");
+  },
 };
 
 const SHEET_TARGET_LABEL: Record<SheetTarget, string> = {
-  lead_new: "New leads, checked and ranked after import",
-  lead_dismissed: "Dismissed leads, kept so their companies aren't suggested again",
-  application_applied: "Applications with status Applied",
-  application_interviewing: "Applications with status Interviewing",
-  application_rejected: "Applications with status Rejected",
+  get lead_new() {
+    return t("New leads, checked and ranked after import");
+  },
+  get lead_dismissed() {
+    return t("Dismissed leads, kept so their companies aren't suggested again");
+  },
+  get application_applied() {
+    return t("Applications with status Applied");
+  },
+  get application_interviewing() {
+    return t("Applications with status Interviewing");
+  },
+  get application_rejected() {
+    return t("Applications with status Rejected");
+  },
 };
 
 const CSV_REJECTED = {
-  unsupported_file:
-    "Offerbound imports CSV files. In Google Sheets, choose File, Download, Comma-separated values, then add that file.",
-  too_large: "That file is larger than 2 MB. Export only the Applications tab and try again.",
+  get unsupported_file() {
+    return t(
+      "Offerbound imports CSV files. In Google Sheets, choose File, Download, Comma-separated values, then add that file.",
+    );
+  },
+  get too_large() {
+    return t("That file is larger than 2 MB. Export only the Applications tab and try again.");
+  },
 } as const;
 
 /**
@@ -59,18 +85,18 @@ function importErrorMessage(error: unknown, phase: "preview" | "commit"): string
   if (error instanceof ApiClientError) {
     switch (error.code) {
       case "validation_failed":
-        if (phase === "preview") return error.message;
+        if (phase === "preview") return t(error.message);
         break;
       case "too_large":
-        return "File is over 2 MB";
+        return t("File is over 2 MB");
       case "duplicate_import":
-        return "This file was already imported";
+        return t("This file was already imported");
       case "not_found":
-        if (phase === "commit") return "This preview expired. Add the file again.";
+        if (phase === "commit") return t("This preview expired. Add the file again.");
         break;
     }
   }
-  return "Couldn't import the file. Try again.";
+  return t("Couldn't import the file. Try again.");
 }
 
 function SkippedRows({ preview }: { preview: SheetPreview }) {
@@ -79,28 +105,35 @@ function SkippedRows({ preview }: { preview: SheetPreview }) {
   return (
     <Alert severity="warning" role="alert">
       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-        {`${rowsLabel(skipped)} will be skipped.`}
+        {t("{rows} will be skipped.", { rows: rowsLabel(skipped) })}
       </Typography>
       <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
         {preview.errors.map((row) => (
           <Typography key={`e-${row.line}`} component="li" variant="body2">
-            {`Row ${row.line}: ${row.message}`}
+            {t("Row {line}: {message}", { line: row.line, message: t(row.message) })}
           </Typography>
         ))}
         {preview.duplicatesInFile.map((row) => (
           <Typography key={`d-${row.line}`} component="li" variant="body2">
-            {`Row ${row.line} repeats row ${row.duplicateOfLine} (${row.company}, ${row.role}).`}
+            {t("Row {line} repeats row {other} ({company}, {role}).", {
+              line: row.line,
+              other: row.duplicateOfLine,
+              company: row.company,
+              role: row.role,
+            })}
           </Typography>
         ))}
         {preview.existingMatches > 0 ? (
           <Typography component="li" variant="body2">
-            {`${rowsLabel(preview.existingMatches)} match records Offerbound already has.`}
+            {t("{rows} match records Offerbound already has.", {
+              rows: rowsLabel(preview.existingMatches),
+            })}
           </Typography>
         ) : null}
       </Box>
       {preview.errors.length > 0 ? (
         <Typography variant="body2" sx={{ mt: 0.5 }}>
-          Change the sheet and add the file again, or import without those rows.
+          {t("Change the sheet and add the file again, or import without those rows.")}
         </Typography>
       ) : null}
     </Alert>
@@ -109,22 +142,53 @@ function SkippedRows({ preview }: { preview: SheetPreview }) {
 
 const EXPECTATIONS: readonly { lead: string; text: string }[] = [
   {
-    lead: "What it reads:",
-    text: "the Applications tab exported as CSV. Offerbound finds the header row by itself; it needs Company, Role and Status. It also uses Country, City or modality, Date applied, Salary, Sponsorship or relocation, Job link and Notes when they are there.",
+    get lead() {
+      return t("What it reads:");
+    },
+    get text() {
+      return t(
+        "the Applications tab exported as CSV. Offerbound finds the header row by itself; it needs Company, Role and Status. It also uses Country, City or modality, Date applied, Salary, Sponsorship or relocation, Job link and Notes when they are there.",
+      );
+    },
   },
   {
-    lead: "How statuses become records:",
-    text: "To research becomes a new lead. Applied, Interview and Rejected become applications. Cancelled becomes a dismissed lead. Any other status is reported and skipped.",
+    get lead() {
+      return t("How statuses become records:");
+    },
+    get text() {
+      return t(
+        "To research becomes a new lead. Applied, Interview and Rejected become applications. Cancelled becomes a dismissed lead. Any other status is reported and skipped.",
+      );
+    },
   },
   {
-    lead: "What you see first:",
-    text: "a preview with counts, rows with errors and duplicates in the file. Nothing is saved until you press Import.",
+    get lead() {
+      return t("What you see first:");
+    },
+    get text() {
+      return t(
+        "a preview with counts, rows with errors and duplicates in the file. Nothing is saved until you press Import.",
+      );
+    },
   },
   {
-    lead: "Duplicates:",
-    text: "rows that match records you already have are skipped, so the same file can be imported again.",
+    get lead() {
+      return t("Duplicates:");
+    },
+    get text() {
+      return t(
+        "rows that match records you already have are skipped, so the same file can be imported again.",
+      );
+    },
   },
-  { lead: "Your spreadsheet:", text: "it isn't changed." },
+  {
+    get lead() {
+      return t("Your spreadsheet:");
+    },
+    get text() {
+      return t("it isn't changed.");
+    },
+  },
 ];
 
 /** AC-14.1-14.6 in plain words. Open by default; folds away so a phone isn't left with a long card. */
@@ -143,7 +207,7 @@ function ImportExpectations() {
       }}
     >
       <AccordionSummary expandIcon={<ExpandMoreOutlined />}>
-        <Typography sx={{ fontWeight: 600 }}>What to expect</Typography>
+        <Typography sx={{ fontWeight: 600 }}>{t("What to expect")}</Typography>
       </AccordionSummary>
       <AccordionDetails sx={{ pt: 0 }}>
         <Box
@@ -153,9 +217,9 @@ function ImportExpectations() {
           {EXPECTATIONS.map((item) => (
             <Typography key={item.lead} component="li" variant="body2">
               <Box component="span" sx={{ fontWeight: 700 }}>
-                {item.lead}
+                {t(item.lead)}
               </Box>{" "}
-              {item.text}
+              {t(item.text)}
             </Typography>
           ))}
         </Box>
@@ -178,7 +242,7 @@ export interface SheetImportState {
 
 export function SheetImport({
   intro,
-  note = "Your notes are kept as they are.",
+  note = t("Your notes are kept as they are."),
   actions,
 }: {
   /** Extra paragraphs between the instructions and the "What to expect" panel. */
@@ -213,14 +277,14 @@ export function SheetImport({
   return (
     <>
       <Typography sx={{ maxWidth: 680 }}>
-        In Google Sheets, open the Applications tab and choose File, Download, Comma-separated
-        values. Add that file here. Offerbound imports it once; from then on it keeps your list
-        current from Gmail.
+        {t(
+          "In Google Sheets, open the Applications tab and choose File, Download, Comma-separated values. Add that file here. Offerbound imports it once; from then on it keeps your list current from Gmail.",
+        )}
       </Typography>
       {intro}
       <ImportExpectations />
 
-      <DropZone label="CSV drop zone" onFile={choose} disabled={picking || imported || demo}>
+      <DropZone label={t("CSV drop zone")} onFile={choose} disabled={picking || imported || demo}>
         {data && fileName ? (
           <Box
             sx={{
@@ -236,13 +300,13 @@ export function SheetImport({
             <Box sx={{ flex: "1 1 260px", minWidth: 0 }}>
               <Typography sx={{ fontWeight: 600, wordBreak: "break-word" }}>{fileName}</Typography>
               <Typography variant="caption" color="text.secondary">
-                {`${rowsLabel(data.totalRows)} found under the title rows`}
+                {t("{rows} found under the title rows", { rows: rowsLabel(data.totalRows) })}
               </Typography>
             </Box>
             {!imported ? (
               <DemoLock reason="import">
                 <FilePicker
-                  label="Replace file"
+                  label={t("Replace file")}
                   accept={CSV_ACCEPT}
                   onFile={choose}
                   disabled={picking}
@@ -255,7 +319,7 @@ export function SheetImport({
           <>
             <DemoLock reason="import">
               <FilePicker
-                label="Choose CSV file"
+                label={t("Choose CSV file")}
                 accept={CSV_ACCEPT}
                 onFile={choose}
                 disabled={picking}
@@ -264,7 +328,7 @@ export function SheetImport({
             <Box role="status" aria-live="polite">
               {preview.isPending ? (
                 <Typography variant="body2" color="text.secondary">
-                  Reading your file
+                  {t("Reading your file")}
                 </Typography>
               ) : null}
             </Box>
@@ -287,16 +351,16 @@ export function SheetImport({
         <>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              What will be imported
+              {t("What will be imported")}
             </Typography>
             <TableContainer sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
               <Table sx={{ minWidth: 560 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell scope="col">Status in your sheet</TableCell>
-                    <TableCell scope="col">Becomes</TableCell>
+                    <TableCell scope="col">{t("Status in your sheet")}</TableCell>
+                    <TableCell scope="col">{t("Becomes")}</TableCell>
                     <TableCell scope="col" align="right">
-                      Rows
+                      {t("Rows")}
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -326,16 +390,24 @@ export function SheetImport({
       ) : null}
       {summary ? (
         <Alert severity="success" role="status">
-          {`Imported ${plural(summary.applicationsCreated, "application", "applications")}, ${plural(summary.leadsCreated, "new lead", "new leads")} and ${plural(summary.leadsDismissed, "dismissed lead", "dismissed leads")}.`}
+          {t("Imported {applications}, {newLeads} and {dismissedLeads}.", {
+            applications: tn(summary.applicationsCreated, "1 application", "{count} applications"),
+            newLeads: tn(summary.leadsCreated, "1 new lead", "{count} new leads"),
+            dismissedLeads: tn(
+              summary.leadsDismissed,
+              "1 dismissed lead",
+              "{count} dismissed leads",
+            ),
+          })}
           {summary.skippedExisting + summary.skippedDuplicateRows + summary.errorRows > 0
-            ? ` ${rowsLabel(summary.skippedExisting + summary.skippedDuplicateRows + summary.errorRows)} skipped.`
+            ? ` ${t("{rows} skipped.", { rows: rowsLabel(summary.skippedExisting + summary.skippedDuplicateRows + summary.errorRows) })}`
             : ""}
         </Alert>
       ) : null}
 
       {actions({
         imported,
-        importLabel: data ? `Import ${rowsLabel(importable)}` : "",
+        importLabel: data ? t("Import {rows}", { rows: rowsLabel(importable) }) : "",
         canImport: importable > 0,
         importing: commit.isPending,
         runImport: () => {

@@ -44,6 +44,7 @@ import { formatDate, formatDateTime, formatShortDate, formatTime, zoneCity } fro
 import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
 import { DemoLock } from "../lib/demo";
+import { msg, t } from "../i18n";
 import { applicationOrigin } from "../shell/origin";
 
 /**
@@ -52,20 +53,32 @@ import { applicationOrigin } from "../shell/origin";
  */
 
 const NOTES_AUTOSAVE_MS = 800;
-const CHANGED_ELSEWHERE = "Changes were made elsewhere. The latest version is shown.";
+const CHANGED_ELSEWHERE = msg("Changes were made elsewhere. The latest version is shown.");
 
 const WORK_MODE: Record<WorkMode, string | null> = {
-  remote: "Remote",
-  hybrid: "Hybrid",
+  get remote() {
+    return t("Remote");
+  },
+  get hybrid() {
+    return t("Hybrid");
+  },
   onsite: "On-site",
   unknown: null,
 };
 
 const SOURCE: Record<ApplicationSource, string> = {
-  sheet_import: "Imported from your spreadsheet",
-  gmail: "Created from an email",
-  lead_conversion: "Lead from the search",
-  manual: "Added by you",
+  get sheet_import() {
+    return t("Imported from your spreadsheet");
+  },
+  get gmail() {
+    return t("Created from an email");
+  },
+  get lead_conversion() {
+    return t("Lead from the search");
+  },
+  get manual() {
+    return t("Added by you");
+  },
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -133,7 +146,7 @@ function Fact({ term, children }: { term: string; children: ReactNode }) {
 function NotSet() {
   return (
     <Typography component="span" color="text.secondary">
-      Not set
+      {t("Not set")}
     </Typography>
   );
 }
@@ -167,11 +180,14 @@ function range(startsAt: string, endsAt: string | null, tz: string): string {
 
 /** "Monterrey time. Invite sent for 12:00–13:00 New York." when the invite named another zone. */
 function zoneNote(interview: Interview, tz: string): string {
-  const own = `${zoneCity(tz)} time.`;
+  const own = t("{city} time.", { city: zoneCity(tz) });
   const hint = interview.timezoneHint;
   if (!interview.startsAt || !hint || hint === tz) return own;
   try {
-    return `${own} Invite sent for ${range(interview.startsAt, interview.endsAt, hint)} ${zoneCity(hint)}.`;
+    return `${own} ${t("Invite sent for {time} {city}.", {
+      time: range(interview.startsAt, interview.endsAt, hint),
+      city: zoneCity(hint),
+    })}`;
   } catch {
     return own; // not a zone this browser knows
   }
@@ -182,9 +198,9 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
   const interview = nextInterview(interviews, now);
   const linkSx = useLinkSx();
   return (
-    <Card title="Next interview">
+    <Card title={t("Next interview")}>
       {interview === null ? (
-        <Typography color="text.secondary">No interview scheduled.</Typography>
+        <Typography color="text.secondary">{t("No interview scheduled.")}</Typography>
       ) : (
         <>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: "16px 32px" }}>
@@ -203,7 +219,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
                 </>
               ) : (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <FlagChip tone="signal" label="To schedule" />
+                  <FlagChip tone="signal" label={t("To schedule")} />
                   {isHttpUrl(interview.schedulingUrl) ? (
                     <Link
                       href={interview.schedulingUrl}
@@ -212,7 +228,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
                       underline="none"
                       sx={linkSx}
                     >
-                      Pick a time
+                      {t("Pick a time")}
                     </Link>
                   ) : null}
                 </Box>
@@ -221,7 +237,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
             {interview.interviewers.length > 0 || isHttpUrl(interview.meetingUrl) ? (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  Interviewers
+                  {t("Interviewers")}
                 </Typography>
                 {interview.interviewers.length > 0 ? (
                   <Typography>{interview.interviewers.join(", ")}</Typography>
@@ -234,7 +250,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
                     underline="none"
                     sx={linkSx}
                   >
-                    Join video call
+                    {t("Join video call")}
                   </Link>
                 ) : null}
               </Box>
@@ -243,7 +259,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
           {interview.notes ? (
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                Prep notes
+                {t("Prep notes")}
               </Typography>
               <Typography sx={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                 {interview.notes}
@@ -260,7 +276,7 @@ function NextInterview({ interviews, timezone }: { interviews: Interview[]; time
 // Emails
 
 function senderOf(message: MessageSummary): string {
-  return message.fromName?.trim() || message.fromEmail || "Unknown sender";
+  return message.fromName?.trim() || message.fromEmail || t("Unknown sender");
 }
 
 function Emails({
@@ -274,7 +290,7 @@ function Emails({
 }) {
   if (messages.length === 0) return null;
   return (
-    <Card title="Emails">
+    <Card title={t("Emails")}>
       <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
         {messages.map((message, i) => (
           <Box
@@ -290,7 +306,7 @@ function Emails({
             }}
           >
             <Box sx={{ flex: "1 1 260px", minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 600 }}>{message.subject ?? "No subject"}</Typography>
+              <Typography sx={{ fontWeight: 600 }}>{message.subject ?? t("No subject")}</Typography>
               <Typography variant="caption" color="text.secondary" component="p">
                 {`${senderOf(message)}, ${formatDateTime(message.internalDate, timezone)}`}
               </Typography>
@@ -301,7 +317,7 @@ function Emails({
               ) : null}
             </Box>
             <Button size="small" onClick={() => onView(message.id)}>
-              View email
+              {t("View email")}
             </Button>
           </Box>
         ))}
@@ -326,17 +342,17 @@ function Details({
   const linkSx = useLinkSx({ fontWeight: 400, fontSize: "inherit" });
   return (
     <Card
-      title="Details"
+      title={t("Details")}
       action={
         <DemoLock reason="edit">
           <Button size="small" onClick={onEdit}>
-            Edit details
+            {t("Edit details")}
           </Button>
         </DemoLock>
       }
     >
       <Box component="dl" sx={{ m: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
-        <Fact term="Job posting">
+        <Fact term={t("Job posting")}>
           {posting ? (
             <Link
               href={posting}
@@ -351,23 +367,25 @@ function Details({
             <NotSet />
           )}
         </Fact>
-        <Fact term="Location">{detail.locationText ?? <NotSet />}</Fact>
-        {detail.country ? <Fact term="Country">{detail.country}</Fact> : null}
-        <Fact term="Compensation">{detail.compensationText ?? <NotSet />}</Fact>
-        {detail.sponsorshipText ? <Fact term="Sponsorship">{detail.sponsorshipText}</Fact> : null}
-        <Fact term="Applied">
+        <Fact term={t("Location")}>{detail.locationText ?? <NotSet />}</Fact>
+        {detail.country ? <Fact term={t("Country")}>{detail.country}</Fact> : null}
+        <Fact term={t("Compensation")}>{detail.compensationText ?? <NotSet />}</Fact>
+        {detail.sponsorshipText ? (
+          <Fact term={t("Sponsorship")}>{detail.sponsorshipText}</Fact>
+        ) : null}
+        <Fact term={t("Applied")}>
           {detail.appliedAt ? formatShortDate(detail.appliedAt, timezone) : <NotSet />}
         </Fact>
-        <Fact term="Last reply from company">
+        <Fact term={t("Last reply from company")}>
           {detail.lastCompanyActivityAt ? (
             formatShortDate(detail.lastCompanyActivityAt, timezone)
           ) : (
             <Typography component="span" color="text.secondary">
-              No reply yet
+              {t("No reply yet")}
             </Typography>
           )}
         </Fact>
-        <Fact term="Source">{SOURCE[detail.source]}</Fact>
+        <Fact term={t("Source")}>{SOURCE[detail.source]}</Fact>
       </Box>
     </Card>
   );
@@ -453,7 +471,7 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
   }, [text, isPending, status, detail.version]);
 
   return (
-    <Card title="Notes" titleNode={<label htmlFor={fieldId}>Notes</label>}>
+    <Card title={t("Notes")} titleNode={<label htmlFor={fieldId}>{t("Notes")}</label>}>
       <DemoLock reason="notes" block>
         <TextField
           id={fieldId}
@@ -470,12 +488,12 @@ function Notes({ detail, onConflict }: { detail: ApplicationDetail; onConflict: 
       </DemoLock>
       <Typography variant="caption" color="text.secondary" role="status" aria-live="polite">
         {isPending
-          ? "Saving…"
+          ? t("Saving…")
           : status === "failed"
-            ? "Couldn't save your notes. Keep typing to try again."
+            ? t("Couldn't save your notes. Keep typing to try again.")
             : status === "saved"
-              ? "Saved"
-              : "Saved automatically"}
+              ? t("Saved")
+              : t("Saved automatically")}
       </Typography>
     </Card>
   );
@@ -489,7 +507,7 @@ function DetailSkeleton() {
     <Box
       role="status"
       aria-busy="true"
-      aria-label="Loading application"
+      aria-label={t("Loading application")}
       sx={{ display: "flex", flexDirection: "column", gap: 3 }}
     >
       <Skeleton variant="rounded" width={180} height={16} />
@@ -525,7 +543,7 @@ function BackToApplications() {
       variant="outlined"
       sx={{ alignSelf: "flex-start" }}
     >
-      Back to applications
+      {t("Back to applications")}
     </Button>
   );
 }
@@ -534,11 +552,12 @@ function NotFound() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 560 }}>
       <Typography variant="h4" component="h1">
-        Application not found
+        {t("Application not found")}
       </Typography>
       <Typography color="text.secondary">
-        It may have been merged into another application or removed. Check the link, or go back to
-        the list.
+        {t(
+          "It may have been merged into another application or removed. Check the link, or go back to the list.",
+        )}
       </Typography>
       <BackToApplications />
     </Box>
@@ -574,19 +593,19 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
       if (patch.status === undefined) return;
       if (patch.status === "withdrawn") {
         const previous = statusBefore.current;
-        snackbar.show("Marked as withdrawn", async () => {
+        snackbar.show(t("Marked as withdrawn"), async () => {
           await restore.mutateAsync({
             application: latest.current,
             patch: { status: previous },
           });
         });
       } else {
-        snackbar.show(`Status changed to ${STATUS_LABEL[updated.status]}`);
+        snackbar.show(t("Status changed to {status}", { status: STATUS_LABEL[updated.status] }));
       }
     },
     onError: (error) => {
       if (isApiError(error, "version_conflict")) setConflict(true);
-      else snackbar.show("Couldn't save the change. Try again.");
+      else snackbar.show(t("Couldn't save the change. Try again."));
     },
   });
   // Puts a withdrawn application back; its failures are the snackbar's to report.
@@ -595,12 +614,12 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
   const undo = useUndoEvent({
     onSuccess: () => {
       setConflict(false);
-      snackbar.show("Undone");
+      snackbar.show(t("Undone"));
     },
     onError: (error) => {
-      if (isApiError(error, "changed_since")) snackbar.show("Changed since — edit manually");
+      if (isApiError(error, "changed_since")) snackbar.show(t("Changed since — edit manually"));
       else if (isApiError(error, "version_conflict")) setConflict(true);
-      else snackbar.show("Couldn't undo this change. Try again.");
+      else snackbar.show(t("Couldn't undo this change. Try again."));
     },
   });
 
@@ -615,9 +634,14 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-      <Typography component="nav" aria-label="Breadcrumb" variant="caption" color="text.secondary">
+      <Typography
+        component="nav"
+        aria-label={t("Breadcrumb")}
+        variant="caption"
+        color="text.secondary"
+      >
         <Link component={RouterLink} to={origin.to} underline="none" sx={crumbSx}>
-          {origin.label}
+          {t(origin.label)}
         </Link>
         {" / "}
         <span aria-current="page">{detail.company.name}</span>
@@ -642,14 +666,14 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
           </Typography>
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 0.5 }}>
             <StatusChip status={detail.status} />
-            {detail.followUpDue ? <FlagChip tone="signal" label="Follow-up due" /> : null}
+            {detail.followUpDue ? <FlagChip tone="signal" label={t("Follow-up due")} /> : null}
             {workMode ? <FlagChip tone="neutral" label={workMode} /> : null}
           </Box>
         </Box>
         <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 1 }}>
           <TextField
             select
-            label="Status"
+            label={t("Status")}
             value={detail.status}
             disabled={update.isPending}
             onChange={(e) => changeStatus(ApplicationStatusSchema.parse(e.target.value))}
@@ -670,11 +694,11 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
               variant="outlined"
               startIcon={<OpenInNewOutlined />}
             >
-              Open posting
+              {t("Open posting")}
             </Button>
           ) : null}
           <IconButton
-            aria-label="More actions"
+            aria-label={t("More actions")}
             aria-haspopup="menu"
             aria-controls={menu ? menuId : undefined}
             aria-expanded={menu ? true : undefined}
@@ -690,7 +714,7 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
                 setMerging(true);
               }}
             >
-              Merge into…
+              {t("Merge into…")}
             </MenuItem>
             <MenuItem
               sx={{ minHeight: 44 }}
@@ -700,7 +724,7 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
                 changeStatus("withdrawn");
               }}
             >
-              Withdraw
+              {t("Withdraw")}
             </MenuItem>
           </Menu>
         </Box>
@@ -708,7 +732,7 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
 
       {conflict ? (
         <Alert severity="info" onClose={() => setConflict(false)}>
-          {CHANGED_ELSEWHERE}
+          {t(CHANGED_ELSEWHERE)}
         </Alert>
       ) : null}
 
@@ -718,10 +742,10 @@ function Detail({ detail }: { detail: ApplicationDetail }) {
         >
           <NextInterview interviews={detail.interviews} timezone={timezone} />
           <Card
-            title="Timeline"
+            title={t("Timeline")}
             action={
               <Typography variant="caption" color="text.secondary">
-                Filled stop: automatic change. Ring: email. Square: your action.
+                {t("Filled stop: automatic change. Ring: email. Square: your action.")}
               </Typography>
             }
           >
@@ -772,9 +796,13 @@ export function ApplicationDetailPage() {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 560 }}>
       <Typography variant="h4" component="h1">
-        Application
+        {t("Application")}
       </Typography>
-      <ErrorState what="the application" error={query.error} onRetry={() => void query.refetch()} />
+      <ErrorState
+        what={t("the application")}
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
       <BackToApplications />
     </Box>
   );

@@ -43,6 +43,7 @@ import { isFoundSince, useLeadsSince } from "../lib/last-visit";
 import { usePipelineMovement } from "../lib/pipeline-movement";
 import { useLinkSx } from "../lib/link-sx";
 import { isHttpUrl } from "../lib/url";
+import { msg, t, tn, tx } from "../i18n";
 
 /**
  * Today (DESIGN_SPEC §5.1; AC-13.1 to 13.4): the pipeline, today's targets, follow-ups due, what
@@ -50,9 +51,9 @@ import { isHttpUrl } from "../lib/url";
  * it fails every section says so with its own *Try again*; the header stays.
  */
 
-const SEARCH_RUNNING = "A search is already running";
+const SEARCH_RUNNING = msg("A search is already running");
 /** TECHNICAL_SPEC §11: a 409 version_conflict says the record changed elsewhere. */
-const CHANGED_ELSEWHERE = "Changes were made elsewhere. Today has been refreshed.";
+const CHANGED_ELSEWHERE = msg("Changes were made elsewhere. Today has been refreshed.");
 
 function isVersionConflict(error: unknown): boolean {
   return error instanceof ApiClientError && error.code === "version_conflict";
@@ -102,7 +103,11 @@ function Section({
               {title}
             </Typography>
             {count !== undefined && count > 0 ? (
-              <FlagChip tone="signal" label={String(count)} aria-label={`${count} items`} />
+              <FlagChip
+                tone="signal"
+                label={String(count)}
+                aria-label={tn(count, "1 item", "{count} items")}
+              />
             ) : null}
           </Box>
           {note ? (
@@ -133,7 +138,7 @@ function SkeletonBody({ title, children }: { title: string; children: ReactNode 
     <Box
       role="status"
       aria-busy="true"
-      aria-label={`Loading ${title.toLowerCase()}`}
+      aria-label={t("Loading {what}", { what: title.toLowerCase() })}
       sx={{ px: 2.5, pb: 2.5 }}
     >
       {children}
@@ -166,7 +171,7 @@ function RowsSkeleton({ title, rows = 2 }: { title: string; rows?: number }) {
 
 function RouteSkeleton() {
   return (
-    <SkeletonBody title="Pipeline">
+    <SkeletonBody title={t("Pipeline")}>
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 1 }}>
         {Array.from({ length: 5 }, (_, i) => (
           <Box
@@ -185,7 +190,7 @@ function RouteSkeleton() {
 
 function MetersSkeleton() {
   return (
-    <SkeletonBody title="Today's targets">
+    <SkeletonBody title={t("Today's targets")}>
       <Box
         sx={{
           display: "grid",
@@ -257,15 +262,19 @@ function PipelineBody({ today }: { today: Today }) {
   if (total === 0) {
     return (
       <EmptyLine>
-        No applications yet.{" "}
-        <Link component={RouterLink} to="/settings/import">
-          Import your spreadsheet
-        </Link>{" "}
-        or{" "}
-        <Link component={RouterLink} to="/settings/gmail">
-          start syncing Gmail
-        </Link>
-        , and they show up here.
+        {t("No applications yet.")}{" "}
+        {tx("{import} or {sync}, and they show up here.", {
+          import: (
+            <Link component={RouterLink} to="/settings/import">
+              {t("Import your spreadsheet")}
+            </Link>
+          ),
+          sync: (
+            <Link component={RouterLink} to="/settings/gmail">
+              {t("start syncing Gmail")}
+            </Link>
+          ),
+        })}
       </EmptyLine>
     );
   }
@@ -273,7 +282,11 @@ function PipelineBody({ today }: { today: Today }) {
     <Box sx={{ px: 2.5, pb: 2.5 }}>
       <PipelineRoute byStatus={byStatus} movement={movement} />
       <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 2 }}>
-        {`${total === 1 ? "1 application" : `${total} applications`}. Response rate ${percent(responseRate)}. Reached screening or later ${percent(interviewRate)}.`}
+        {t("{applications}. Response rate {response}. Reached screening or later {screening}.", {
+          applications: tn(total, "1 application", "{count} applications"),
+          response: percent(responseRate),
+          screening: percent(interviewRate),
+        })}
       </Typography>
     </Box>
   );
@@ -301,26 +314,26 @@ function TargetsBody({ today }: { today: Today }) {
         }}
       >
         <TargetMeter
-          label="Applications"
+          label={t("Applications")}
           value={counts.applications}
           min={targets.applications.min}
           max={targets.applications.max}
           caption={
             counts.applications >= targets.applications.min ? undefined : (
               <Link component={RouterLink} to="/leads?tab=shortlisted" sx={linkSx}>
-                Pick from shortlisted
+                {t("Pick from shortlisted")}
               </Link>
             )
           }
         />
         <TargetMeter
-          label="New leads"
+          label={t("New leads")}
           value={counts.newLeads}
           min={targets.leads.min}
           max={targets.leads.max}
         />
         <TargetMeter
-          label="Outreach"
+          label={t("Outreach")}
           value={counts.outreach}
           min={targets.outreach.min}
           actions={
@@ -328,23 +341,23 @@ function TargetsBody({ today }: { today: Today }) {
               size="small"
               variant="outlined"
               disabled={log.isPending}
-              onClick={() => record("outreach", 1, "Logged 1 outreach message")}
+              onClick={() => record("outreach", 1, t("Logged 1 outreach message"))}
             >
-              +1 message
+              {t("+1 message")}
             </Button>
           }
         />
         <TargetMeter
-          label="Follow-ups"
+          label={t("Follow-ups")}
           value={counts.followUps}
           min={targets.followUps.min}
           max={targets.followUps.max}
           caption={
-            counts.followUps >= targets.followUps.min ? undefined : "Counted from your sent mail"
+            counts.followUps >= targets.followUps.min ? undefined : t("Counted from your sent mail")
           }
         />
         <TargetMeter
-          label="Interview prep"
+          label={t("Interview prep")}
           value={counts.prepMinutes}
           min={targets.prepMinutes.min}
           unit="min"
@@ -353,10 +366,14 @@ function TargetsBody({ today }: { today: Today }) {
               key={minutes}
               size="small"
               variant="outlined"
-              aria-label={`+${minutes} minutes`}
+              aria-label={t("+{minutes} minutes", { minutes })}
               disabled={log.isPending}
               onClick={() =>
-                record("prep_minutes", minutes, `Logged ${minutes} minutes of interview prep`)
+                record(
+                  "prep_minutes",
+                  minutes,
+                  t("Logged {minutes} minutes of interview prep", { minutes }),
+                )
               }
             >
               {`+${minutes}`}
@@ -366,7 +383,7 @@ function TargetsBody({ today }: { today: Today }) {
       </Box>
       {log.isError ? (
         <Alert severity="error" role="alert">
-          {`Couldn't log that. ${log.error instanceof ApiClientError ? log.error.message : "Check your connection and try again."}`}
+          {`${t("Couldn't log that.")} ${log.error instanceof ApiClientError ? t(log.error.message) : t("Check your connection and try again.")}`}
         </Alert>
       ) : null}
     </Box>
@@ -396,15 +413,17 @@ function FollowUps({
     return (
       <EmptyLine>
         {followUpDays === undefined
-          ? "No follow-ups due."
-          : `No follow-ups due. Applications without a reply for ${followUpDays} days show up here.`}
+          ? t("No follow-ups due.")
+          : t("No follow-ups due. Applications without a reply for {days} days show up here.", {
+              days: followUpDays,
+            })}
       </EmptyLine>
     );
   }
   const onMark = (application: ApplicationSummary) =>
     mark.mutate(application, {
-      onSuccess: () => snackbar.show("Marked as followed up"),
-      onError: () => snackbar.show("Couldn't mark it as followed up. Try again."),
+      onSuccess: () => snackbar.show(t("Marked as followed up")),
+      onError: () => snackbar.show(t("Couldn't mark it as followed up. Try again.")),
     });
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
@@ -425,11 +444,17 @@ function reviewCaption(item: ReviewItem, timezone: string): string {
   const parts: string[] = [];
   if (item.message) {
     const subject = item.message.subject ? `, "${item.message.subject}"` : "";
-    parts.push(`Email ${formatShortDate(item.message.internalDate, timezone)}${subject}.`);
+    parts.push(
+      t("Email {date}{subject}.", {
+        date: formatShortDate(item.message.internalDate, timezone),
+        subject,
+      }),
+    );
   }
   const summary = item.proposal.operations[0]?.summary;
   if (summary) parts.push(summary);
-  if (item.confidence !== null) parts.push(`Confidence ${Math.round(item.confidence * 100)}%.`);
+  if (item.confidence !== null)
+    parts.push(t("Confidence {value}%.", { value: Math.round(item.confidence * 100) }));
   return parts.join(" ");
 }
 
@@ -437,7 +462,7 @@ function ReviewList({ today, timezone }: { today: Today; timezone: string }) {
   if (today.review.open === 0 && today.review.first.length === 0) {
     return (
       <EmptyLine>
-        Nothing to review. Changes Offerbound is sure about are applied on their own.
+        {t("Nothing to review. Changes Offerbound is sure about are applied on their own.")}
       </EmptyLine>
     );
   }
@@ -470,9 +495,9 @@ function ReviewList({ today, timezone }: { today: Today; timezone: string }) {
             to="/review"
             size="small"
             variant="outlined"
-            aria-label={`Review: ${item.proposal.description}`}
+            aria-label={t("Review: {description}", { description: item.proposal.description })}
           >
-            Review
+            {t("Review")}
           </Button>
         </Box>
       ))}
@@ -501,10 +526,10 @@ function TopLeads({
     return (
       <EmptyLine>
         {!search
-          ? "No new leads."
+          ? t("No new leads.")
           : !search.enabled
-            ? "No new leads. The daily search is off; use Run search now to look for leads."
-            : `No new leads. The next search runs at ${search.runTime}.`}
+            ? t("No new leads. The daily search is off; use Run search now to look for leads.")
+            : t("No new leads. The next search runs at {time}.", { time: search.runTime })}
       </EmptyLine>
     );
   }
@@ -515,7 +540,7 @@ function TopLeads({
       {
         onSuccess: (updated) =>
           snackbar.show(
-            `${status === "shortlisted" ? "Shortlisted" : "Dismissed"} ${lead.company.name}`,
+            `${status === "shortlisted" ? t("Shortlisted") : t("Dismissed")} ${lead.company.name}`,
             async () => {
               await setStatus.mutateAsync({ lead: updated, status: "new" });
             },
@@ -523,8 +548,10 @@ function TopLeads({
         onError: (error) =>
           snackbar.show(
             isVersionConflict(error)
-              ? CHANGED_ELSEWHERE
-              : `Couldn't ${status === "shortlisted" ? "shortlist" : "dismiss"} ${lead.company.name}. Try again.`,
+              ? t(CHANGED_ELSEWHERE)
+              : status === "shortlisted"
+                ? t("Couldn't shortlist {company}. Try again.", { company: lead.company.name })
+                : t("Couldn't dismiss {company}. Try again.", { company: lead.company.name }),
           ),
       },
     );
@@ -597,7 +624,7 @@ function AgendaItem({
             sx={{ fontWeight: 600, color: "warning.main" }}
             component="p"
           >
-            To schedule
+            {t("To schedule")}
           </Typography>
           <Typography>{INTERVIEW_KIND[interview.kind]}</Typography>
         </>
@@ -620,7 +647,7 @@ function AgendaItem({
           sx={link}
           underline="none"
         >
-          Join video call
+          {t("Join video call")}
         </Link>
       ) : null}
       {toSchedule && isHttpUrl(interview.schedulingUrl) ? (
@@ -631,7 +658,7 @@ function AgendaItem({
           sx={{ ...link, color: "warning.main" }}
           underline="none"
         >
-          Pick a time
+          {t("Pick a time")}
         </Link>
       ) : null}
     </Box>
@@ -640,7 +667,7 @@ function AgendaItem({
 
 function Agenda({ today, timezone }: { today: Today; timezone: string }) {
   const items = today.upcomingInterviews.filter((i) => i.status !== "cancelled");
-  if (items.length === 0) return <EmptyLine>No interviews in the next 7 days.</EmptyLine>;
+  if (items.length === 0) return <EmptyLine>{t("No interviews in the next 7 days.")}</EmptyLine>;
   return (
     <Box component="ul" sx={{ m: 0, p: 0 }}>
       {items.map((interview) => (
@@ -672,12 +699,12 @@ export function TodayPage() {
 
   const startSearch = () =>
     runSearch.mutate(undefined, {
-      onSuccess: () => snackbar.show("Search started"),
+      onSuccess: () => snackbar.show(t("Search started")),
       onError: (error) =>
         snackbar.show(
           error instanceof ApiClientError && error.code === "already_running"
-            ? SEARCH_RUNNING
-            : "Couldn't start the search. Try again.",
+            ? t(SEARCH_RUNNING)
+            : t("Couldn't start the search. Try again."),
         ),
     });
 
@@ -699,7 +726,7 @@ export function TodayPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
           <Typography variant="h4" component="h1">
-            Today
+            {t("Today")}
           </Typography>
           {dateLine ? (
             <Typography variant="caption" color="text.secondary" component="p">
@@ -715,7 +742,7 @@ export function TodayPage() {
           disabled={runSearch.isPending}
           onClick={startSearch}
         >
-          Run search now
+          {t("Run search now")}
         </Button>
       </Box>
 
@@ -728,25 +755,25 @@ export function TodayPage() {
       {firstSync?.started && firstSync.backfill.state === "failed" ? (
         <Alert severity="warning">
           <Box component="span" sx={{ fontWeight: 700 }}>
-            The first sync stopped before it finished.
+            {t("The first sync stopped before it finished.")}
           </Box>{" "}
-          Use Sync now to try again.
+          {t("Use Sync now to try again.")}
         </Alert>
       ) : null}
 
       <FinishSetupCard />
 
-      <Section title="Pipeline">
-        <Body query={today} what="the pipeline" skeleton={<RouteSkeleton />}>
+      <Section title={t("Pipeline")}>
+        <Body query={today} what={t("the pipeline")} skeleton={<RouteSkeleton />}>
           {(data) => <PipelineBody today={data} />}
         </Body>
       </Section>
 
       <Section
-        title="Today's targets"
-        note={`Counts reset at midnight, ${zoneCity(timezone)} time`}
+        title={t("Today's targets")}
+        note={t("Counts reset at midnight, {city} time", { city: zoneCity(timezone) })}
       >
-        <Body query={today} what="today's targets" skeleton={<MetersSkeleton />}>
+        <Body query={today} what={t("today's targets")} skeleton={<MetersSkeleton />}>
           {(data) => <TargetsBody today={data} />}
         </Body>
       </Section>
@@ -756,23 +783,26 @@ export function TodayPage() {
           sx={{ flex: "2 1 520px", minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}
         >
           <Section
-            title="Follow-ups due"
+            title={t("Follow-ups due")}
             count={today.data?.followUpsDue.length}
             note={
               followUpDays === undefined
                 ? undefined
-                : `No reply from the company for ${followUpDays} days or more`
+                : t("No reply from the company for {days} days or more", { days: followUpDays })
             }
             noteAfter={
               today.data && today.data.followUpsDue.length > 0 && abandonDays !== undefined
-                ? `After ${abandonDays} days without a reply, an application is marked Abandoned. A reply reopens it.`
+                ? t(
+                    "After {days} days without a reply, an application is marked Abandoned. A reply reopens it.",
+                    { days: abandonDays },
+                  )
                 : undefined
             }
           >
             <Body
               query={today}
-              what="follow-ups"
-              skeleton={<RowsSkeleton title="Follow-ups due" />}
+              what={t("follow-ups")}
+              skeleton={<RowsSkeleton title={t("Follow-ups due")} />}
             >
               {(data) => (
                 <FollowUps today={data} timezone={timezone} now={now} followUpDays={followUpDays} />
@@ -781,35 +811,37 @@ export function TodayPage() {
           </Section>
 
           <Section
-            title="Needs your review"
+            title={t("Needs your review")}
             count={today.data?.review.open}
             action={
               <Link component={RouterLink} to="/review" sx={linkSx}>
-                Open review queue
+                {t("Open review queue")}
               </Link>
             }
           >
             <Body
               query={today}
-              what="what needs review"
-              skeleton={<RowsSkeleton title="Needs your review" />}
+              what={t("what needs review")}
+              skeleton={<RowsSkeleton title={t("Needs your review")} />}
             >
               {(data) => <ReviewList today={data} timezone={timezone} />}
             </Body>
           </Section>
 
           <Section
-            title="Top new leads"
+            title={t("Top new leads")}
             action={
               <Link component={RouterLink} to="/leads" sx={linkSx}>
-                {newLeads === undefined ? "See all new leads" : `See all ${newLeads}`}
+                {newLeads === undefined
+                  ? t("See all new leads")
+                  : t("See all {count}", { count: newLeads })}
               </Link>
             }
           >
             <Body
               query={today}
-              what="new leads"
-              skeleton={<RowsSkeleton title="Top new leads" rows={3} />}
+              what={t("new leads")}
+              skeleton={<RowsSkeleton title={t("Top new leads")} rows={3} />}
             >
               {(data) => (
                 <TopLeads today={data} timezone={timezone} now={now} settings={settings.data} />
@@ -820,17 +852,17 @@ export function TodayPage() {
 
         <Box component="aside" sx={{ flex: "1 1 320px", minWidth: 0 }}>
           <Section
-            title="Next 7 days"
+            title={t("Next 7 days")}
             action={
               <Link component={RouterLink} to="/interviews" sx={linkSx}>
-                All interviews
+                {t("All interviews")}
               </Link>
             }
           >
             <Body
               query={today}
-              what="interviews"
-              skeleton={<RowsSkeleton title="Next 7 days" rows={3} />}
+              what={t("interviews")}
+              skeleton={<RowsSkeleton title={t("Next 7 days")} rows={3} />}
             >
               {(data) => <Agenda today={data} timezone={timezone} />}
             </Body>

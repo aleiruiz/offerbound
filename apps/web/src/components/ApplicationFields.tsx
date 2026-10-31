@@ -1,13 +1,14 @@
 import TextField from "@mui/material/TextField";
 import { isHttpUrl } from "../lib/url";
+import { msg, t } from "../i18n";
 
-export const REQUIRED_COMPANY = "Enter the company name";
-export const REQUIRED_ROLE = "Enter the role";
-export const BAD_LINK = "Enter a link that starts with http or https";
+export const REQUIRED_COMPANY = msg("Enter the company name");
+export const REQUIRED_ROLE = msg("Enter the role");
+export const BAD_LINK = msg("Enter a link that starts with http or https");
 
 /** The error for a job link field, or null when it is empty or an http(s) address. */
 export function jobLinkError(link: string): string | null {
-  return link.trim() !== "" && !isHttpUrl(link.trim()) ? BAD_LINK : null;
+  return link.trim() !== "" && !isHttpUrl(link.trim()) ? t(BAD_LINK) : null;
 }
 
 export interface CoreValues {
@@ -33,7 +34,7 @@ export function CoreFields({
   return (
     <>
       <TextField
-        label="Company"
+        label={t("Company")}
         value={values.company}
         onChange={(e) => onChange({ company: e.target.value })}
         error={Boolean(errors.companyName)}
@@ -43,7 +44,7 @@ export function CoreFields({
         slotProps={{ htmlInput: { "aria-required": true } }}
       />
       <TextField
-        label="Role"
+        label={t("Role")}
         value={values.role}
         onChange={(e) => onChange({ role: e.target.value })}
         error={Boolean(errors.title)}
@@ -52,7 +53,7 @@ export function CoreFields({
         slotProps={{ htmlInput: { "aria-required": true } }}
       />
       <TextField
-        label="Job link"
+        label={t("Job link")}
         type="url"
         value={values.jobUrl}
         onChange={(e) => onChange({ jobUrl: e.target.value })}

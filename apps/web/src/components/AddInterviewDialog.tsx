@@ -32,6 +32,7 @@ import { INTERVIEW_KIND } from "./InterviewRow";
 import { ErrorState } from "./States";
 import { STATUS_LABEL } from "./StatusChip";
 import { useUndoSnackbar } from "./UndoSnackbar";
+import { msg, t } from "../i18n";
 
 const TITLE_ID = "add-interview-title";
 const SEARCH_DEBOUNCE_MS = 300;
@@ -48,7 +49,7 @@ type Field =
   | "notes";
 type FieldErrors = Partial<Record<Field, string>>;
 
-const PICK_APPLICATION = "Pick the application this interview is for";
+const PICK_APPLICATION = msg("Pick the application this interview is for");
 
 /**
  * The API names fields as the request body does; the dialog names them as it shows them. A server
@@ -127,7 +128,7 @@ function Form({
   const create = useCreateInterview({
     onSuccess: (_interview, { applicationId }) => {
       const name = application?.id === applicationId ? application.company.name : null;
-      snackbar.show(name ? `Added interview for ${name}` : "Added interview");
+      snackbar.show(name ? t("Added interview for {name}", { name }) : t("Added interview"));
       onClose();
     },
     onError: (error) => {
@@ -146,28 +147,28 @@ function Form({
     e.preventDefault();
     setFieldsShown(false);
     const next: FieldErrors = {};
-    if (application === null) next.application = PICK_APPLICATION;
+    if (application === null) next.application = t(PICK_APPLICATION);
 
     // Times are typed in the owner's zone; a date with no start time, or the reverse, is unfinished.
     const link = meetingUrl.trim();
     const linkError = jobLinkError(link);
-    if (linkError) next.meetingUrl = BAD_LINK;
+    if (linkError) next.meetingUrl = t(BAD_LINK);
     let startsAt: string | null = null;
     let endsAt: string | null = null;
     if (date === "" && startTime === "" && endTime === "") {
       // no time yet: the interview is waiting to be scheduled
     } else if (startTime === "") {
-      next.startTime = "Enter the start time";
+      next.startTime = t("Enter the start time");
     } else if (date === "") {
-      next.date = "Pick the date";
+      next.date = t("Pick the date");
     } else {
       startsAt = localTimeIso(date, startTime, timezone);
-      if (startsAt === null) next.date = "Enter a valid date";
+      if (startsAt === null) next.date = t("Enter a valid date");
       if (endTime !== "") {
         endsAt = localTimeIso(date, endTime, timezone);
-        if (endsAt === null) next.endTime = "Enter a valid time";
+        if (endsAt === null) next.endTime = t("Enter a valid time");
         else if (startsAt !== null && Date.parse(endsAt) <= Date.parse(startsAt)) {
-          next.endTime = "The end must be after the start";
+          next.endTime = t("The end must be after the start");
         }
       }
     }
@@ -186,7 +187,7 @@ function Form({
     };
     const parsed = InterviewCreateSchema.safeParse(body);
     if (!parsed.success) {
-      setErrors({ application: "Check the details and try again" });
+      setErrors({ application: t("Check the details and try again") });
       return;
     }
     create.mutate({ applicationId: application.id, body: parsed.data });
@@ -194,45 +195,45 @@ function Form({
 
   return (
     <Box component="form" noValidate onSubmit={submit} sx={{ display: "contents" }}>
-      <DialogTitle id={TITLE_ID}>Add interview</DialogTitle>
+      <DialogTitle id={TITLE_ID}>{t("Add interview")}</DialogTitle>
       <DialogContent
         sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}
       >
         {create.isError && !fieldsShown ? (
           <Alert severity="error">
-            {`Couldn't add the interview. ${create.error instanceof ApiClientError ? create.error.message : "Check your connection and try again."}`}
+            {`${t("Couldn't add the interview.")} ${create.error instanceof ApiClientError ? t(create.error.message) : t("Check your connection and try again.")}`}
           </Alert>
         ) : null}
 
         <FormControl component="fieldset" error={Boolean(errors.application)} sx={{ gap: 1 }}>
           <FormLabel component="legend" sx={{ fontSize: 13, fontWeight: 600 }}>
-            Which application is it for?
+            {t("Which application is it for?")}
           </FormLabel>
           <TextField
-            label="Find an application"
+            label={t("Find an application")}
             type="search"
-            placeholder="Company or role"
+            placeholder={t("Company or role")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             fullWidth
           />
           {applications.isError ? (
             <ErrorState
-              what="applications"
+              what={t("applications")}
               error={applications.error}
               onRetry={() => void applications.refetch()}
             />
           ) : applications.isPending ? (
             <Typography variant="body2" color="text.secondary" role="status">
-              Loading applications
+              {t("Loading applications")}
             </Typography>
           ) : candidates.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              {q === "" ? "No applications yet. Add one first." : "No application matches."}
+              {q === "" ? t("No applications yet. Add one first.") : t("No application matches.")}
             </Typography>
           ) : (
             <RadioGroup
-              aria-label="Application"
+              aria-label={t("Application")}
               value={application?.id ?? ""}
               onChange={(e) => {
                 setApplication(candidates.find((a) => a.id === e.target.value) ?? null);
@@ -263,7 +264,7 @@ function Form({
 
         <TextField
           select
-          label="Kind of interview"
+          label={t("Kind of interview")}
           value={kind}
           onChange={(e) => setKind(InterviewKindSchema.parse(e.target.value))}
           error={Boolean(errors.kind)}
@@ -279,7 +280,7 @@ function Form({
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
           <TextField
-            label="Date"
+            label={t("Date")}
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -289,7 +290,7 @@ function Form({
             sx={{ flex: "1 1 160px" }}
           />
           <TextField
-            label="Start time"
+            label={t("Start time")}
             type="time"
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
@@ -299,7 +300,7 @@ function Form({
             sx={{ flex: "1 1 120px" }}
           />
           <TextField
-            label="End time"
+            label={t("End time")}
             type="time"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
@@ -310,19 +311,19 @@ function Form({
           />
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
-          Leave the date and times empty if you haven't picked a time yet.
+          {t("Leave the date and times empty if you haven't picked a time yet.")}
         </Typography>
 
         <TextField
-          label="Interviewers"
+          label={t("Interviewers")}
           value={interviewers}
           onChange={(e) => setInterviewers(e.target.value)}
           error={Boolean(errors.interviewers)}
-          helperText={errors.interviewers ?? "Separate names with commas"}
+          helperText={errors.interviewers ?? t("Separate names with commas")}
           fullWidth
         />
         <TextField
-          label="Call link"
+          label={t("Call link")}
           type="url"
           value={meetingUrl}
           onChange={(e) => setMeetingUrl(e.target.value)}
@@ -331,7 +332,7 @@ function Form({
           fullWidth
         />
         <TextField
-          label="Location"
+          label={t("Location")}
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           error={Boolean(errors.location)}
@@ -339,7 +340,7 @@ function Form({
           fullWidth
         />
         <TextField
-          label="Prep notes"
+          label={t("Prep notes")}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           error={Boolean(errors.notes)}
@@ -351,10 +352,10 @@ function Form({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={create.isPending}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" variant="contained" disabled={create.isPending}>
-          Add interview
+          {t("Add interview")}
         </Button>
       </DialogActions>
     </Box>

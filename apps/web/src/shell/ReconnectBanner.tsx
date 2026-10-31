@@ -4,6 +4,7 @@ import Typography from "@mui/material/Typography";
 import { useSyncStatus } from "../api/hooks";
 import { GOOGLE_START_PATH } from "../api/paths";
 import { DemoLock, useIsDemo } from "../lib/demo";
+import { t } from "../i18n";
 
 /**
  * The warning under the top bar on every page when Google stopped Offerbound's access
@@ -18,8 +19,8 @@ export function ReconnectBanner() {
 
   const reason =
     connection === "missing_scope"
-      ? "Offerbound doesn't have permission to read your email, so new email isn't being read."
-      : "Google stopped Offerbound's access, so new email isn't being read.";
+      ? t("Offerbound doesn't have permission to read your email, so new email isn't being read.")
+      : t("Google stopped Offerbound's access, so new email isn't being read.");
 
   return (
     <Alert
@@ -30,7 +31,7 @@ export function ReconnectBanner() {
         demo ? (
           <DemoLock reason="gmail">
             <Button variant="outlined" color="warning" size="small">
-              Reconnect Gmail
+              {t("Reconnect Gmail")}
             </Button>
           </DemoLock>
         ) : (
@@ -41,16 +42,16 @@ export function ReconnectBanner() {
             color="warning"
             size="small"
           >
-            Reconnect Gmail
+            {t("Reconnect Gmail")}
           </Button>
         )
       }
     >
       <Typography variant="body2" component="p">
         <Typography component="span" variant="body2" sx={{ fontWeight: 700 }}>
-          Gmail needs reconnecting.
+          {t("Gmail needs reconnecting.")}
         </Typography>{" "}
-        {reason} Your records are safe.
+        {reason} {t("Your records are safe.")}
       </Typography>
     </Alert>
   );
