@@ -70,23 +70,29 @@ function fetcher(pages: Record<string, { status: number; body?: string }>) {
 const OPEN_PAGE = "<h1>Senior Backend Engineer</h1><p>Apply now.</p>";
 
 describe("leads.recheck", () => {
-  it("dismisses an open lead whose posting is gone, and keeps the others up to date", async () => {
+  it("dismisses a New lead whose posting is gone, and keeps the others up to date", async () => {
     const gone = await seedLead("Gone");
-    const shortlisted = await seedLead("Shortlisted", { status: "shortlisted" });
+    const closed = await seedLead("Closed");
     const alive = await seedLead("Alive");
-    const shell = await seedLead("Shell");
+    const shellVerified = await seedLead("ShellVerified");
+    const shellUnverified = await seedLead("ShellUnverified", { verification: "unverified" });
+    const nowVerified = await seedLead("NowVerified", { verification: "unverified" });
+    const offline = await seedLead("Offline");
+    const shell = "<h1>Careers</h1><p>Search our open roles.</p>";
     const { fetch } = fetcher({
       Gone: { status: 404 },
-      Shortlisted: { status: 200, body: "<p>This job is no longer available.</p>" },
+      Closed: { status: 200, body: "<p>This job is no longer available.</p>" },
       Alive: { status: 200, body: OPEN_PAGE },
-      Shell: { status: 200, body: "<h1>Careers</h1><p>Search our open roles.</p>" },
+      ShellVerified: { status: 200, body: shell },
+      ShellUnverified: { status: 200, body: shell },
+      NowVerified: { status: 200, body: OPEN_PAGE },
     });
     const ctx = testWorkerCtx({ clock: () => NOW, fetchLink: fetch });
 
-    expect(await runLeadsRecheck(ctx)).toEqual({ checked: 4, closed: 2, expired: 0 });
+    expect(await runLeadsRecheck(ctx)).toEqual({ checked: 7, closed: 2, expired: 0 });
 
     const rows = new Map((await prisma.lead.findMany()).map((lead) => [lead.id, lead] as const));
-    for (const id of [gone.id, shortlisted.id]) {
+    for (const id of [gone.id, closed.id]) {
       expect(rows.get(id)).toMatchObject({
         status: "dismissed",
         dismissedReason: "posting_closed",
@@ -94,14 +100,36 @@ describe("leads.recheck", () => {
         version: 2,
       });
     }
+    // Nothing the owner sees changed: the version stays, so an open tab is not stale.
     expect(rows.get(alive.id)).toMatchObject({
       status: "new",
       verification: "verified",
       verifiedAt: NOW,
+      version: 1,
     });
     expect(rows.get(alive.id)?.pageExcerpt).toContain("Senior Backend Engineer");
-    // The page answered, but not with this job: no longer shown as verified.
-    expect(rows.get(shell.id)).toMatchObject({ status: "new", verification: "unverified" });
+    // A check that only fails to confirm a verified lead does not demote it.
+    for (const id of [shellVerified.id, offline.id]) {
+      expect(rows.get(id)).toMatchObject({ status: "new", verification: "verified", version: 1 });
+    }
+    expect(rows.get(shellUnverified.id)).toMatchObject({
+      verification: "unverified",
+      verifiedAt: NOW,
+      version: 1,
+    });
+    expect(rows.get(nowVerified.id)).toMatchObject({ verification: "verified", version: 2 });
+  });
+
+  it("leaves Shortlisted leads to the owner", async () => {
+    const lead = await seedLead("Shortlisted", { status: "shortlisted" });
+    const { fetch, requested } = fetcher({ Shortlisted: { status: 404 } });
+    const ctx = testWorkerCtx({ clock: () => NOW, fetchLink: fetch });
+
+    expect(await runLeadsRecheck(ctx)).toEqual({ checked: 0, closed: 0, expired: 0 });
+    expect(requested).toEqual([]);
+    expect(await prisma.lead.findUniqueOrThrow({ where: { id: lead.id } })).toMatchObject({
+      status: "shortlisted",
+    });
   });
 
   it("leaves alone leads checked recently, dismissed leads, LinkedIn leads and leads still in intake", async () => {
@@ -141,12 +169,13 @@ describe("leads.recheck", () => {
     });
   });
 
-  it("dismisses New leads that cannot be confirmed open once they are 30 days old", async () => {
+  it("dismisses New leads that cannot be confirmed open once they were found 30 days ago", async () => {
     const oldAlert = await seedLead("Old alert", {
       verification: "unverifiable",
       jobUrl: "https://www.linkedin.com/jobs/view/1",
       createdAt: daysAgo(45),
     });
+    // Posted long ago but found recently: the owner has not had 30 days with it.
     const oldPosting = await seedLead("Old posting", {
       verification: "unverifiable",
       jobUrl: null,
@@ -175,14 +204,13 @@ describe("leads.recheck", () => {
     });
     const ctx = testWorkerCtx({ clock: () => NOW, fetchLink: fetcher({}).fetch });
 
-    expect(await runLeadsRecheck(ctx)).toEqual({ checked: 0, closed: 0, expired: 2 });
+    expect(await runLeadsRecheck(ctx)).toEqual({ checked: 0, closed: 0, expired: 1 });
 
     const status = new Map(
       (await prisma.lead.findMany()).map((l) => [l.id, [l.status, l.dismissedReason]] as const),
     );
     expect(status.get(oldAlert.id)).toEqual(["dismissed", "expired"]);
-    expect(status.get(oldPosting.id)).toEqual(["dismissed", "expired"]);
-    for (const lead of [youngAlert, verifiedOld, reconsidered]) {
+    for (const lead of [oldPosting, youngAlert, verifiedOld, reconsidered]) {
       expect(status.get(lead.id)).toEqual(["new", null]);
     }
     expect(status.get(shortlisted.id)).toEqual(["shortlisted", null]);

@@ -45,8 +45,15 @@ describe("demoReadOnlyGuard", () => {
     expect(await run("PATCH", url, undefined)).toBe("403 demo_read_only");
   });
 
-  it("allows a lead to be dismissed without a reason, not with one", async () => {
+  it("allows a lead to be dismissed without a reason or as no longer available, not with text", async () => {
     const url = "/api/v1/leads/:id";
+    expect(
+      await run("PATCH", url, {
+        version: 1,
+        status: "dismissed",
+        dismissedReason: "posting_closed",
+      }),
+    ).toBe("passed");
     expect(await run("PATCH", url, { version: 1, status: "dismissed" })).toBe("passed");
     expect(await run("PATCH", url, { version: 1, status: "dismissed", dismissedReason: "" })).toBe(
       "passed",

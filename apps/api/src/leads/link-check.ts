@@ -85,7 +85,7 @@ function isLinkedIn(url: URL): boolean {
 function isBoardRoot(url: URL): boolean {
   if (!BOARD_HOSTS.has(url.hostname)) return false;
   // Greenhouse sends a closed posting to the board with `?error=true`, whatever the path.
-  if (url.searchParams.has("error")) return true;
+  if (url.hostname.includes("greenhouse.io") && url.searchParams.has("error")) return true;
   if (url.pathname.split("/").filter((segment) => segment !== "").length > 1) return false;
   for (const name of url.searchParams.keys()) if (!isHarmlessParam(name)) return false;
   return true;

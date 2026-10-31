@@ -23,20 +23,20 @@ export const DISMISSED_EXPIRED = "expired";
 
 export type RecheckResult = { checked: number; closed: number; expired: number };
 
-const OPEN = ["new", "shortlisted"] as const;
-
 /**
- * `leads.recheck`, daily: keeps the open leads honest about their postings.
+ * `leads.recheck`, daily: keeps the New leads honest about their postings. Shortlisted leads are
+ * the owner's picks and are left to the owner.
  *
- * 1. Every New or Shortlisted lead with a link that can be fetched is checked again once a day.
- *    A posting that is gone is dismissed with the reason `posting_closed`; any other verdict
- *    replaces the stored one, so a lead never keeps saying "verified" about a page that no longer
- *    shows the job.
- * 2. A New lead that is not verified and is older than {@link STALE_AFTER_DAYS} days (by its
- *    posting date, else the date it was found) is dismissed with the reason `expired`. This is
- *    what retires old LinkedIn alert leads, which cannot be fetched. A lead the owner has already
- *    moved (shortlisted, or brought back with *Reconsider*) is left alone: its status changed
- *    after it was created.
+ * 1. Every New lead with a link that can be fetched is checked again once a day. A posting that
+ *    is gone is dismissed with the reason `posting_closed`. A lead that was verified stays
+ *    verified when a check only fails to confirm it (a timeout, a 403, a page that does not show
+ *    the title), so one bad fetch never demotes it. Other verdicts replace the stored one.
+ *    Only a change the owner can see (status or verification) moves the lead's `version`; the
+ *    check time and page text are bookkeeping, so an open tab does not go stale overnight.
+ * 2. A New lead that is not verified and was found more than {@link STALE_AFTER_DAYS} days ago is
+ *    dismissed with the reason `expired`. This is what retires old LinkedIn alert leads, which
+ *    cannot be fetched. A lead the owner has already moved (brought back with *Reconsider*, say)
+ *    is left alone: its status changed after it was created.
  *
  * Every write carries the version that was read, so a lead the owner changed in the meantime is
  * skipped until the next run. The owner can bring any of these back from the Dismissed tab.
@@ -48,7 +48,7 @@ export async function runLeadsRecheck(ctx: WorkerCtx): Promise<RecheckResult> {
 
   const due = await ctx.prisma.lead.findMany({
     where: {
-      status: { in: [...OPEN] },
+      status: "new",
       pipelineState: "ready",
       jobUrl: { not: null },
       verification: { not: "unverifiable" },
@@ -57,7 +57,7 @@ export async function runLeadsRecheck(ctx: WorkerCtx): Promise<RecheckResult> {
         { verifiedAt: { lt: new Date(now.getTime() - RECHECK_AFTER_MS) } },
       ],
     },
-    select: { id: true, version: true, jobUrl: true, title: true },
+    select: { id: true, version: true, jobUrl: true, title: true, verification: true },
     orderBy: [{ verifiedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }],
     take: RECHECK_BATCH,
   });
@@ -65,23 +65,33 @@ export async function runLeadsRecheck(ctx: WorkerCtx): Promise<RecheckResult> {
   await mapLimit(due, RECHECK_CONCURRENCY, async (lead) => {
     const link = await checkLink(lead.jobUrl as string, ctx.fetchLink, { title: lead.title });
     const checkedAt = ctx.clock();
-    const data: Prisma.LeadUpdateManyMutationInput =
-      link.verdict === "dead"
-        ? {
-            status: "dismissed",
-            dismissedReason: DISMISSED_POSTING_CLOSED,
-            statusChangedAt: checkedAt,
-            verifiedAt: checkedAt,
-          }
-        : {
-            verification: link.verdict,
-            verifiedAt: checkedAt,
-            ...(link.verdict === "verified" ? { pageExcerpt: link.pageExcerpt } : {}),
-          };
+    let data: Prisma.LeadUpdateManyMutationInput;
+    if (link.verdict === "dead") {
+      data = {
+        status: "dismissed",
+        dismissedReason: DISMISSED_POSTING_CLOSED,
+        statusChangedAt: checkedAt,
+        verifiedAt: checkedAt,
+        updatedAt: checkedAt,
+        version: { increment: 1 },
+      };
+    } else {
+      const verification =
+        link.verdict === "unverified" && lead.verification === "verified"
+          ? "verified"
+          : link.verdict;
+      data = {
+        verifiedAt: checkedAt,
+        ...(link.verdict === "verified" ? { pageExcerpt: link.pageExcerpt } : {}),
+        ...(verification === lead.verification
+          ? {}
+          : { verification, updatedAt: checkedAt, version: { increment: 1 } }),
+      };
+    }
     const { count } = await withIntakeLock(ctx.prisma, (tx) =>
       tx.lead.updateMany({
-        where: { id: lead.id, version: lead.version, status: { in: [...OPEN] } },
-        data: { ...data, updatedAt: checkedAt, version: { increment: 1 } },
+        where: { id: lead.id, version: lead.version, status: "new" },
+        data,
       }),
     );
     if (count === 0) return;
@@ -95,7 +105,7 @@ export async function runLeadsRecheck(ctx: WorkerCtx): Promise<RecheckResult> {
       status: "new",
       pipelineState: "ready",
       verification: { not: "verified" },
-      OR: [{ postedAt: { lt: cutoff } }, { postedAt: null, foundAt: { lt: cutoff } }],
+      foundAt: { lt: cutoff },
     },
     select: { id: true, version: true, createdAt: true, statusChangedAt: true },
   });
